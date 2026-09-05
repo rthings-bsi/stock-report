@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary-banner: #064e3b;
+    --primary-header: #047857;
+    --card-radius: 6px;
+  }
+
+  body {
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+}
+
+/* Modern Clean Backgrounds (Zero noise / No dotted clutter) */
+
+/* 1. Clean Slate (Default) - Crisp Apple/Linear style neutral */
+body.bg-theme-clean-slate,
+body {
+  background-color: #f8fafc;
+  background-image: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 180px);
+  background-repeat: no-repeat;
+}
+
+/* 2. Soft Ambient Sheen - Ultra-subtle corporate depth */
+body.bg-theme-soft-ambient {
+  background-color: #f8fafc;
+  background-image: radial-gradient(at 50% 0%, rgba(6, 78, 59, 0.04) 0px, transparent 600px);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* 3. Pure Porcelain White */
+body.bg-theme-pure-white {
+  background-color: #ffffff;
+  background-image: none;
+}
+
+/* 4. Industrial Cool Grey */
+body.bg-theme-cool-grey {
+  background-color: #f1f5f9;
+  background-image: none;
+}
+
+.theme-banner {
+  background-color: var(--primary-banner) !important;
+}
+
+.theme-header-bg {
+  background-color: var(--primary-header) !important;
+}
+
+.theme-card-rounded {
+  border-radius: var(--card-radius) !important;
+}
+
+/* 60-30-10 Palette Utilities */
+.bg-canvas {
+  background-color: #f8fafc;
+}
+
+/* Subtle clean scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+}
