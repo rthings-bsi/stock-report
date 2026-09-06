@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -62,6 +62,22 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
 }) => {
   const [items, setItems] = useState<DamagedPackagingItem[]>(data);
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    try {
+      const saved = localStorage.getItem('spindo_layout_damaged_pkg');
+      if (saved) setCards(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    try {
+      localStorage.setItem('spindo_layout_damaged_pkg', JSON.stringify(cards));
+    } catch {}
+  }, [cards, isMounted]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('ALL');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
