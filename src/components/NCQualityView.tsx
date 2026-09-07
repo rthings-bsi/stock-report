@@ -3,14 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
+  registerables
 } from 'chart.js';
 import { Chart } from 'react-chartjs-2';
 import { PipeNCWarehouse, PipeNCItem } from '../types/warehouse';
@@ -18,16 +11,7 @@ import { formatTon, formatPercent } from '@/lib/utils';
 import { ShieldAlert, Table2, ListOrdered, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
-);
+ChartJS.register(...registerables);
 
 interface NCQualityViewProps {
   ncWarehouseData: PipeNCWarehouse[];

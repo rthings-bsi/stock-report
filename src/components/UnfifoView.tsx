@@ -3,12 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
+  registerables
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { UnfifoCoilItem, UnfifoPipeItem } from '../types/warehouse';
@@ -16,14 +11,7 @@ import { Layers, Disc, ChevronLeft, ChevronRight, Table2, Info } from 'lucide-re
 import { formatTon, formatQty } from '@/lib/utils';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-);
+ChartJS.register(...registerables);
 
 interface UnfifoViewProps {
   coilData?: UnfifoCoilItem[];

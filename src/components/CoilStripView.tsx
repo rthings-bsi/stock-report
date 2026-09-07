@@ -3,12 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
+  registerables
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { CoilStripArea } from '../types/warehouse';
@@ -16,14 +11,7 @@ import { formatTon, formatPercent, formatQty } from '@/lib/utils';
 import { Disc, Table2, Layers } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-);
+ChartJS.register(...registerables);
 
 interface CoilStripViewProps {
   data: CoilStripArea[];

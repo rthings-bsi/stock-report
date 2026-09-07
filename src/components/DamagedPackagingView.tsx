@@ -3,18 +3,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement
+  registerables
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { DamagedPackagingItem } from '../types/warehouse';
 import { readExcelFile } from '@/lib/parser';
 import { parseDamagedPackagingFile } from '@/lib/parseDamagedPackaging';
+import { formatTon, formatQty } from '@/lib/utils';
 import {
   PackageX,
   Table2,
@@ -29,15 +24,7 @@ import {
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement
-);
+ChartJS.register(...registerables);
 
 interface DamagedPackagingViewProps {
   data?: DamagedPackagingItem[];

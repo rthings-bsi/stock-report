@@ -3,13 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
+  registerables
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { FastSlowPipe } from '../types/warehouse';
@@ -17,15 +11,7 @@ import { formatTon, formatPercent } from '@/lib/utils';
 import { Clock, Layers, PieChart, Table2, ListOrdered } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
-);
+ChartJS.register(...registerables);
 
 interface FastSlowViewProps {
   data: FastSlowPipe[];

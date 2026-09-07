@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import '@/lib/chartSetup';
 import {
   Layers,
   Clock,
@@ -16,6 +16,13 @@ import {
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { MetricCard } from '@/components/MetricCard';
+import { PipeCapacityView } from '@/components/PipeCapacityView';
+import { FastSlowView } from '@/components/FastSlowView';
+import { CoilStripView } from '@/components/CoilStripView';
+import { NCQualityView } from '@/components/NCQualityView';
+import { LooFulfillmentView } from '@/components/LooFulfillmentView';
+import { UnfifoView } from '@/components/UnfifoView';
+import { DamagedPackagingView } from '@/components/DamagedPackagingView';
 import { UploadModal } from '@/components/UploadModal';
 import {
   initialPipeCapacityData,
@@ -44,15 +51,6 @@ import { ParsedWarehouseState } from '@/lib/parser';
 import { cn, formatTon, formatPercent } from '@/lib/utils';
 import { UIThemeConfig, DEFAULT_UI_THEME, COLOR_PRESETS, RADIUS_PRESETS } from '@/types/theme';
 import { UIThemeModal } from '@/components/UIThemeModal';
-
-// Dynamic import with SSR disabled for Chart.js components to prevent browser canvas crash on SSR
-const PipeCapacityView = dynamic(() => import('@/components/PipeCapacityView').then(m => m.PipeCapacityView), { ssr: false });
-const FastSlowView = dynamic(() => import('@/components/FastSlowView').then(m => m.FastSlowView), { ssr: false });
-const CoilStripView = dynamic(() => import('@/components/CoilStripView').then(m => m.CoilStripView), { ssr: false });
-const NCQualityView = dynamic(() => import('@/components/NCQualityView').then(m => m.NCQualityView), { ssr: false });
-const LooFulfillmentView = dynamic(() => import('@/components/LooFulfillmentView').then(m => m.LooFulfillmentView), { ssr: false });
-const UnfifoView = dynamic(() => import('@/components/UnfifoView').then(m => m.UnfifoView), { ssr: false });
-const DamagedPackagingView = dynamic(() => import('@/components/DamagedPackagingView').then(m => m.DamagedPackagingView), { ssr: false });
 
 export default function Home() {
   // State for all warehouse data sets
