@@ -9,7 +9,7 @@ import {
   ArrowRight,
   AlertCircle
 } from 'lucide-react';
-import { UserSession, PRESET_ACCOUNTS } from '@/types/auth';
+import { UserSession, StoredAccount, PRESET_ACCOUNTS } from '@/types/auth';
 
 interface LoginPageProps {
   onLogin: (session: UserSession) => void;
