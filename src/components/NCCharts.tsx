@@ -31,7 +31,7 @@ export const NCGradeDonut: React.FC<NCGradeDonutProps> = ({
         <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
           Distribusi Mutu Produk Pipa
         </h4>
-        <p className="text-[11px] text-slate-500 font-medium">PRIME vs Non-Conforming (Grade E / C)</p>
+        <p className="text-[11px] text-slate-500 font-medium">PRIME vs Non Conformity (Grade E / C)</p>
       </div>
 
       <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-4">

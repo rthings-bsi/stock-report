@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { Upload, FileSpreadsheet, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { readExcelFile, parseExcelFiles, ParsedWarehouseState } from '../lib/parser';
 import { parseDamagedPackagingFile } from '../lib/parseDamagedPackaging';
+import { parseIncomingPackagingFile } from '../lib/parseIncomingPackaging';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [coilFile, setCoilFile] = useState<File | null>(null);
   const [looFile, setLooFile] = useState<File | null>(null);
   const [packagingFile, setPackagingFile] = useState<File | null>(null);
+  const [incomingFile, setIncomingFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -27,11 +29,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const coilInputRef = useRef<HTMLInputElement>(null);
   const looInputRef = useRef<HTMLInputElement>(null);
   const packagingInputRef = useRef<HTMLInputElement>(null);
+  const incomingInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
   const handleProcessFiles = async () => {
-    if (!pipeFile && !coilFile && !looFile && !packagingFile) {
+    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile) {
       setErrorMsg('Silakan pilih minimal satu file spreadsheet export SAP (.xlsx / .xls).');
       return;
     }
@@ -44,15 +47,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       let coilRows: Record<string, unknown>[] = [];
       let looRows: Record<string, unknown>[] = [];
       let packagingRows: Record<string, unknown>[] = [];
+      let incomingRows: Record<string, unknown>[] = [];
 
       if (pipeFile) pipeRows = await readExcelFile(pipeFile);
       if (coilFile) coilRows = await readExcelFile(coilFile);
       if (looFile) looRows = await readExcelFile(looFile);
       if (packagingFile) packagingRows = await readExcelFile(packagingFile);
+      if (incomingFile) incomingRows = await readExcelFile(incomingFile);
 
       const parsedResult = parseExcelFiles(pipeRows, coilRows, looRows);
       if (packagingFile && packagingRows.length > 0) {
         parsedResult.damagedPackagingData = parseDamagedPackagingFile(packagingRows);
+      }
+      if (incomingFile && incomingRows.length > 0) {
+        parsedResult.incomingPackagingData = parseIncomingPackagingFile(incomingRows);
       }
       onDataParsed(parsedResult);
       onClose();
@@ -230,6 +238,40 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* 5. Data Incoming & Mutasi Packaging (RTP) */}
+          <div className="rounded-md border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded bg-emerald-100 text-emerald-800">
+                  <FileSpreadsheet className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-900">Data Incoming &amp; Mutasi Packaging (RTP)</span>
+                </div>
+              </div>
+              <input
+                ref={incomingInputRef}
+                type="file"
+                accept=".xlsx, .xls, .csv, .txt, .tsv"
+                className="hidden"
+                onChange={(e) => setIncomingFile(e.target.files?.[0] || null)}
+              />
+              <button
+                type="button"
+                onClick={() => incomingInputRef.current?.click()}
+                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                {incomingFile ? 'Ganti File' : 'Pilih File'}
+              </button>
+            </div>
+            {incomingFile && (
+              <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-emerald-800">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <span className="truncate">{incomingFile.name} ({(incomingFile.size / 1024).toFixed(0)} KB)</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Modal Footer */}
@@ -243,7 +285,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           </button>
           <button
             type="button"
-            disabled={isLoading || (!pipeFile && !coilFile && !looFile)}
+            disabled={isLoading || (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile)}
             onClick={handleProcessFiles}
             className="flex items-center gap-2 rounded-lg bg-emerald-800 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 disabled:opacity-50 transition-all cursor-pointer"
           >

@@ -41,7 +41,120 @@ db.exec(`
     summary TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'staff',
+    department TEXT,
+    unit TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    color TEXT DEFAULT 'slate',
+    is_system INTEGER DEFAULT 0,
+    permissions TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
+
+// Seed default roles if roles table is empty
+try {
+  const roleCount = db.prepare('SELECT COUNT(*) as count FROM roles').get() as { count: number };
+  if (roleCount.count === 0) {
+    const insertRole = db.prepare(`
+      INSERT INTO roles (key, name, description, color, is_system, permissions)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    const adminPerms = JSON.stringify({
+      viewCapacity: true,
+      viewFastSlow: true,
+      viewCoilStrip: true,
+      viewNC: true,
+      viewUnfifo: true,
+      viewLoo: true,
+      viewDamagedPkg: true,
+      viewIncomingPkg: true,
+      viewUserManagement: true,
+      canUploadSAP: true,
+      canEditIncomingPkg: true,
+      canEditDamagedPkg: true,
+      canExportExcel: true,
+      canCustomizeLayout: true,
+      canManageUsers: true,
+      canSaveSnapshot: true
+    });
+
+    const staffPerms = JSON.stringify({
+      viewCapacity: true,
+      viewFastSlow: true,
+      viewCoilStrip: true,
+      viewNC: true,
+      viewUnfifo: true,
+      viewLoo: true,
+      viewDamagedPkg: true,
+      viewIncomingPkg: true,
+      viewUserManagement: false,
+      canUploadSAP: false,
+      canEditIncomingPkg: true,
+      canEditDamagedPkg: false,
+      canExportExcel: true,
+      canCustomizeLayout: false,
+      canManageUsers: false,
+      canSaveSnapshot: false
+    });
+
+    const viewerPerms = JSON.stringify({
+      viewCapacity: true,
+      viewFastSlow: true,
+      viewCoilStrip: true,
+      viewNC: true,
+      viewUnfifo: true,
+      viewLoo: true,
+      viewDamagedPkg: true,
+      viewIncomingPkg: true,
+      viewUserManagement: false,
+      canUploadSAP: false,
+      canEditIncomingPkg: false,
+      canEditDamagedPkg: false,
+      canExportExcel: true,
+      canCustomizeLayout: false,
+      canManageUsers: false,
+      canSaveSnapshot: false
+    });
+
+    insertRole.run('admin', 'Administrator', 'Hak akses penuh: kelola seluruh modul, upload SAP, manajemen user & roles, edit semua data.', 'emerald', 1, adminPerms);
+    insertRole.run('staff', 'Staff Operasional', 'Akses monitoring warehouse dan pencatatan mutasi operasional RTP Incoming Packaging.', 'sky', 1, staffPerms);
+    insertRole.run('viewer', 'Viewer / Auditor', 'Akses pemantauan visual (view-only) tanpa izin modifikasi data atau upload file.', 'slate', 0, viewerPerms);
+  }
+} catch (e) {
+  console.error('Failed to seed default roles:', e);
+}
+
+// Seed default accounts if users table is empty
+try {
+  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
+  if (userCount.count === 0) {
+    const insertUser = db.prepare(`
+      INSERT INTO users (username, password, name, role, department, unit)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    insertUser.run('admin', '123', 'Administrator Warehouse', 'admin', 'Warehouse Section Head', 'Unit 5 - Spindo');
+    insertUser.run('staff', '123', 'Staff Operasional Warehouse', 'staff', 'Warehouse Monitoring Staff', 'Unit 5 - Spindo');
+  }
+} catch (e) {
+  console.error('Failed to seed default users:', e);
+}
 
 // Auto-migration if column not exists
 try {
@@ -49,6 +162,12 @@ try {
 } catch {}
 try {
   db.exec(`ALTER TABLE warehouse_snapshots ADD COLUMN unfifo_pipe_data TEXT;`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE warehouse_snapshots ADD COLUMN damaged_packaging_data TEXT;`);
+} catch {}
+try {
+  db.exec(`ALTER TABLE warehouse_snapshots ADD COLUMN incoming_packaging_data TEXT;`);
 } catch {}
 
 export default db;

@@ -23,22 +23,22 @@ export const WarehouseBarChart: React.FC<WarehouseBarChartProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
         <div>
           <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
-            Visualisasi Utilisasi Kapasitas Per Gudang
+            Visualisasi Kapasitas Terisi Per Gudang
           </h4>
           <p className="text-[11px] text-slate-500 font-medium">Beban tonase aktual terhadap batas aman kapasitas (Line Limit 100%)</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px] font-mono">
           <div className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm bg-emerald-600"></span>
-            <span className="text-slate-600">Normal (&lt;75%)</span>
+            <span className="text-slate-600">Normal (10-80%)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm bg-amber-500"></span>
-            <span className="text-slate-600">Warning (&ge;75%)</span>
+            <span className="text-slate-600">Warning (81-90%)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm bg-red-600"></span>
-            <span className="text-red-700 font-bold">Over (&gt;100%)</span>
+            <span className="text-red-700 font-bold">Kritis (91-100%)</span>
           </div>
         </div>
       </div>
@@ -52,10 +52,10 @@ export const WarehouseBarChart: React.FC<WarehouseBarChartProps> = ({
 
             let barColor = 'bg-emerald-600';
             let textColor = 'text-emerald-800';
-            if (item.isOver || pct > 100) {
+            if (item.isOver || pct > 90) {
               barColor = 'bg-red-600';
               textColor = 'text-red-700';
-            } else if (item.isWarning || pct >= 75) {
+            } else if (item.isWarning || pct > 80) {
               barColor = 'bg-amber-500';
               textColor = 'text-amber-700';
             }

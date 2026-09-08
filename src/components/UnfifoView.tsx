@@ -7,7 +7,7 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { UnfifoCoilItem, UnfifoPipeItem } from '../types/warehouse';
-import { Layers, Disc, ChevronLeft, ChevronRight, Table2, Info } from 'lucide-react';
+import { Layers, Disc, ChevronLeft, ChevronRight, Table2, Info, Pencil, Plus, Check, Trash2, X, AlertTriangle, FileText, CheckCircle2, MessageSquarePlus } from 'lucide-react';
 import { formatTon, formatQty } from '@/lib/utils';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
@@ -51,6 +51,109 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
   const [pipeCards, setPipeCards] = useState<CardState[]>(DEFAULT_PIPE_CARDS);
   const [coilCards, setCoilCards] = useState<CardState[]>(DEFAULT_COIL_CARDS);
   const [isMounted, setIsMounted] = useState(false);
+
+  // Issue Keys & State Management
+  const getPipeKey = (item: UnfifoPipeItem) => `${item.gudang}#${item.kodeMaterial}#${item.batch}#${item.ukuran}`;
+  const getCoilKey = (item: UnfifoCoilItem) => `${item.gudang}#${item.kodeMaterial}#${item.batch}#${item.specification}`;
+
+  const [pipeIssues, setPipeIssues] = useState<Record<string, string>>({});
+  const [coilIssues, setCoilIssues] = useState<Record<string, string>>({});
+
+  const [pipeIssueFilter, setPipeIssueFilter] = useState<'ALL' | 'WITH_ISSUE' | 'NO_ISSUE'>('ALL');
+  const [coilIssueFilter, setCoilIssueFilter] = useState<'ALL' | 'WITH_ISSUE' | 'NO_ISSUE'>('ALL');
+
+  const [activeEditModal, setActiveEditModal] = useState<{
+    type: 'pipe' | 'coil';
+    key: string;
+    gudang: string;
+    material: string;
+    spec: string;
+    customer?: string;
+    batch: string;
+    tonase: number;
+    qty: number;
+    unit: string;
+    incDate: string;
+  } | null>(null);
+
+  const [tempIssueText, setTempIssueText] = useState<string>('');
+
+  useEffect(() => {
+    try {
+      const savedP = localStorage.getItem('spindo_unfifo_pipe_issues');
+      if (savedP) setPipeIssues(JSON.parse(savedP));
+      const savedC = localStorage.getItem('spindo_unfifo_coil_issues');
+      if (savedC) setCoilIssues(JSON.parse(savedC));
+    } catch {}
+  }, []);
+
+  const handleSaveIssue = (type: 'pipe' | 'coil', key: string, text: string) => {
+    if (type === 'pipe') {
+      setPipeIssues((prev) => {
+        const updated = { ...prev };
+        if (text.trim()) {
+          updated[key] = text.trim();
+        } else {
+          delete updated[key];
+        }
+        try {
+          localStorage.setItem('spindo_unfifo_pipe_issues', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    } else {
+      setCoilIssues((prev) => {
+        const updated = { ...prev };
+        if (text.trim()) {
+          updated[key] = text.trim();
+        } else {
+          delete updated[key];
+        }
+        try {
+          localStorage.setItem('spindo_unfifo_coil_issues', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
+    setActiveEditModal(null);
+    setTempIssueText('');
+  };
+
+  const openPipeEdit = (item: UnfifoPipeItem) => {
+    const key = getPipeKey(item);
+    setActiveEditModal({
+      type: 'pipe',
+      key,
+      gudang: item.gudang,
+      material: item.kodeMaterial,
+      spec: item.ukuran,
+      customer: item.customer,
+      batch: item.batch,
+      tonase: item.tonase,
+      qty: item.qtyBtg,
+      unit: 'Btg',
+      incDate: item.incDate
+    });
+    setTempIssueText(pipeIssues[key] || '');
+  };
+
+  const openCoilEdit = (item: UnfifoCoilItem) => {
+    const key = getCoilKey(item);
+    setActiveEditModal({
+      type: 'coil',
+      key,
+      gudang: item.gudang,
+      material: item.kodeMaterial,
+      spec: item.specification,
+      customer: item.manufaktur,
+      batch: item.batch,
+      tonase: item.tonase,
+      qty: item.qtyRoll,
+      unit: 'Roll',
+      incDate: item.incDate
+    });
+    setTempIssueText(coilIssues[key] || '');
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -106,13 +209,39 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
   const sortedPipeData = [...pipeData].sort((a, b) => b.tonase - a.tonase || b.qtyBtg - a.qtyBtg);
   const sortedCoilData = [...coilData].sort((a, b) => b.tonase - a.tonase || b.qtyRoll - a.qtyRoll);
 
-  const filteredPipeData = selectedPipeGudang === 'ALL'
+  const gudangFilteredPipeData = selectedPipeGudang === 'ALL'
     ? sortedPipeData
     : sortedPipeData.filter((d) => d.gudang === selectedPipeGudang);
 
-  const filteredCoilData = selectedCoilGudang === 'ALL'
+  const pipeWithIssueCount = gudangFilteredPipeData.filter((d) => Boolean(pipeIssues[getPipeKey(d)])).length;
+  const pipeNoIssueCount = gudangFilteredPipeData.length - pipeWithIssueCount;
+
+  const filteredPipeData = React.useMemo(() => {
+    if (pipeIssueFilter === 'WITH_ISSUE') {
+      return gudangFilteredPipeData.filter((d) => Boolean(pipeIssues[getPipeKey(d)]));
+    }
+    if (pipeIssueFilter === 'NO_ISSUE') {
+      return gudangFilteredPipeData.filter((d) => !pipeIssues[getPipeKey(d)]);
+    }
+    return gudangFilteredPipeData;
+  }, [gudangFilteredPipeData, pipeIssueFilter, pipeIssues]);
+
+  const gudangFilteredCoilData = selectedCoilGudang === 'ALL'
     ? sortedCoilData
     : sortedCoilData.filter((d) => d.gudang === selectedCoilGudang);
+
+  const coilWithIssueCount = gudangFilteredCoilData.filter((d) => Boolean(coilIssues[getCoilKey(d)])).length;
+  const coilNoIssueCount = gudangFilteredCoilData.length - coilWithIssueCount;
+
+  const filteredCoilData = React.useMemo(() => {
+    if (coilIssueFilter === 'WITH_ISSUE') {
+      return gudangFilteredCoilData.filter((d) => Boolean(coilIssues[getCoilKey(d)]));
+    }
+    if (coilIssueFilter === 'NO_ISSUE') {
+      return gudangFilteredCoilData.filter((d) => !coilIssues[getCoilKey(d)]);
+    }
+    return gudangFilteredCoilData;
+  }, [gudangFilteredCoilData, coilIssueFilter, coilIssues]);
 
   const totalPages = Math.ceil(filteredPipeData.length / pageSize) || 1;
   const paginatedPipeData = filteredPipeData.slice(
@@ -330,6 +459,149 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
     },
   };
 
+  const ISSUE_PRESETS = [
+    'Akses Tertutup Tumpukan Bundle Lain',
+    'Order Cancel / Reschedule Pengiriman Customer',
+    'Posisi Rak Paling Dalam / Butuh Manuver Crane',
+    'Menunggu Kelengkapan Surat Jalan & Armada',
+    'Hold Mutu / Rekomendasi QC',
+    'Kesalahan Penataan Lokasi Penyimpanan',
+    'Spesifikasi Khusus / Target Order Tertentu'
+  ];
+
+  const renderEditIssueModal = () => {
+    if (!activeEditModal) return null;
+
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+        onClick={() => setActiveEditModal(null)}
+      >
+        <div
+          className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden font-sans text-slate-800 flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50/80">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-800 text-white shadow-2xs shrink-0">
+                <FileText className="h-4 w-4 text-amber-300" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">
+                  Catatan Issue / Penyebab UNFIFO
+                </h3>
+                <p className="text-[11px] text-slate-500 font-mono">
+                  {activeEditModal.type === 'pipe' ? 'Produk Pipa' : 'Bahan Baku Coil & Strip'} • {activeEditModal.gudang}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveEditModal(null)}
+              className="p-1.5 rounded-md hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Item Details Info */}
+          <div className="p-4 bg-slate-100/70 border-b border-slate-200/80 grid grid-cols-2 gap-2 text-xs font-mono">
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block">Material &amp; Dimensi:</span>
+              <strong className="text-slate-900 block truncate">{activeEditModal.spec}</strong>
+              <span className="text-[10px] text-slate-600 font-mono">{activeEditModal.material}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block">Batch &amp; Tonase:</span>
+              <strong className="text-amber-950 font-bold block">Batch: {activeEditModal.batch}</strong>
+              <span className="text-[11px] text-emerald-900 font-bold">
+                {formatTon(activeEditModal.tonase, { decimals: 2, showUnit: true })} ({activeEditModal.qty} {activeEditModal.unit})
+              </span>
+            </div>
+            {activeEditModal.customer && (
+              <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500">Customer / Manufaktur:</span>
+                <strong className="text-slate-800 truncate max-w-[240px]">{activeEditModal.customer}</strong>
+              </div>
+            )}
+          </div>
+
+          {/* Body: Form */}
+          <div className="p-4 space-y-3 font-sans">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Pilih Alasan Cepat (Preset):
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {ISSUE_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setTempIssueText((prev) => (prev ? `${prev} • ${preset}` : preset));
+                    }}
+                    className="px-2.5 py-1 rounded bg-slate-100 hover:bg-emerald-50 hover:text-emerald-950 hover:border-emerald-300 border border-slate-200 text-[11px] font-mono text-slate-700 transition-colors cursor-pointer text-left"
+                  >
+                    + {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Ketik Penjelasan / Detail Issue Manual:
+              </label>
+              <textarea
+                autoFocus
+                rows={3}
+                value={tempIssueText}
+                onChange={(e) => setTempIssueText(e.target.value)}
+                placeholder="Contoh: Akses crane terhalang tumpukan rak 2, order delivery mundur ke tgl 20..."
+                className="w-full p-2.5 text-xs font-mono rounded-lg border border-slate-300 bg-white shadow-2xs focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 focus:outline-hidden resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="p-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between font-mono text-xs">
+            <div>
+              {(activeEditModal.type === 'pipe' ? pipeIssues[activeEditModal.key] : coilIssues[activeEditModal.key]) && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveIssue(activeEditModal.type, activeEditModal.key, '')}
+                  className="flex items-center gap-1 text-xs text-rose-700 hover:text-rose-900 font-bold hover:underline cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Hapus Catatan</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveEditModal(null)}
+                className="px-3 py-1.5 rounded-md border border-slate-300 bg-white text-slate-700 font-bold hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveIssue(activeEditModal.type, activeEditModal.key, tempIssueText)}
+                className="px-4 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 text-white font-bold cursor-pointer shadow-2xs flex items-center gap-1.5"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>Simpan Catatan</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* SECTION BANNER TOP */}
@@ -486,30 +758,68 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveRight={() => handleMove(index, 'right')}
                   onWidthChange={(w) => handleWidthChange(card.id, w)}
                   headerAction={
-                    <div className="flex items-center gap-2 font-mono text-xs">
-                      <span className="text-slate-500 font-bold text-[10px]">Gudang:</span>
-                      <select
-                        value={selectedPipeGudang}
-                        onChange={(e) => handleGudangChange(e.target.value)}
-                        className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-600 focus:outline-hidden cursor-pointer"
-                      >
-                        {availablePipeGudangs.map((g) => {
-                          const count = g === 'ALL'
-                            ? pipeData.length
-                            : pipeData.filter((d) => d.gudang === g).length;
-                          return (
-                            <option key={g} value={g}>
-                              {g === 'ALL' ? `Semua (${count})` : `${g} (${count})`}
-                            </option>
-                          );
-                        })}
-                      </select>
+                    <div className="flex items-center gap-2.5 font-mono text-xs flex-wrap">
+                      <div className="inline-flex p-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => { setPipeIssueFilter('ALL'); setCurrentPage(1); }}
+                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                            pipeIssueFilter === 'ALL'
+                              ? 'bg-white text-slate-900 shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Semua ({gudangFilteredPipeData.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setPipeIssueFilter('WITH_ISSUE'); setCurrentPage(1); }}
+                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                            pipeIssueFilter === 'WITH_ISSUE'
+                              ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                              : 'text-amber-800 hover:bg-amber-100/50'
+                          }`}
+                        >
+                          Ada Issue ({pipeWithIssueCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setPipeIssueFilter('NO_ISSUE'); setCurrentPage(1); }}
+                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                            pipeIssueFilter === 'NO_ISSUE'
+                              ? 'bg-slate-700 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Belum Ada ({pipeNoIssueCount})
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-500 font-bold text-[10px]">Gudang:</span>
+                        <select
+                          value={selectedPipeGudang}
+                          onChange={(e) => handleGudangChange(e.target.value)}
+                          className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-600 focus:outline-hidden cursor-pointer"
+                        >
+                          {availablePipeGudangs.map((g) => {
+                            const count = g === 'ALL'
+                              ? pipeData.length
+                              : pipeData.filter((d) => d.gudang === g).length;
+                            return (
+                              <option key={g} value={g}>
+                                {g === 'ALL' ? `Semua (${count})` : `${g} (${count})`}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
                     </div>
                   }
                 >
                   <div className="flex flex-col justify-between h-full">
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs font-mono">
+                      <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
                         <thead className="border-b border-emerald-100 bg-emerald-50/50 text-slate-700">
                           <tr>
                             <th className="py-2.5 px-3 font-bold">Gudang</th>
@@ -520,28 +830,56 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                             <th className="py-2.5 px-3 font-bold text-slate-600">Tgl Masuk</th>
                             <th className="py-2.5 px-3 text-right font-bold text-slate-900">Qty (Btg)</th>
                             <th className="py-2.5 px-3.5 text-right font-bold text-amber-900">Tonase (Ton)</th>
+                            <th className="py-2.5 px-3 font-bold text-slate-900">Penyebab / Issue UNFIFO</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-800">
                           {paginatedPipeData.length === 0 ? (
                             <tr>
-                              <td colSpan={8} className="py-8 text-center text-slate-400">
-                                Tidak ada produk Pipa berstatus UNFIFO untuk filter gudang ini.
+                              <td colSpan={9} className="py-8 text-center text-slate-400 font-sans text-xs">
+                                Tidak ada produk Pipa berstatus UNFIFO untuk filter ini.
                               </td>
                             </tr>
                           ) : (
-                            paginatedPipeData.map((row, idx) => (
-                              <tr key={`pipe-unf-${idx}`} className="hover:bg-emerald-50/30 transition-colors">
-                                <td className="py-2 px-3 font-bold text-slate-900">{row.gudang}</td>
-                                <td className="py-2 px-3 font-semibold text-slate-700">{row.kodeMaterial}</td>
-                                <td className="py-2 px-3 font-medium text-slate-800">{row.ukuran}</td>
-                                <td className="py-2 px-3 text-slate-600 max-w-[160px] truncate" title={row.customer}>{row.customer}</td>
-                                <td className="py-2 px-3 font-bold text-amber-900 bg-amber-50/40">{row.batch}</td>
-                                <td className="py-2 px-3 text-slate-500">{row.incDate}</td>
-                                <td className="py-2 px-3 text-right text-slate-700 font-semibold">{formatQty(row.qtyBtg)}</td>
-                                <td className="py-2 px-3.5 text-right font-bold text-amber-900">{formatTon(row.tonase, { decimals: 2 })}</td>
-                              </tr>
-                            ))
+                            paginatedPipeData.map((row, idx) => {
+                              const itemKey = getPipeKey(row);
+                              const issueText = pipeIssues[itemKey];
+                              return (
+                                <tr key={`pipe-unf-${idx}`} className="hover:bg-emerald-50/30 transition-colors">
+                                  <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">{row.gudang}</td>
+                                  <td className="py-2.5 px-3 font-semibold text-slate-700 whitespace-nowrap text-[11px]">{row.kodeMaterial}</td>
+                                  <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">{row.ukuran}</td>
+                                  <td className="py-2.5 px-3 text-slate-600 max-w-[160px] truncate" title={row.customer}>{row.customer}</td>
+                                  <td className="py-2.5 px-3 font-bold text-amber-900 bg-amber-50/40 whitespace-nowrap">{row.batch}</td>
+                                  <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{row.incDate}</td>
+                                  <td className="py-2.5 px-3 text-right text-slate-700 font-semibold">{formatQty(row.qtyBtg)}</td>
+                                  <td className="py-2.5 px-3.5 text-right font-bold text-amber-900">{formatTon(row.tonase, { decimals: 2 })}</td>
+                                  <td className="py-2 px-3 min-w-[200px] max-w-[320px]">
+                                    {issueText ? (
+                                      <div
+                                        onClick={() => openPipeEdit(row)}
+                                        className="group flex items-center justify-between gap-1.5 p-1.5 rounded bg-amber-50/90 border border-amber-200/80 hover:border-amber-400 hover:bg-amber-100/70 cursor-pointer transition-all shadow-2xs"
+                                        title="Klik untuk mengubah catatan issue"
+                                      >
+                                        <span className="text-amber-950 font-bold text-[11px] leading-tight break-words">
+                                          {issueText}
+                                        </span>
+                                        <Pencil className="h-3 w-3 text-amber-700 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => openPipeEdit(row)}
+                                        className="text-[10px] font-bold text-slate-500 hover:text-emerald-900 hover:bg-emerald-50 border border-dashed border-slate-300 hover:border-emerald-400 px-2 py-1 rounded transition-all cursor-pointer flex items-center gap-1"
+                                      >
+                                        <Plus className="h-2.5 w-2.5" />
+                                        <span>Ketik Issue</span>
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
                           )}
                         </tbody>
                         {filteredPipeData.length > 0 && (
@@ -550,6 +888,9 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                               <td className="py-2.5 px-3" colSpan={6}>TOTAL PIPA UNFIFO ({selectedPipeGudang})</td>
                               <td className="py-2.5 px-3 text-right">{formatQty(totalPipeUnfifoQty)}</td>
                               <td className="py-2.5 px-3.5 text-right text-amber-950 font-bold">{formatTon(totalPipeUnfifoTon, { decimals: 2 })}</td>
+                              <td className="py-2.5 px-3 text-[10px] text-slate-500 font-normal">
+                                {pipeWithIssueCount} dari {gudangFilteredPipeData.length} item tercatat issue
+                              </td>
                             </tr>
                           </tfoot>
                         )}
@@ -682,30 +1023,68 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveRight={() => handleMove(index, 'right')}
                   onWidthChange={(w) => handleWidthChange(card.id, w)}
                   headerAction={
-                    <div className="flex items-center gap-2 font-mono text-xs">
-                      <span className="text-slate-500 font-bold text-[10px]">Gudang:</span>
-                      <select
-                        value={selectedCoilGudang}
-                        onChange={(e) => handleCoilGudangChange(e.target.value)}
-                        className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-600 focus:outline-hidden cursor-pointer"
-                      >
-                        {availableCoilGudangs.map((g) => {
-                          const count = g === 'ALL'
-                            ? coilData.length
-                            : coilData.filter((d) => d.gudang === g).length;
-                          return (
-                            <option key={g} value={g}>
-                              {g === 'ALL' ? `Semua (${count})` : `${g} (${count})`}
-                            </option>
-                          );
-                        })}
-                      </select>
+                    <div className="flex items-center gap-2.5 font-mono text-xs flex-wrap">
+                      <div className="inline-flex p-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => { setCoilIssueFilter('ALL'); setCurrentCoilPage(1); }}
+                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                            coilIssueFilter === 'ALL'
+                              ? 'bg-white text-slate-900 shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Semua ({gudangFilteredCoilData.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setCoilIssueFilter('WITH_ISSUE'); setCurrentCoilPage(1); }}
+                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                            coilIssueFilter === 'WITH_ISSUE'
+                              ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                              : 'text-amber-800 hover:bg-amber-100/50'
+                          }`}
+                        >
+                          Ada Issue ({coilWithIssueCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setCoilIssueFilter('NO_ISSUE'); setCurrentCoilPage(1); }}
+                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                            coilIssueFilter === 'NO_ISSUE'
+                              ? 'bg-slate-700 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Belum Ada ({coilNoIssueCount})
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-500 font-bold text-[10px]">Gudang:</span>
+                        <select
+                          value={selectedCoilGudang}
+                          onChange={(e) => handleCoilGudangChange(e.target.value)}
+                          className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-600 focus:outline-hidden cursor-pointer"
+                        >
+                          {availableCoilGudangs.map((g) => {
+                            const count = g === 'ALL'
+                              ? coilData.length
+                              : coilData.filter((d) => d.gudang === g).length;
+                            return (
+                              <option key={g} value={g}>
+                                {g === 'ALL' ? `Semua (${count})` : `${g} (${count})`}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
                     </div>
                   }
                 >
                   <div className="flex flex-col justify-between h-full">
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs font-mono">
+                      <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
                         <thead className="border-b border-emerald-100 bg-emerald-50/50 text-slate-700">
                           <tr>
                             <th className="py-2.5 px-3 font-bold">SLOC</th>
@@ -715,39 +1094,67 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                             <th className="py-2.5 px-2 text-right font-bold">Tebal</th>
                             <th className="py-2.5 px-2 text-right font-bold">Lebar</th>
                             <th className="py-2.5 px-3 font-bold text-slate-600">Tgl Masuk</th>
-                            <th className="py-2.5 px-2 text-center font-bold text-amber-900">Status PASM</th>
+                            <th className="py-2.5 px-2 text-center font-bold text-amber-900">Status</th>
                             <th className="py-2.5 px-3 text-right font-bold text-slate-900">Qty (Roll)</th>
                             <th className="py-2.5 px-3.5 text-right font-bold text-amber-900">Tonase (Ton)</th>
+                            <th className="py-2.5 px-3 font-bold text-slate-900">Penyebab / Issue UNFIFO</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-800">
                           {paginatedCoilData.length === 0 ? (
                             <tr>
-                              <td colSpan={10} className="py-8 text-center text-slate-400">
-                                Tidak ada item Coil &amp; Strip yang berstatus UNFIFO untuk filter gudang ini.
+                              <td colSpan={11} className="py-8 text-center text-slate-400 font-sans text-xs">
+                                Tidak ada item Coil &amp; Strip yang berstatus UNFIFO untuk filter ini.
                               </td>
                             </tr>
                           ) : (
-                            paginatedCoilData.map((row, idx) => (
-                              <tr key={`coil-unf-${idx}`} className="hover:bg-emerald-50/30 transition-colors">
-                                <td className="py-2 px-3 font-bold text-slate-900">{row.gudang}</td>
-                                <td className="py-2 px-3 font-semibold text-slate-700">{row.kodeMaterial}</td>
-                                <td className="py-2 px-3 font-medium text-slate-800 max-w-[240px] truncate" title={row.specification}>
-                                  {row.specification}
-                                </td>
-                                <td className="py-2 px-3 font-bold text-amber-900 bg-amber-50/40">{row.batch}</td>
-                                <td className="py-2 px-2 text-right text-slate-600">{row.tebal.toFixed(2)}</td>
-                                <td className="py-2 px-2 text-right text-slate-600">{row.lebar.toFixed(1)}</td>
-                                <td className="py-2 px-3 text-slate-500">{row.incDate}</td>
-                                <td className="py-2 px-2 text-center font-bold text-amber-900">
-                                  <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[10px]">
-                                    {row.unfifoStatus || 'UNFIFO'}
-                                  </span>
-                                </td>
-                                <td className="py-2 px-3 text-right text-slate-700 font-semibold">{formatQty(row.qtyRoll)}</td>
-                                <td className="py-2 px-3.5 text-right font-bold text-amber-900">{formatTon(row.tonase, { decimals: 2 })}</td>
-                              </tr>
-                            ))
+                            paginatedCoilData.map((row, idx) => {
+                              const itemKey = getCoilKey(row);
+                              const issueText = coilIssues[itemKey];
+                              return (
+                                <tr key={`coil-unf-${idx}`} className="hover:bg-emerald-50/30 transition-colors">
+                                  <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">{row.gudang}</td>
+                                  <td className="py-2.5 px-3 font-semibold text-slate-700 whitespace-nowrap text-[11px]">{row.kodeMaterial}</td>
+                                  <td className="py-2.5 px-3 font-medium text-slate-800 max-w-[220px] truncate" title={row.specification}>
+                                    {row.specification}
+                                  </td>
+                                  <td className="py-2.5 px-3 font-bold text-amber-900 bg-amber-50/40 whitespace-nowrap">{row.batch}</td>
+                                  <td className="py-2.5 px-2 text-right text-slate-600 font-mono">{row.tebal.toFixed(2)}</td>
+                                  <td className="py-2.5 px-2 text-right text-slate-600 font-mono">{row.lebar.toFixed(1)}</td>
+                                  <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{row.incDate}</td>
+                                  <td className="py-2.5 px-2 text-center font-bold text-amber-900">
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[10px]">
+                                      {row.unfifoStatus || 'UNFIFO'}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right text-slate-700 font-semibold">{formatQty(row.qtyRoll)}</td>
+                                  <td className="py-2.5 px-3.5 text-right font-bold text-amber-900">{formatTon(row.tonase, { decimals: 2 })}</td>
+                                  <td className="py-2 px-3 min-w-[200px] max-w-[320px]">
+                                    {issueText ? (
+                                      <div
+                                        onClick={() => openCoilEdit(row)}
+                                        className="group flex items-center justify-between gap-1.5 p-1.5 rounded bg-amber-50/90 border border-amber-200/80 hover:border-amber-400 hover:bg-amber-100/70 cursor-pointer transition-all shadow-2xs"
+                                        title="Klik untuk mengubah catatan issue"
+                                      >
+                                        <span className="text-amber-950 font-bold text-[11px] leading-tight break-words">
+                                          {issueText}
+                                        </span>
+                                        <Pencil className="h-3 w-3 text-amber-700 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => openCoilEdit(row)}
+                                        className="text-[10px] font-bold text-slate-500 hover:text-emerald-900 hover:bg-emerald-50 border border-dashed border-slate-300 hover:border-emerald-400 px-2 py-1 rounded transition-all cursor-pointer flex items-center gap-1"
+                                      >
+                                        <Plus className="h-2.5 w-2.5" />
+                                        <span>Ketik Issue</span>
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
                           )}
                         </tbody>
                         {filteredCoilData.length > 0 && (
@@ -756,6 +1163,9 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                               <td className="py-2.5 px-3" colSpan={8}>TOTAL COIL &amp; STRIP UNFIFO ({selectedCoilGudang})</td>
                               <td className="py-2.5 px-3 text-right">{formatQty(totalCoilUnfifoQty)}</td>
                               <td className="py-2.5 px-3.5 text-right text-amber-950 font-bold">{formatTon(totalCoilUnfifoTon, { decimals: 2 })}</td>
+                              <td className="py-2.5 px-3 text-[10px] text-slate-500 font-normal">
+                                {coilWithIssueCount} dari {gudangFilteredCoilData.length} item tercatat issue
+                              </td>
                             </tr>
                           </tfoot>
                         )}
@@ -797,6 +1207,9 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
           })}
         </div>
       )}
+
+      {/* MODAL INPUT ISSUE / PENYEBAB UNFIFO */}
+      {renderEditIssueModal()}
     </div>
   );
 };

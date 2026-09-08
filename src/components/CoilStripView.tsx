@@ -233,7 +233,7 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                     </div>
 
                     <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-mono">
-                      <span className="text-slate-500">Utilisasi Area:</span>
+                      <span className="text-slate-500">% Terisi:</span>
                       <strong className="text-emerald-900 font-black text-sm">{formatPercent(grandPersen)}</strong>
                     </div>
                   </div>

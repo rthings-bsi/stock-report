@@ -7,8 +7,7 @@ import {
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { DamagedPackagingItem } from '../types/warehouse';
-import { readExcelFile } from '@/lib/parser';
-import { parseDamagedPackagingFile } from '@/lib/parseDamagedPackaging';
+import { formatExcelDate, formatExcelTime } from '@/lib/parseDamagedPackaging';
 import { formatTon, formatQty } from '@/lib/utils';
 import {
   PackageX,
@@ -16,7 +15,6 @@ import {
   BarChart3,
   PieChart,
   Search,
-  Upload,
   Layers,
   ArrowUpDown,
   ArrowUp,
@@ -29,6 +27,7 @@ ChartJS.register(...registerables);
 interface DamagedPackagingViewProps {
   data?: DamagedPackagingItem[];
   isCustomizing?: boolean;
+  onDataUpdate?: (newData: DamagedPackagingItem[]) => void;
 }
 
 interface CardState {
@@ -45,11 +44,18 @@ const DEFAULT_CARDS: CardState[] = [
 
 export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
   data = [],
-  isCustomizing = false
+  isCustomizing = false,
+  onDataUpdate
 }) => {
   const [items, setItems] = useState<DamagedPackagingItem[]>(data);
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
   const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    if (data) {
+      setItems(data);
+    }
+  }, [data]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -73,23 +79,6 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
   // Sorting
   const [sortField, setSortField] = useState<keyof DamagedPackagingItem>('tglScanIn');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const rows = await readExcelFile(file);
-      const parsed = parseDamagedPackagingFile(rows);
-      if (parsed.length > 0) {
-        setItems(parsed);
-      }
-    } catch (err) {
-      console.error('Gagal membaca file packaging rusak:', err);
-    }
-  };
 
   const handleWidthChange = (id: string, newWidth: CardWidth) => {
     setCards((prev) =>
@@ -433,23 +422,6 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
             Monitoring scan in packaging rusak: Slot, Kaki, Rangka, Pengait, Dinding, Label Item &amp; Limbah
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0 font-mono text-xs">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx, .xls, .csv, .txt, .tsv"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded text-xs font-bold transition-all shadow-2xs cursor-pointer border border-emerald-700"
-          >
-            <Upload className="h-3.5 w-3.5 text-amber-300" />
-            <span>Upload File Packaging</span>
-          </button>
-        </div>
       </div>
 
       {/* FILTER & SEARCH CONTROLS */}
@@ -655,8 +627,8 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
                               {row.customer}
                             </td>
                             <td className="py-2 px-2 text-slate-600 whitespace-nowrap">{row.userScan}</td>
-                            <td className="py-2 px-2 text-slate-800 whitespace-nowrap font-medium">{row.tglScanIn}</td>
-                            <td className="py-2 px-2 text-slate-500 whitespace-nowrap">{row.jamScanIn}</td>
+                            <td className="py-2 px-2 text-slate-800 whitespace-nowrap font-medium">{formatExcelDate(row.tglScanIn)}</td>
+                            <td className="py-2 px-2 text-slate-500 whitespace-nowrap">{formatExcelTime(row.jamScanIn)}</td>
                             <td className="py-2 px-2 text-center whitespace-nowrap">
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
                                 {row.kondisi}

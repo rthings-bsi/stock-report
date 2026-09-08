@@ -24,6 +24,7 @@ export interface FastSlowPipe {
   fgStSlow: number;
   wipLtSlow: number;
   wipStSlow: number;
+  yearlySlowTon?: Record<string, number>;
 }
 
 export interface CoilStripArea {
@@ -59,24 +60,59 @@ export interface PipeNCItem {
   wipTon: number;
   totalTon: number;
   remarks: string;
+  noNC?: string;
 }
 
 export interface LooComparisonItem {
   no: number;
   gudang?: string;
+  gudangs?: string[];
   customer: string;
   ukuran: string;
   kodeMaterial: string;
   type: 'LT' | 'ST';
+  grade?: 'PRIME' | 'Grade C' | 'Grade E' | 'Campur';
+  primeTon?: number;
+  gradeCTon?: number;
+  gradeETon?: number;
   fgTon: number;
   wipTon: number;
   totalStockTon: number;
   looTon: number;
   persenFulfillment: number;
+  primeFulfillment?: number;
   fgQty?: number;
   wipQty?: number;
   totalQty?: number;
   looQty?: number;
+  gudangBreakdown?: Record<string, {
+    fgTon: number;
+    wipTon: number;
+    totalStockTon: number;
+    fgQty?: number;
+    wipQty?: number;
+    totalQty?: number;
+    totalStockQty?: number;
+    primeTon?: number;
+    gradeCTon?: number;
+    gradeETon?: number;
+  }>;
+}
+
+export interface LooWarehouseRecap {
+  gudang: string;
+  primeTon?: number;
+  gradeCTon?: number;
+  gradeETon?: number;
+  fgTon: number;
+  wipTon: number;
+  totalStockTon: number;
+  looTon: number;
+  selisihTon: number;
+  persenFulfillment: number;
+  primeFulfillment?: number;
+  itemCount: number;
+  status: 'Surplus' | 'Terpenuhi' | 'Defisit';
 }
 
 export interface UnfifoItem {
@@ -105,6 +141,7 @@ export interface UnfifoCoilItem {
   tonase: number;
   incDate: string;
   unfifoStatus: string;
+  issueNote?: string;
 }
 
 export interface DamagedPackagingItem {
@@ -128,6 +165,25 @@ export interface DamagedPackagingItem {
   defectCategory?: string;
 }
 
+export interface IncomingPackagingItem {
+  id: string;
+  no?: number;
+  tglIncoming?: string;
+  customer: string;
+  type: string;
+  stockAktualInternal: number;
+  outQty: number;
+  inQty: number;
+  stockSaatIni: number;
+  detailNG: {
+    slot: number | string;
+    kaki: number | string;
+    dinding: number | string;
+    rangka: number | string;
+  };
+  keterangan?: string;
+}
+
 export interface UnfifoPipeItem {
   gudang: string;
   kodeMaterial: string;
@@ -137,5 +193,7 @@ export interface UnfifoPipeItem {
   qtyBtg: number;
   tonase: number;
   incDate: string;
+  prodYear?: string;
   unfifoStatus: string;
+  issueNote?: string;
 }

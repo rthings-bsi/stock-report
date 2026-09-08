@@ -140,7 +140,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
     datasets: [
       {
         type: 'line' as const,
-        label: '% Utilisasi',
+        label: '% Terisi',
         data: data.map((d) => d.persenTerisi),
         borderColor: '#d97706',
         backgroundColor: '#ffffff',
@@ -165,8 +165,16 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
         type: 'bar' as const,
         label: 'Stock Aktual (Ton)',
         data: data.map((d) => d.stock),
-        backgroundColor: data.map((d) => (d.persenTerisi > 100 ? '#d97706' : '#047857')),
-        hoverBackgroundColor: data.map((d) => (d.persenTerisi > 100 ? '#b45309' : '#065f46')),
+        backgroundColor: data.map((d) => {
+          if (d.persenTerisi > 90) return '#dc2626';
+          if (d.persenTerisi > 80) return '#d97706';
+          return '#047857';
+        }),
+        hoverBackgroundColor: data.map((d) => {
+          if (d.persenTerisi > 90) return '#b91c1c';
+          if (d.persenTerisi > 80) return '#b45309';
+          return '#065f46';
+        }),
         borderRadius: 2,
         yAxisID: 'y',
       },
@@ -273,7 +281,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
               <CustomizableCard
                 key={card.id}
                 id={card.id}
-                title="Top 5 Gudang Utilisasi Tertinggi"
+                title="Top 5 Gudang Terisi Tertinggi"
                 icon={TrendingUp}
                 width={card.width}
                 isCustomizing={isCustomizing}
@@ -286,28 +294,43 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                 <div className="space-y-4 flex flex-col justify-between h-full">
                   <div className="space-y-2">
                     {top5Highest.map((item, idx) => {
-                      const isRank1 = idx === 0;
+                      const pct = item.persenTerisi;
+                      const badgeBg =
+                        pct > 90
+                          ? 'bg-red-500 text-white'
+                          : pct > 80
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'bg-slate-100 text-slate-700';
+                      const textCls =
+                        pct > 90
+                          ? 'text-red-700'
+                          : pct > 80
+                          ? 'text-amber-800'
+                          : 'text-emerald-800';
+                      const barCls =
+                        pct > 90
+                          ? 'bg-red-600'
+                          : pct > 80
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-600';
+
                       return (
                         <div key={item.gudang} className="space-y-0.5">
                           <div className="flex items-center justify-between text-xs font-mono">
                             <div className="flex items-center gap-2">
-                              <span className={`flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold ${
-                                isRank1 ? 'bg-amber-500 text-slate-950' : 'bg-slate-100 text-slate-700'
-                              }`}>
+                              <span className={`flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold ${badgeBg}`}>
                                 {idx + 1}
                               </span>
                               <span className="font-bold text-slate-800">{item.gudang}</span>
                             </div>
-                            <span className={`font-bold ${isRank1 ? 'text-amber-800' : 'text-emerald-800'}`}>
+                            <span className={`font-bold ${textCls}`}>
                               {formatPercent(item.persenTerisi)}
                             </span>
                           </div>
 
                           <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 relative">
                             <div
-                              className={`h-full rounded-full transition-all duration-700 ${
-                                isRank1 ? 'bg-amber-500' : 'bg-emerald-700'
-                              }`}
+                              className={`h-full rounded-full transition-all duration-700 ${barCls}`}
                               style={{ width: `${Math.min(item.persenTerisi, 100)}%` }}
                             />
                           </div>
@@ -316,22 +339,62 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                     })}
                   </div>
 
-                  {highestWarehouse && (
-                    <div className="rounded-lg border border-amber-300 bg-amber-50/70 p-2.5 font-mono">
-                      <div className="flex items-center justify-between text-amber-900">
-                        <span className="text-[10px] font-bold uppercase">Utilisasi Tertinggi</span>
-                        <span className="rounded bg-amber-400 px-1.5 py-0.2 text-[9px] font-bold text-slate-950">
-                          {highestWarehouse.persenTerisi > 100 ? 'OVERCAPACITY' : 'PRIORITAS'}
-                        </span>
+                  {highestWarehouse && (() => {
+                    const pct = highestWarehouse.persenTerisi;
+                    const boxBorder =
+                      pct > 100
+                        ? 'border-red-400 bg-red-50/80'
+                        : pct > 90
+                        ? 'border-red-300 bg-red-50/70'
+                        : pct > 80
+                        ? 'border-amber-300 bg-amber-50/70'
+                        : 'border-emerald-300 bg-emerald-50/70';
+                    const headerText =
+                      pct > 90
+                        ? 'text-red-950'
+                        : pct > 80
+                        ? 'text-amber-950'
+                        : 'text-emerald-950';
+                    const subText =
+                      pct > 90
+                        ? 'text-red-800'
+                        : pct > 80
+                        ? 'text-amber-800'
+                        : 'text-emerald-800';
+                    const tagBg =
+                      pct > 100
+                        ? 'bg-red-600 text-white'
+                        : pct > 90
+                        ? 'bg-red-600 text-white'
+                        : pct > 80
+                        ? 'bg-amber-400 text-slate-950'
+                        : 'bg-emerald-600 text-white';
+                    const tagLabel =
+                      pct > 100
+                        ? 'OVERCAPACITY'
+                        : pct > 90
+                        ? 'KRITIS'
+                        : pct > 80
+                        ? 'PRIORITAS'
+                        : 'NORMAL';
+
+                    return (
+                      <div className={`rounded-lg border ${boxBorder} p-2.5 font-mono`}>
+                        <div className={`flex items-center justify-between ${headerText}`}>
+                          <span className="text-[10px] font-bold uppercase">Terisi Tertinggi</span>
+                          <span className={`rounded ${tagBg} px-1.5 py-0.2 text-[9px] font-bold`}>
+                            {tagLabel}
+                          </span>
+                        </div>
+                        <p className={`mt-0.5 text-sm font-bold ${headerText}`}>
+                          {highestWarehouse.gudang} ({formatPercent(highestWarehouse.persenTerisi)})
+                        </p>
+                        <p className={`text-[10px] ${subText} font-medium`}>
+                          Stock {formatTon(highestWarehouse.stock, { showUnit: true })} / Kapasitas {formatTon(highestWarehouse.kapasitas, { showUnit: true })}
+                        </p>
                       </div>
-                      <p className="mt-0.5 text-sm font-bold text-amber-950">
-                        {highestWarehouse.gudang} ({formatPercent(highestWarehouse.persenTerisi)})
-                      </p>
-                      <p className="text-[10px] text-amber-800 font-medium">
-                        Stock {formatTon(highestWarehouse.stock, { showUnit: true })} / Kapasitas {formatTon(highestWarehouse.kapasitas, { showUnit: true })}
-                      </p>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   <div className="grid grid-cols-3 gap-2 font-mono">
                     <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-2 text-center">
@@ -342,9 +405,27 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                       <span className="text-[9px] font-bold uppercase text-emerald-800 block">Stock</span>
                       <p className="text-xs font-bold text-emerald-950 mt-0.5">{formatTon(totalStock)}</p>
                     </div>
-                    <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-2 text-center">
-                      <span className="text-[9px] font-bold uppercase text-amber-800 block">Utilisasi</span>
-                      <p className="text-xs font-bold text-amber-950 mt-0.5">{formatPercent(avgPersen)}</p>
+                    <div className={`rounded-lg border ${
+                      avgPersen > 90
+                        ? 'border-red-200 bg-red-50/60'
+                        : avgPersen > 80
+                        ? 'border-amber-200 bg-amber-50/60'
+                        : 'border-emerald-200 bg-emerald-50/60'
+                    } p-2 text-center`}>
+                      <span className={`text-[9px] font-bold uppercase ${
+                        avgPersen > 90
+                          ? 'text-red-800'
+                          : avgPersen > 80
+                          ? 'text-amber-800'
+                          : 'text-emerald-800'
+                      } block`}>% Terisi</span>
+                      <p className={`text-xs font-bold ${
+                        avgPersen > 90
+                          ? 'text-red-950'
+                          : avgPersen > 80
+                          ? 'text-amber-950'
+                          : 'text-emerald-950'
+                      } mt-0.5`}>{formatPercent(avgPersen)}</p>
                     </div>
                   </div>
                 </div>
@@ -379,7 +460,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                         <th className="py-2.5 px-3 font-bold">Gudang</th>
                         <th className="py-2.5 px-2.5 text-right font-bold">Kapasitas (T)</th>
                         <th className="py-2.5 px-2.5 text-right font-bold text-amber-900">Stock (T)</th>
-                        <th className="py-2.5 px-2.5 text-right font-bold">% Utilisasi</th>
+                        <th className="py-2.5 px-2.5 text-right font-bold">% Terisi</th>
                         <th className="py-2.5 px-2.5 text-right font-bold">Sisa Ruang</th>
                         <th className="py-2.5 px-2 text-right font-bold border-l border-slate-200 text-slate-600">WIP LT</th>
                         <th className="py-2.5 px-2 text-right font-bold text-emerald-900">FG LT</th>
@@ -389,18 +470,31 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-800">
                       {data.map((item) => {
-                        const isOver = item.persenTerisi > 100;
+                        const pct = item.persenTerisi;
+                        const stockColor =
+                          pct > 90
+                            ? 'text-red-700'
+                            : pct > 80
+                            ? 'text-amber-800'
+                            : 'text-emerald-800';
+                        const pctColor =
+                          pct > 90
+                            ? 'text-red-700 font-bold'
+                            : pct > 80
+                            ? 'text-amber-700 font-bold'
+                            : 'text-slate-800 font-semibold';
+
                         return (
                           <tr key={item.gudang} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-2 px-3 font-bold text-slate-900">{item.gudang}</td>
                             <td className="py-2 px-2.5 text-right text-slate-600">{formatTon(item.kapasitas)}</td>
-                            <td className={`py-2 px-2.5 text-right font-semibold ${isOver ? 'text-amber-800' : 'text-emerald-800'}`}>
+                            <td className={`py-2 px-2.5 text-right font-semibold ${stockColor}`}>
                               {formatTon(item.stock)}
                             </td>
-                            <td className={`py-2 px-2.5 text-right font-bold ${isOver ? 'text-amber-700' : 'text-slate-800'}`}>
+                            <td className={`py-2 px-2.5 text-right ${pctColor}`}>
                               {formatPercent(item.persenTerisi)}
                             </td>
-                            <td className={`py-2 px-2.5 text-right font-medium ${item.selisih < 0 ? 'text-amber-700' : 'text-slate-600'}`}>
+                            <td className={`py-2 px-2.5 text-right font-medium ${item.selisih < 0 ? 'text-red-700 font-bold' : 'text-slate-600'}`}>
                               {formatTon(item.selisih)}
                             </td>
                             <td className="py-2 px-2 text-right text-slate-600 border-l border-slate-100">{item.wipLt ? formatTon(item.wipLt) : '-'}</td>

@@ -111,6 +111,7 @@ export async function GET(request: Request) {
       unfifoCoilData: row.unfifo_coil_data ? JSON.parse(row.unfifo_coil_data) : [],
       unfifoPipeData: row.unfifo_pipe_data ? JSON.parse(row.unfifo_pipe_data) : [],
       damagedPackagingData: row.damaged_packaging_data ? JSON.parse(row.damaged_packaging_data) : [],
+      incomingPackagingData: row.incoming_packaging_data ? JSON.parse(row.incoming_packaging_data) : [],
       customerBreakdown: row.customer_breakdown ? JSON.parse(row.customer_breakdown) : {},
       createdAt: row.created_at,
     };
@@ -140,6 +141,7 @@ export async function POST(request: Request) {
       unfifoCoilData,
       unfifoPipeData,
       damagedPackagingData,
+      incomingPackagingData,
       customerBreakdown,
       lastUpdated,
       snapshotKey,
@@ -164,6 +166,7 @@ export async function POST(request: Request) {
         unfifo_coil_data: unfifoCoilData || [],
         unfifo_pipe_data: unfifoPipeData || [],
         damaged_packaging_data: damagedPackagingData || [],
+        incoming_packaging_data: incomingPackagingData || [],
         customer_breakdown: customerBreakdown || {},
       };
 
@@ -200,6 +203,8 @@ export async function POST(request: Request) {
         unfifo_data,
         unfifo_coil_data,
         unfifo_pipe_data,
+        damaged_packaging_data,
+        incoming_packaging_data,
         customer_breakdown
       ) VALUES (
         @snapshotKey,
@@ -214,6 +219,8 @@ export async function POST(request: Request) {
         @unfifoData,
         @unfifoCoilData,
         @unfifoPipeData,
+        @damagedPackagingData,
+        @incomingPackagingData,
         @customerBreakdown
       )
       ON CONFLICT(snapshot_key) DO UPDATE SET
@@ -228,6 +235,8 @@ export async function POST(request: Request) {
         unfifo_data = excluded.unfifo_data,
         unfifo_coil_data = excluded.unfifo_coil_data,
         unfifo_pipe_data = excluded.unfifo_pipe_data,
+        damaged_packaging_data = excluded.damaged_packaging_data,
+        incoming_packaging_data = excluded.incoming_packaging_data,
         customer_breakdown = excluded.customer_breakdown,
         created_at = CURRENT_TIMESTAMP;
     `);
@@ -245,6 +254,8 @@ export async function POST(request: Request) {
       unfifoData: JSON.stringify(unfifoData || []),
       unfifoCoilData: JSON.stringify(unfifoCoilData || []),
       unfifoPipeData: JSON.stringify(unfifoPipeData || []),
+      damagedPackagingData: JSON.stringify(damagedPackagingData || []),
+      incomingPackagingData: JSON.stringify(incomingPackagingData || []),
       customerBreakdown: JSON.stringify(customerBreakdown || {}),
     });
 

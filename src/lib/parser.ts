@@ -9,7 +9,8 @@ import {
   UnfifoItem,
   UnfifoCoilItem,
   UnfifoPipeItem,
-  DamagedPackagingItem
+  DamagedPackagingItem,
+  IncomingPackagingItem
 } from '../types/warehouse';
 
 export interface ParsedWarehouseState {
@@ -24,6 +25,7 @@ export interface ParsedWarehouseState {
   unfifoCoilData?: UnfifoCoilItem[];
   unfifoPipeData?: UnfifoPipeItem[];
   damagedPackagingData?: DamagedPackagingItem[];
+  incomingPackagingData?: IncomingPackagingItem[];
   customerBreakdown?: Record<string, Array<{ customer: string; qty: number; tonase: number }>>;
   lastUpdated: string;
 }
@@ -152,7 +154,7 @@ function parseNumber(val: unknown): number {
 export function formatSapDate(val: unknown, batchStr: string = ''): string {
   if (!val) {
     if (batchStr) {
-      const matchBatch = batchStr.match(/^\d(\d{2})/);
+      const matchBatch = batchStr.match(/^[1-9](\d{2})/);
       if (matchBatch) {
         return `01.01.20${matchBatch[1]}`;
       }
@@ -183,14 +185,126 @@ export function formatSapDate(val: unknown, batchStr: string = ''): string {
     }
   }
 
+  if (/^\d{1,2}[\.\/\-]\d{1,2}[\.\/\-]\d{2,4}$/.test(s)) {
+    const parts = s.split(/[\.\/\-]/);
+    const d = parts[0].padStart(2, '0');
+    const m = parts[1].padStart(2, '0');
+    let y = parts[2];
+    if (y.length === 2) {
+      y = parseInt(y, 10) >= 70 ? `19${y}` : `20${y}`;
+    }
+    return `${d}.${m}.${y}`;
+  }
+
   if (batchStr) {
-    const matchBatch = batchStr.match(/^\d(\d{2})/);
+    const matchBatch = batchStr.match(/^[1-9](\d{2})/);
     if (matchBatch) {
       return `01.01.20${matchBatch[1]}`;
     }
   }
 
   return s;
+}
+
+/**
+ * Ekstrak tahun produksi (Prod. Year) dari baris data Excel SAP
+ */
+export function extractProductionYear(row: Record<string, unknown>, batchStr: string = ''): string {
+  // 1. Cek kolom Prod. Year / Tahun Produksi secara eksplisit
+  const rawProdYear = getRowValue(row, [
+    'Prod. Year',
+    'Prod.Year',
+    'Prod Year',
+    'PROD. YEAR',
+    'Production Year',
+    'PROD YEAR',
+    'ProdYear',
+    'Tahun Produksi',
+    'Tahun',
+    'Thn Produksi',
+    'THN PRODUKSI',
+    'Year',
+    'YEAR'
+  ]);
+
+  if (rawProdYear !== undefined && rawProdYear !== null && String(rawProdYear).trim() !== '') {
+    const s = String(rawProdYear).trim();
+    const num = parseFloat(s);
+
+    if (!isNaN(num) && num >= 1990 && num <= 2050) {
+      return String(Math.round(num));
+    }
+
+    if (!isNaN(num) && num >= 10 && num <= 50) {
+      return `20${Math.round(num)}`;
+    }
+
+    const match4 = s.match(/\b(19\d{2}|20\d{2})\b/);
+    if (match4) return match4[1];
+
+    if (!isNaN(num) && num >= 30000 && num <= 60000) {
+      const excelBase = new Date(1899, 11, 30);
+      const d = new Date(excelBase.getTime() + num * 86400000);
+      return String(d.getFullYear());
+    }
+  }
+
+  // 2. Cek Inc.Date / Posting Date / Tgl Masuk
+  const rawDate = getRowValue(row, [
+    'Inc.Date',
+    'Inc Date',
+    'IncDate',
+    'Posting Date',
+    'PostingDate',
+    'TPTP Inc.Date',
+    'Tgl Masuk',
+    'Tgl. Masuk',
+    'GR Date',
+    'Doc. Date'
+  ]);
+
+  if (rawDate !== undefined && rawDate !== null && String(rawDate).trim() !== '') {
+    const s = String(rawDate).trim();
+    const num = parseFloat(s);
+
+    if (!isNaN(num) && num >= 30000 && num <= 60000) {
+      const excelBase = new Date(1899, 11, 30);
+      const d = new Date(excelBase.getTime() + num * 86400000);
+      return String(d.getFullYear());
+    }
+
+    const match4 = s.match(/\b(19\d{2}|20\d{2})\b/);
+    if (match4) return match4[1];
+
+    const match2 = s.match(/[\.\/\-](\d{2})$/);
+    if (match2) {
+      const y2 = parseInt(match2[1], 10);
+      if (y2 >= 0 && y2 <= 50) return `20${match2[1]}`;
+      if (y2 >= 80 && y2 <= 99) return `19${match2[1]}`;
+    }
+  }
+
+  // 3. Ekstrak dari Format Batch Spindo
+  if (batchStr) {
+    const cleanBatch = batchStr.trim().toUpperCase();
+
+    // Pola Spindo standard: Plant(1 digit) + Tahun(2 digit) + Seq (misal: 4241012D0C -> 2024, 5233195F0A -> 2023, 5200112 -> 2020)
+    const matchSpindoBatch = cleanBatch.match(/^[1-9](\d{2})\d{3,}/);
+    if (matchSpindoBatch) {
+      const y2 = parseInt(matchSpindoBatch[1], 10);
+      if (y2 >= 10 && y2 <= 40) {
+        return `20${matchSpindoBatch[1]}`;
+      }
+    }
+
+    // Pola Batch YYYYMMDD (misal: 20240510A)
+    const matchYYYY = cleanBatch.match(/^(19\d{2}|20\d{2})/);
+    if (matchYYYY) {
+      return matchYYYY[1];
+    }
+  }
+
+  return 'Tidak Diketahui';
 }
 
 function getRowValue(row: Record<string, unknown>, keys: string[]): unknown {
@@ -357,6 +471,7 @@ export function parseExcelFiles(
     primeTon: number;
     gradeETon: number;
     gradeCTon: number;
+    yearlySlowTon: Record<string, number>;
   }> = {};
 
   const allGudangs = ['Gd.01', 'Gd.02', 'Gd.03', 'Gd.04', 'Gd.05', 'Gd.10', 'Gd.11', 'Gd.12', 'Gd.13', 'Gd.14'];
@@ -378,6 +493,7 @@ export function parseExcelFiles(
       primeTon: 0,
       gradeETon: 0,
       gradeCTon: 0,
+      yearlySlowTon: {},
     };
   });
 
@@ -391,6 +507,9 @@ export function parseExcelFiles(
     fgTon: number;
     wipTon: number;
     totalTon: number;
+    noNCList: Set<string>;
+    remarksList: Set<string>;
+    noNC?: string;
     remarks: string;
   }> = {};
 
@@ -398,10 +517,27 @@ export function parseExcelFiles(
   const stockByMaterial: Record<string, {
     fgTon: number;
     wipTon: number;
+    fgQty: number;
+    wipQty: number;
+    primeTon: number;
+    gradeCTon: number;
+    gradeETon: number;
     customer: string;
     ukuran: string;
     type: 'LT' | 'ST';
     gudang: string;
+    gudangList: Set<string>;
+    gudangBreakdown: Record<string, {
+      fgTon: number;
+      wipTon: number;
+      totalStockTon: number;
+      fgQty: number;
+      wipQty: number;
+      totalStockQty: number;
+      primeTon: number;
+      gradeCTon: number;
+      gradeETon: number;
+    }>;
     batches: Array<{ batch: string; date: string; rawDate: unknown; qty: number; tonase: number }>;
   }> = {};
 
@@ -456,7 +592,53 @@ export function parseExcelFiles(
     const pasg = String(getRowValue(row, ['PASG', 'PASG Status', 'Status PASG']) || '').toUpperCase();
     const rawBatch = String(getRowValue(row, ['BATCH', 'Batch', 'Lot', 'No. Batch', 'No Batch']) || '').trim();
     const upperBatch = rawBatch.toUpperCase();
-    const remarks = String(getRowValue(row, ['REMARKS', 'Remarks', 'Cust. Remarks', 'CUST.REMARK']) || desc).toUpperCase();
+
+    // Kolom CUST.REMARK / No NC dari file SAP raw
+    const rawCustRemark = String(
+      getRowValue(row, [
+        'CUST.REMARK',
+        'CUST. REMARK',
+        'CUST_REMARK',
+        'Cust. Remarks',
+        'Cust. Remark',
+        'Cust Remarks',
+        'CUSTOMER REMARK',
+        'REMARKS',
+        'Remarks',
+        'Catatan Mutu',
+        'Keterangan',
+        'Alasan NC',
+        'ALASAN',
+        'Alasan',
+        'STATUS MUTU'
+      ]) || ''
+    ).trim();
+
+    const rawNoNC = String(
+      getRowValue(row, [
+        'NO NC',
+        'No NC',
+        'No. NC',
+        'NO_NC',
+        'No_NC',
+        'NO NCR',
+        'No NCR',
+        'No. NCR',
+        'NCR',
+        'NO DOKUMEN',
+        'No Dokumen',
+        'No. Dokumen',
+        'NO NC/NCR',
+        'No NC/NCR'
+      ]) || ''
+    ).trim();
+
+    // Ekstrak pola nomor dokumen NC jika tertulis di dalam CUST.REMARK (contoh: 18/NCR-SKF/1X/2026 atau 117/IV/2026)
+    const ncRegex = /(\d+\/(?:NCR-[A-Za-z0-9\-_]+\/|)[IVXLCDM0-9a-z\-_]+\/(?:\d{4}|\d{2})|\d+\/[IVXLCDM0-9a-z\-_]+\/\d{4})/i;
+    const matchedNC = rawCustRemark.match(ncRegex);
+    const finalNoNC = rawNoNC || (matchedNC ? matchedNC[0] : '');
+
+    const upperCust = rawCustRemark.toUpperCase();
 
     // Deteksi UNFIFO Pipa: Hanya jika kolom UNFIFO atau PASM secara eksplisit berisi penanda
     const rawUnfifo = String(getRowValue(row, ['UNFIFO', 'Unfifo', 'STATUS UNFIFO', 'Status UNFIFO']) || '').toUpperCase().trim();
@@ -465,10 +647,26 @@ export function parseExcelFiles(
     const endsWithC = upperBatch.endsWith('C') || upperBatch.endsWith('0C') || upperBatch.endsWith('L0C');
     const endsWithE = upperBatch.endsWith('E') || upperBatch.endsWith('0E') || upperBatch.endsWith('L0E');
 
-    const isGradeC = endsWithC || remarks.includes('GRADE C') || pasg.includes('GRADE C') || pasg.includes('MUTU C') || pasg.includes('GRD C');
-    const isGradeE = endsWithE || remarks.includes('GRADE E') || pasg.includes('GRADE E') || pasg.includes('MUTU E') || pasg.includes('GRD E');
+    const isGradeC = endsWithC || upperCust.includes('GRADE C') || pasg.includes('GRADE C') || pasg.includes('MUTU C') || pasg.includes('GRD C') || upperCust.includes('REPAIR');
+    const isGradeE = endsWithE || upperCust.includes('GRADE E') || pasg.includes('GRADE E') || pasg.includes('MUTU E') || pasg.includes('GRD E') || upperCust.includes('HOLD');
 
-    const isNC = isGradeC || isGradeE || pasg.includes('NON') || pasg.includes('NC') || remarks.includes('NCR') || remarks.includes('CACAT') || remarks.includes('HOLD MUTU');
+    const isNC =
+      isGradeC ||
+      isGradeE ||
+      pasg.includes('NON') ||
+      pasg.includes('NC') ||
+      upperCust.includes('NCR') ||
+      upperCust.includes('DEPORMASI') ||
+      upperCust.includes('DEFORMASI') ||
+      upperCust.includes('KARAT') ||
+      upperCust.includes('CACAT') ||
+      upperCust.includes('RETURN') ||
+      upperCust.includes('OVER') ||
+      upperCust.includes('KL') ||
+      upperCust.includes('KD') ||
+      upperCust.includes('KLD') ||
+      Boolean(finalNoNC) ||
+      (rawCustRemark !== '' && rawCustRemark !== '-' && rawCustRemark !== '0' && rawCustRemark !== 'PRIME' && !rawCustRemark.startsWith('OK'));
 
     const target = gudangMap[g] || gudangMap['Gd.01'];
 
@@ -506,6 +704,14 @@ export function parseExcelFiles(
       target.fastTon += tonase;
     }
 
+    // Tahun produksi (Prod. Year) — dipakai agregasi slow per tahun + drilldown UNFIFO
+    const extractedYear = extractProductionYear(row, rawBatch);
+
+    if (isSlow) {
+      if (!target.yearlySlowTon[extractedYear]) target.yearlySlowTon[extractedYear] = 0;
+      target.yearlySlowTon[extractedYear] += tonase;
+    }
+
     if (isNC) {
       const assignedGrade: 'Grade C' | 'Grade E' = isGradeC ? 'Grade C' : 'Grade E';
       if (isGradeC) {
@@ -515,8 +721,8 @@ export function parseExcelFiles(
       }
 
       const custName = customer || 'General Stock';
-      // Agregasi Pipa NC per: Ukuran + Customer + Tipe (LT/ST) + Grade (menggabungkan seluruh lokasi gudang)
-      const aggKey = `${cleanDim}|${custName}|${isLT ? 'LT' : 'ST'}|${assignedGrade}`;
+      // Agregasi Pipa NC per: Gudang + Ukuran + Customer + Tipe (LT/ST) + Grade
+      const aggKey = `${g}|${cleanDim}|${custName}|${isLT ? 'LT' : 'ST'}|${assignedGrade}`;
 
       if (!ncItemAggMap[aggKey]) {
         ncItemAggMap[aggKey] = {
@@ -529,13 +735,15 @@ export function parseExcelFiles(
           fgTon: 0,
           wipTon: 0,
           totalTon: 0,
-          remarks: remarks || (isGradeC ? 'Grade C Mutu' : 'Non-Conforming Grade E')
+          noNCList: new Set<string>(),
+          remarksList: new Set<string>(),
+          remarks: rawCustRemark || '-'
         };
-      } else {
-        // Jika gudang berbeda, gabungkan representasi gudang
-        if (!ncItemAggMap[aggKey].gudang.includes(g)) {
-          ncItemAggMap[aggKey].gudang += `, ${g}`;
-        }
+      }
+
+      if (finalNoNC) ncItemAggMap[aggKey].noNCList.add(finalNoNC);
+      if (rawCustRemark && rawCustRemark !== '-' && rawCustRemark !== '0') {
+        ncItemAggMap[aggKey].remarksList.add(rawCustRemark);
       }
 
       if (isFG) ncItemAggMap[aggKey].fgTon += tonase;
@@ -546,19 +754,68 @@ export function parseExcelFiles(
     }
 
     const kodeMat = matNum || `MAT-${idx}`;
+    const pipeGrade: 'PRIME' | 'Grade C' | 'Grade E' = isGradeE ? 'Grade E' : (isGradeC ? 'Grade C' : 'PRIME');
+
     if (!stockByMaterial[kodeMat]) {
       stockByMaterial[kodeMat] = {
         fgTon: 0,
         wipTon: 0,
+        fgQty: 0,
+        wipQty: 0,
+        primeTon: 0,
+        gradeCTon: 0,
+        gradeETon: 0,
         customer: customer || 'General Stock',
         ukuran: cleanDim,
         type: isLT ? 'LT' : 'ST',
         gudang: g,
+        gudangList: new Set<string>(),
+        gudangBreakdown: {},
         batches: []
       };
     }
-    if (isFG) stockByMaterial[kodeMat].fgTon += tonase;
-    if (isWIP) stockByMaterial[kodeMat].wipTon += tonase;
+    stockByMaterial[kodeMat].gudangList.add(g);
+    if (!stockByMaterial[kodeMat].gudangBreakdown[g]) {
+      stockByMaterial[kodeMat].gudangBreakdown[g] = {
+        fgTon: 0,
+        wipTon: 0,
+        totalStockTon: 0,
+        fgQty: 0,
+        wipQty: 0,
+        totalStockQty: 0,
+        primeTon: 0,
+        gradeCTon: 0,
+        gradeETon: 0
+      };
+    }
+
+    if (pipeGrade === 'PRIME') {
+      stockByMaterial[kodeMat].primeTon += tonase;
+      stockByMaterial[kodeMat].gudangBreakdown[g].primeTon += tonase;
+    } else if (pipeGrade === 'Grade C') {
+      stockByMaterial[kodeMat].gradeCTon += tonase;
+      stockByMaterial[kodeMat].gudangBreakdown[g].gradeCTon += tonase;
+    } else {
+      stockByMaterial[kodeMat].gradeETon += tonase;
+      stockByMaterial[kodeMat].gudangBreakdown[g].gradeETon += tonase;
+    }
+
+    if (isFG) {
+      stockByMaterial[kodeMat].fgTon += tonase;
+      stockByMaterial[kodeMat].fgQty += rowQty;
+      stockByMaterial[kodeMat].gudangBreakdown[g].fgTon += tonase;
+      stockByMaterial[kodeMat].gudangBreakdown[g].fgQty += rowQty;
+      stockByMaterial[kodeMat].gudangBreakdown[g].totalStockTon += tonase;
+      stockByMaterial[kodeMat].gudangBreakdown[g].totalStockQty += rowQty;
+    }
+    if (isWIP) {
+      stockByMaterial[kodeMat].wipTon += tonase;
+      stockByMaterial[kodeMat].wipQty += rowQty;
+      stockByMaterial[kodeMat].gudangBreakdown[g].wipTon += tonase;
+      stockByMaterial[kodeMat].gudangBreakdown[g].wipQty += rowQty;
+      stockByMaterial[kodeMat].gudangBreakdown[g].totalStockTon += tonase;
+      stockByMaterial[kodeMat].gudangBreakdown[g].totalStockQty += rowQty;
+    }
 
     const rawIncDate = getRowValue(row, ['Inc.Date', 'Posting Date', 'TPTP Inc.Date', 'Prod. Year']);
     const formattedDate = formatSapDate(rawIncDate, rawBatch);
@@ -581,7 +838,8 @@ export function parseExcelFiles(
         qtyBtg: Math.round(rowQty || qty),
         tonase: Number(tonase.toFixed(3)),
         incDate: formattedDate,
-        unfifoStatus: 'UNFIFO'
+        prodYear: extractedYear,
+        unfifoStatus: isSlow ? 'SLOW MOVING' : (rawUnfifo || 'UNFIFO')
       });
     }
   });
@@ -626,6 +884,9 @@ export function parseExcelFiles(
       fgStSlow: Number(d.fgStSlow.toFixed(2)),
       wipLtSlow: Number(d.wipLtSlow.toFixed(2)),
       wipStSlow: Number(d.wipStSlow.toFixed(2)),
+      yearlySlowTon: Object.fromEntries(
+        Object.entries(d.yearlySlowTon).map(([k, v]) => [k, Number(v.toFixed(1))])
+      ),
     };
   });
 
@@ -644,19 +905,25 @@ export function parseExcelFiles(
 
   const parsedNCItems: PipeNCItem[] = Object.values(ncItemAggMap)
     .sort((a, b) => b.totalTon - a.totalTon)
-    .map((item, idx) => ({
-      id: `nc-${idx + 1}`,
-      gudang: item.gudang,
-      ukuran: item.ukuran,
-      customer: item.customer,
-      kodeMaterial: item.kodeMaterial,
-      type: item.type,
-      grade: item.grade,
-      fgTon: Number(item.fgTon.toFixed(3)),
-      wipTon: Number(item.wipTon.toFixed(3)),
-      totalTon: Number(item.totalTon.toFixed(3)),
-      remarks: item.remarks
-    }));
+    .map((item, idx) => {
+      const noNCJoined = Array.from(item.noNCList).filter(Boolean).join(', ');
+      const rawRemarks = Array.from(item.remarksList).filter((r) => r && r !== '-' && r !== '0');
+      const remarksJoined = rawRemarks.join('; ');
+      return {
+        id: `nc-${idx + 1}`,
+        gudang: item.gudang,
+        ukuran: item.ukuran,
+        customer: item.customer,
+        kodeMaterial: item.kodeMaterial,
+        type: item.type,
+        grade: item.grade,
+        fgTon: Number(item.fgTon.toFixed(3)),
+        wipTon: Number(item.wipTon.toFixed(3)),
+        totalTon: Number(item.totalTon.toFixed(3)),
+        noNC: noNCJoined || undefined,
+        remarks: remarksJoined || (item.remarks !== '-' ? item.remarks : (item.grade === 'Grade C' ? 'Grade C Repair' : 'Hold Mutu Grade E')),
+      };
+    });
 
   // 2. Process Coil & Strip
   const coilAreaMap: Record<string, { coilQty: number; coilTon: number; stripQty: number; stripTon: number; kap: number }> = {};
@@ -884,8 +1151,26 @@ export function parseExcelFiles(
     const fgTon = stock?.fgTon || 0;
     const wipTon = stock?.wipTon || 0;
     const totalStockTon = fgTon + wipTon;
+    const fgQty = stock?.fgQty || 0;
+    const wipQty = stock?.wipQty || 0;
+    const totalStockQty = fgQty + wipQty;
+
     const looTon = loo?.looTon || 0;
+    const looQty = loo?.looQty || 0;
     const persenFulfillment = looTon > 0 ? (totalStockTon / looTon) * 100 : (totalStockTon > 0 ? 100 : 0);
+
+    const gudangsArr = stock?.gudangList ? Array.from(stock.gudangList) : (stock?.gudang ? [stock.gudang] : []);
+    const gudangDisplay = gudangsArr.length > 0 ? gudangsArr.join(', ') : '-';
+    const primeTon = stock?.primeTon || 0;
+    const gradeCTon = stock?.gradeCTon || 0;
+    const gradeETon = stock?.gradeETon || 0;
+
+    let dominantGrade: 'PRIME' | 'Grade C' | 'Grade E' | 'Campur' = 'PRIME';
+    if (gradeETon > 0 && primeTon === 0 && gradeCTon === 0) dominantGrade = 'Grade E';
+    else if (gradeCTon > 0 && primeTon === 0 && gradeETon === 0) dominantGrade = 'Grade C';
+    else if ((primeTon > 0 && (gradeCTon > 0 || gradeETon > 0)) || (gradeCTon > 0 && gradeETon > 0)) dominantGrade = 'Campur';
+
+    const primeFulfill = looTon > 0 ? (primeTon / looTon) * 100 : (primeTon > 0 ? 100 : 0);
 
     const item: LooComparisonItem = {
       no: 0,
@@ -893,16 +1178,23 @@ export function parseExcelFiles(
       ukuran,
       kodeMaterial: k,
       type,
-      gudang: stock?.gudang,
+      grade: dominantGrade,
+      primeTon: Number(primeTon.toFixed(2)),
+      gradeCTon: Number(gradeCTon.toFixed(2)),
+      gradeETon: Number(gradeETon.toFixed(2)),
+      gudang: gudangDisplay,
+      gudangs: gudangsArr,
       fgTon: Number(fgTon.toFixed(2)),
       wipTon: Number(wipTon.toFixed(2)),
       totalStockTon: Number(totalStockTon.toFixed(2)),
       looTon: Number(looTon.toFixed(2)),
       persenFulfillment: Number(persenFulfillment.toFixed(1)),
-      fgQty: 0,
-      wipQty: 0,
-      totalQty: 0,
-      looQty: loo?.looQty || 0
+      primeFulfillment: Number(primeFulfill.toFixed(1)),
+      fgQty: Math.round(fgQty),
+      wipQty: Math.round(wipQty),
+      totalQty: Math.round(totalStockQty),
+      looQty: Math.round(looQty),
+      gudangBreakdown: stock?.gudangBreakdown || {}
     };
 
     if (type === 'ST') {
@@ -913,10 +1205,10 @@ export function parseExcelFiles(
   });
 
   looSTList.sort((a, b) => b.looTon - a.looTon || b.totalStockTon - a.totalStockTon);
-  const looSTData = looSTList.slice(0, 10).map((item, idx) => ({ ...item, no: idx + 1 }));
+  const looSTData = looSTList.slice(0, 200).map((item, idx) => ({ ...item, no: idx + 1 }));
 
   looLTList.sort((a, b) => b.looTon - a.looTon || b.totalStockTon - a.totalStockTon);
-  const looLTData = looLTList.slice(0, 10).map((item, idx) => ({ ...item, no: idx + 1 }));
+  const looLTData = looLTList.slice(0, 200).map((item, idx) => ({ ...item, no: idx + 1 }));
 
   // 4. Calculate UNFIFO Violations
   const unfifoData: UnfifoItem[] = [];

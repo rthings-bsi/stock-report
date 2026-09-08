@@ -12,9 +12,16 @@ import {
   SlidersHorizontal,
   RefreshCw,
   History,
-  Palette
+  Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Menu,
+  LogOut,
+  ShieldCheck,
+  User as UserIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { UserSession } from '@/types/auth';
 
 export interface SnapshotMeta {
   snapshot_key: string;
@@ -36,6 +43,11 @@ interface NavbarProps {
   saveSuccess?: boolean;
   isCustomData: boolean;
   selectedSnapshotKey?: string;
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
+  onToggleMobileSidebar?: () => void;
+  currentUser?: UserSession | null;
+  onLogout?: () => void;
 }
 
 const MONTH_NAMES = [
@@ -56,7 +68,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   isSaving = false,
   saveSuccess = false,
   isCustomData,
-  selectedSnapshotKey = 'latest'
+  selectedSnapshotKey = 'latest',
+  isSidebarOpen = true,
+  onToggleSidebar,
+  onToggleMobileSidebar,
+  currentUser = null,
+  onLogout
 }) => {
   const [snapshots, setSnapshots] = useState<SnapshotMeta[]>([]);
   const [isOpenMenu, setIsOpenMenu] = useState<boolean>(false);
@@ -161,10 +178,47 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 w-full border-b border-emerald-950/10 bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Brand */}
-        <div className="flex items-center gap-3.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-800 text-white shadow-2xs font-bold font-mono text-sm tracking-wider">
-            SP
+        {/* Brand & Sidebar Toggle */}
+        <div className="flex items-center gap-2.5 sm:gap-3.5">
+          {onToggleSidebar && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className={`hidden md:flex h-9 w-9 items-center justify-center rounded-md border transition-all cursor-pointer shadow-2xs ${
+                isSidebarOpen
+                  ? 'border-slate-200/90 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 font-bold'
+              }`}
+              title={isSidebarOpen ? 'Sembunyikan Sidebar (Ctrl+B)' : 'Tampilkan Sidebar (Ctrl+B)'}
+              aria-label="Toggle Sidebar"
+            >
+              {isSidebarOpen ? (
+                <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" strokeWidth={2} />
+              )}
+            </button>
+          )}
+
+          {onToggleMobileSidebar && (
+            <button
+              type="button"
+              onClick={onToggleMobileSidebar}
+              className="flex md:hidden h-9 w-9 items-center justify-center rounded-md border border-slate-200/90 bg-white text-slate-700 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
+              title="Menu Navigasi"
+              aria-label="Toggle Mobile Menu"
+            >
+              <Menu className="h-4.5 w-4.5" strokeWidth={2} />
+            </button>
+          )}
+
+          <div className="flex h-9 items-center justify-center rounded-md bg-white px-1.5 py-1 border border-slate-200/80 shadow-2xs shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/spindo-logo.png"
+              alt="SPINDO Logo"
+              className="h-6.5 w-auto object-contain"
+            />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -177,16 +231,30 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Actions with Compact Menu */}
         <div className="flex items-center gap-2.5">
-          {/* Main Primary Upload Button */}
-          <Button
-            variant="default"
-            size="sm"
-            onClick={onOpenUpload}
-            className="h-8.5 px-3.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold transition-all shadow-2xs rounded-md cursor-pointer flex items-center gap-2"
-          >
-            <Upload className="h-4 w-4 text-amber-300" strokeWidth={2} />
-            <span className="text-xs">Upload Raw SAP</span>
-          </Button>
+          {/* User Badge in Header */}
+          {currentUser && (
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-md border border-slate-200/80 bg-slate-50 shadow-2xs font-mono">
+              {currentUser.role === 'admin' ? (
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-800 shrink-0" strokeWidth={2} />
+              ) : (
+                <UserIcon className="h-3.5 w-3.5 text-slate-600 shrink-0" strokeWidth={2} />
+              )}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-800 leading-none">
+                  {currentUser.username}
+                </span>
+                <span
+                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                    currentUser.role === 'admin'
+                      ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                      : 'bg-slate-200/80 text-slate-700 border-slate-300'
+                  }`}
+                >
+                  {currentUser.role === 'admin' ? 'ADMIN' : 'STAFF'}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Unified Dropdown Menu Button with Mini Calendar */}
           <div className="relative" ref={menuRef}>
@@ -212,8 +280,38 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Dropdown Content */}
             {isOpenMenu && (
               <div className="absolute right-0 mt-2 w-72 rounded-md border border-slate-200 bg-white p-3 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150 font-mono text-xs">
-                {/* 1. Atur Posisi Card Toggle */}
-                {onToggleCustomizeLayout && (
+                {/* User Info Header in Dropdown */}
+                {currentUser && (
+                  <div className="mb-2 p-2 rounded-md bg-slate-50 border border-slate-200 text-[11px] space-y-0.5">
+                    <div className="font-bold text-slate-900 flex items-center justify-between">
+                      <span>{currentUser.name}</span>
+                      <span className={`text-[9px] font-bold px-1 rounded ${
+                        currentUser.role === 'admin' ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {currentUser.role === 'admin' ? 'Full Access' : 'View Only'}
+                      </span>
+                    </div>
+                    <div className="text-slate-500 text-[10px]">{currentUser.department}</div>
+                  </div>
+                )}
+
+                {/* 0. Upload Raw Data SAP Action (Admin Only) */}
+                {currentUser?.role === 'admin' && onOpenUpload && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenUpload();
+                      setIsOpenMenu(false);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-emerald-50 hover:text-emerald-950 text-slate-800 transition-colors cursor-pointer text-[11px] mb-1"
+                  >
+                    <Upload className="h-3.5 w-3.5 text-emerald-800" strokeWidth={2} />
+                    <span>Upload Raw Data SAP</span>
+                  </button>
+                )}
+
+                {/* 1. Atur Posisi Card Toggle (Admin Only) */}
+                {currentUser?.role === 'admin' && onToggleCustomizeLayout && (
                   <button
                     type="button"
                     onClick={() => {
@@ -234,8 +332,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 )}
 
-                {/* Kustomisasi Desain UI Modal Trigger */}
-                {onOpenThemeModal && (
+                {/* Kustomisasi Desain UI Modal Trigger (Admin Only) */}
+                {currentUser?.role === 'admin' && onOpenThemeModal && (
                   <button
                     type="button"
                     onClick={() => {
@@ -351,7 +449,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
 
                 {/* Reset Option if custom */}
-                {isCustomData && (
+                {currentUser?.role === 'admin' && isCustomData && (
                   <div className="mt-1">
                     <button
                       type="button"
@@ -363,6 +461,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                     >
                       <RefreshCw className="h-3 w-3 text-amber-700" />
                       <span>Reset ke Data Awal</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Logout Option */}
+                {onLogout && (
+                  <div className="mt-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onLogout();
+                        setIsOpenMenu(false);
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 hover:bg-rose-50 text-rose-700 transition-colors cursor-pointer text-[11px] font-bold"
+                    >
+                      <LogOut className="h-3.5 w-3.5 text-rose-600" />
+                      <span>Keluar / Ganti Akun</span>
                     </button>
                   </div>
                 )}
