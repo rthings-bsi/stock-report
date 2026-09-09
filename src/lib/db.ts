@@ -2,7 +2,12 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-const Database = require('better-sqlite3');
+let Database;
+try {
+  Database = require('better-sqlite3');
+} catch (e) {
+  console.warn('better-sqlite3 not available (Vercel Serverless environment)');
+}
 
 const dbDir = path.join(process.cwd(), 'data');
 if (!fs.existsSync(dbDir)) {
@@ -10,13 +15,21 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const dbPath = path.join(dbDir, 'warehouse.db');
-const db = new Database(dbPath);
+let db = null;
+if (Database) {
+  try {
+    db = new Database(dbPath);
+  } catch (e) {
+    console.warn('Could not initialize SQLite (Read-only filesystem?):', e);
+  }
+}
 
 // Enable WAL mode
-db.pragma('journal_mode = WAL');
+if (db) db.pragma('journal_mode = WAL');
 
 // Initialize schema
-db.exec(`
+if (db) {
+  db.exec(`
   CREATE TABLE IF NOT EXISTS warehouse_snapshots (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     snapshot_key TEXT UNIQUE NOT NULL,
@@ -66,9 +79,11 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+}
 
 // Seed default roles if roles table is empty
 try {
+ if (db) {
   const roleCount = db.prepare('SELECT COUNT(*) as count FROM roles').get() as { count: number };
   if (roleCount.count === 0) {
     const insertRole = db.prepare(`
@@ -137,12 +152,14 @@ try {
     insertRole.run('staff', 'Staff Operasional', 'Akses monitoring warehouse dan pencatatan mutasi operasional RTP Incoming Packaging.', 'sky', 1, staffPerms);
     insertRole.run('viewer', 'Viewer / Auditor', 'Akses pemantauan visual (view-only) tanpa izin modifikasi data atau upload file.', 'slate', 0, viewerPerms);
   }
+ }
 } catch (e) {
   console.error('Failed to seed default roles:', e);
 }
 
 // Seed default accounts if users table is empty
 try {
+ if (db) {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
   if (userCount.count === 0) {
     const insertUser = db.prepare(`
@@ -152,11 +169,13 @@ try {
     insertUser.run('admin', '123', 'Administrator Warehouse', 'admin', 'Warehouse Section Head', 'Unit 5 - Spindo');
     insertUser.run('staff', '123', 'Staff Operasional Warehouse', 'staff', 'Warehouse Monitoring Staff', 'Unit 5 - Spindo');
   }
+ }
 } catch (e) {
   console.error('Failed to seed default users:', e);
 }
 
 // Auto-migration if column not exists
+if (db) {
 try {
   db.exec(`ALTER TABLE warehouse_snapshots ADD COLUMN unfifo_coil_data TEXT;`);
 } catch {}
@@ -169,5 +188,6 @@ try {
 try {
   db.exec(`ALTER TABLE warehouse_snapshots ADD COLUMN incoming_packaging_data TEXT;`);
 } catch {}
+}
 
 export default db;
