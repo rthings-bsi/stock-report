@@ -15,7 +15,7 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const dbPath = path.join(dbDir, 'warehouse.db');
-let db = null;
+let db: any = null;
 if (Database) {
   try {
     db = new Database(dbPath);
