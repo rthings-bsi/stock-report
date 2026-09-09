@@ -8,6 +8,7 @@ import { parseIncomingPackagingFile } from '@/lib/parseIncomingPackaging';
 import { readExcelFile } from '@/lib/parser';
 import {
   Plus,
+  Minus,
   Pencil,
   Trash2,
   Download,
@@ -25,14 +26,17 @@ import {
   ArrowUp,
   ArrowDown,
   Building2,
+  RotateCcw,
+  LayoutGrid,
   Table2,
-  RotateCcw
+  Calendar
 } from 'lucide-react';
 
 interface IncomingPackagingViewProps {
   data?: IncomingPackagingItem[];
   stockCustomers?: string[];
   isCustomizing?: boolean;
+  isAdmin?: boolean;
   onDataUpdate?: (newData: IncomingPackagingItem[]) => void;
 }
 
@@ -56,12 +60,14 @@ const EMPTY_FORM: Omit<IncomingPackagingItem, 'id'> = {
 export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   data = [],
   stockCustomers = [],
+  isAdmin = false,
   onDataUpdate
 }) => {
   const [items, setItems] = useState<IncomingPackagingItem[]>(data);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('ALL');
   const [selectedType, setSelectedType] = useState('ALL');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards'); // Default cards on mobile for best UX
 
   // Modal State for Add & Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -120,6 +126,14 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     setIsResetModalOpen(false);
   };
 
+  // Helper to extract numeric qty from detailNG
+  const parseDefectQty = (val: any): number => {
+    if (!val || val === '-') return 0;
+    if (val === 'NG') return 1;
+    const n = parseInt(String(val).replace(/[^\d]/g, ''), 10);
+    return isNaN(n) ? 0 : n;
+  };
+
   // Open Create Form
   const handleOpenCreate = () => {
     setEditingId(null);
@@ -134,14 +148,6 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     setShowCustomerDropdown(false);
     setFormError('');
     setIsModalOpen(true);
-  };
-
-  // Helper to extract numeric qty from detailNG
-  const parseDefectQty = (val: any): number => {
-    if (!val || val === '-') return 0;
-    if (val === 'NG') return 1;
-    const n = parseInt(String(val).replace(/[^\d]/g, ''), 10);
-    return isNaN(n) ? 0 : n;
   };
 
   // Open Edit Form
@@ -168,77 +174,53 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     setKakiQty(parseDefectQty(item.detailNG?.kaki));
     setDindingQty(parseDefectQty(item.detailNG?.dinding));
     setRangkaQty(parseDefectQty(item.detailNG?.rangka));
+
     setShowCustomerDropdown(false);
     setFormError('');
     setIsModalOpen(true);
   };
 
-  // Customer List
-  const customerList = useMemo(() => {
-    return Array.from(new Set(items.map((i) => i.customer))).filter(Boolean).sort();
-  }, [items]);
-
-  // Type List
-  const typeList = useMemo(() => {
-    return Array.from(new Set(items.map((i) => i.type))).filter(Boolean).sort();
-  }, [items]);
-
-  // Filtered Customer Suggestions from Stock
-  const customerSuggestions = useMemo(() => {
-    const q = (formData.customer || '').trim().toLowerCase();
-    const list = Array.from(new Set([...(stockCustomers || []), ...customerList])).filter(Boolean);
-    if (!q) return list.slice(0, 8);
-    return list.filter((c) => c.toLowerCase().includes(q)).slice(0, 10);
-  }, [formData.customer, stockCustomers, customerList]);
-
-  // Save Form (Create or Update)
+  // Save Form (Create or Edit)
   const handleSaveForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customer.trim()) {
-      setFormError('Nama Customer wajib diisi');
+      setFormError('Nama Customer wajib diisi.');
       return;
     }
     if (!formData.type.trim()) {
-      setFormError('Type Packaging wajib diisi');
+      setFormError('Type Packaging wajib diisi.');
       return;
     }
 
-    const calculatedStock = Number(formData.stockAktualInternal || 0) - Number(formData.outQty || 0) + Number(formData.inQty || 0);
+    const calculatedStock =
+      Number(formData.stockAktualInternal || 0) - Number(formData.outQty || 0) + Number(formData.inQty || 0);
 
-    const savedDetailNG = {
-      slot: slotQty > 0 ? slotQty : '-',
-      kaki: kakiQty > 0 ? kakiQty : '-',
-      dinding: dindingQty > 0 ? dindingQty : '-',
-      rangka: rangkaQty > 0 ? rangkaQty : '-'
+    const formattedNG = {
+      slot: slotQty > 0 ? `${slotQty}` : '-',
+      kaki: kakiQty > 0 ? `${kakiQty}` : '-',
+      dinding: dindingQty > 0 ? `${dindingQty}` : '-',
+      rangka: rangkaQty > 0 ? `${rangkaQty}` : '-'
     };
 
     if (editingId) {
-      // UPDATE
-      const updated = items.map((i) =>
-        i.id === editingId
-          ? {
-              ...i,
-              ...formData,
-              stockAktualInternal: Number(formData.stockAktualInternal || 0),
-              outQty: Number(formData.outQty || 0),
-              inQty: Number(formData.inQty || 0),
-              stockSaatIni: calculatedStock,
-              detailNG: savedDetailNG
-            }
-          : i
-      );
+      const updated = items.map((item) => {
+        if (item.id === editingId) {
+          return {
+            ...item,
+            ...formData,
+            stockSaatIni: calculatedStock,
+            detailNG: formattedNG
+          };
+        }
+        return item;
+      });
       notifyChange(updated);
     } else {
-      // CREATE
       const newItem: IncomingPackagingItem = {
-        id: `INC-PKG-${Date.now()}-${items.length + 1}`,
-        no: items.length + 1,
+        id: `incoming_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
         ...formData,
-        stockAktualInternal: Number(formData.stockAktualInternal || 0),
-        outQty: Number(formData.outQty || 0),
-        inQty: Number(formData.inQty || 0),
         stockSaatIni: calculatedStock,
-        detailNG: savedDetailNG
+        detailNG: formattedNG
       };
       notifyChange([newItem, ...items]);
     }
@@ -246,7 +228,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     setIsModalOpen(false);
   };
 
-  // Delete item
+  // Delete Row
   const handleConfirmDelete = () => {
     if (!deleteTargetId) return;
     const updated = items.filter((i) => i.id !== deleteTargetId);
@@ -258,19 +240,19 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   const handleExportExcel = () => {
     if (items.length === 0) return;
     const exportRows = items.map((item, idx) => ({
-      'No': idx + 1,
+      No: idx + 1,
       'Tgl Incoming': item.tglIncoming || '-',
-      'Customer': item.customer,
-      'Type': item.type,
+      Customer: item.customer,
+      Type: item.type,
       'Stock Aktual Internal': item.stockAktualInternal,
-      'OUT': item.outQty,
-      'IN': item.inQty,
+      OUT: item.outQty,
+      IN: item.inQty,
       'Stock Saat ini': item.stockSaatIni,
       'Detail NG Slot': item.detailNG?.slot ?? '-',
       'Detail NG Kaki': item.detailNG?.kaki ?? '-',
       'Detail NG Dinding': item.detailNG?.dinding ?? '-',
       'Detail NG Rangka': item.detailNG?.rangka ?? '-',
-      'Keterangan': item.keterangan || '-'
+      Keterangan: item.keterangan || '-'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
@@ -294,6 +276,33 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
       console.error('Gagal import file:', err);
     }
   };
+
+  // Unique Customer list
+  const customerList = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach((i) => {
+      if (i.customer) set.add(i.customer.trim());
+    });
+    return Array.from(set).sort();
+  }, [items]);
+
+  // Unique Type list
+  const typeList = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach((i) => {
+      if (i.type) set.add(i.type.trim());
+    });
+    return Array.from(set).sort();
+  }, [items]);
+
+  // Customer suggestions for autocomplete
+  const customerSuggestions = useMemo(() => {
+    const combined = Array.from(new Set([...customerList, ...stockCustomers])).sort();
+    if (!formData.customer) return combined.slice(0, 10);
+    return combined
+      .filter((c) => c.toLowerCase().includes(formData.customer.toLowerCase()))
+      .slice(0, 10);
+  }, [customerList, stockCustomers, formData.customer]);
 
   // Filtered & Sorted Data
   const filteredData = useMemo(() => {
@@ -382,200 +391,383 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   };
 
   return (
-    <div className="space-y-5 font-sans">
-      {/* SECTION HEADER BANNER & ACTION TOOLBAR */}
-      <div className="rounded-lg border border-emerald-200/90 bg-gradient-to-r from-emerald-50/70 via-emerald-50/20 to-white p-4 sm:p-5 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="space-y-1">
+    <div className="space-y-4 sm:space-y-5 font-sans">
+      {/* SECTION HEADER BANNER & ACTION TOOLBAR (MOBILE FRIENDLY) */}
+      <div className="rounded-lg border border-emerald-200/90 bg-gradient-to-r from-emerald-50/70 via-emerald-50/20 to-white p-3.5 sm:p-5 shadow-2xs space-y-3 sm:space-y-4">
+        <div className="flex items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-800 text-white shadow-xs font-bold ring-2 ring-emerald-700/20 shrink-0">
-              <PackageCheck className="h-5 w-5 text-emerald-100" strokeWidth={2.2} />
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-emerald-800 text-white shadow-xs font-bold ring-2 ring-emerald-700/20 shrink-0">
+              <PackageCheck className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-emerald-100" strokeWidth={2.2} />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                  INPUT &amp; KELOLA INCOMING PACKAGING (RTP)
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-tight">
+                  INCOMING PACKAGING (RTP)
                 </h1>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100/90 text-emerald-900 border border-emerald-300/80">
-                  Returnable Transport Packaging
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-mono font-bold bg-emerald-100/90 text-emerald-900 border border-emerald-300/80">
+                  Returnable Transport
                 </span>
               </div>
-              <p className="text-xs text-slate-600 font-sans mt-0.5">
-                Pencatatan mutasi stock packaging customer: Stock Awal, OUT, IN, dan Detail Temuan Kerusakan (NG)
+              <p className="text-[11px] sm:text-xs text-slate-600 font-sans mt-0.5 line-clamp-1 sm:line-clamp-none">
+                Mutasi stock packaging customer: Stock Awal, OUT, IN, dan Temuan NG
               </p>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 flex-wrap font-mono text-xs shrink-0">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx, .xls, .csv, .txt, .tsv"
-            className="hidden"
-            onChange={handleImportExcel}
-          />
-          <button
-            type="button"
-            onClick={() => setIsResetModalOpen(true)}
-            className="px-2.5 py-1.5 rounded-md border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
-            title="Kosongkan / Reset Semua Data Input"
-          >
-            <RotateCcw className="h-3.5 w-3.5 text-rose-600" />
-            <span>Reset Data</span>
-          </button>
+        {/* Admin-only Import & Export toolbar */}
+        {isAdmin && (
+          <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-emerald-100/70 flex-wrap font-mono text-xs w-full">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx, .xls, .csv, .txt, .tsv"
+              className="hidden"
+              onChange={handleImportExcel}
+            />
 
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-950 text-slate-700 font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
-            title="Import File Excel / CSV"
-          >
-            <Upload className="h-3.5 w-3.5 text-slate-500" strokeWidth={2} />
-            <span>Import Excel</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-2.5 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+              title="Import File Excel / CSV"
+            >
+              <Upload className="h-3.5 w-3.5 text-slate-500" strokeWidth={2} />
+              <span>Import Excel</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            className="px-3 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-950 text-slate-700 font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
-            title="Download Spreadsheet Excel"
-          >
-            <Download className="h-3.5 w-3.5 text-slate-500" strokeWidth={2} />
-            <span>Export Excel</span>
-          </button>
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="px-2.5 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+              title="Download Spreadsheet Excel"
+            >
+              <Download className="h-3.5 w-3.5 text-slate-500" strokeWidth={2} />
+              <span>Export Excel</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={handleOpenCreate}
-            className="px-3.5 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 ring-1 ring-emerald-700/50"
-          >
-            <Plus className="h-4 w-4 text-emerald-200" strokeWidth={2.5} />
-            <span>Tambah Data Baru</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setIsResetModalOpen(true)}
+              className="px-2.5 py-1.5 rounded-md border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+              title="Reset Semua Data Input"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-rose-600" />
+              <span>Reset Data</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* KPI STATS ROW */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono text-xs">
+      {/* KPI STATS CARDS (HIDDEN ON MOBILE, VISIBLE ON TABLET/DESKTOP) */}
+      <div className="hidden sm:grid sm:grid-cols-5 gap-3 font-mono text-xs">
+        {/* Hero Card: Stock Saat Ini */}
+        <div className="p-3 rounded-lg bg-emerald-50/50 border border-emerald-300/90 shadow-2xs space-y-1 ring-1 ring-emerald-500/10">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-950 flex items-center justify-between font-sans">
+            <span>Stock Saat Ini</span>
+            <PackageCheck className="h-3.5 w-3.5 text-emerald-800" />
+          </div>
+          <div className="text-base font-black text-emerald-950">
+            {formatQty(totalStockSaatIni)} <span className="text-xs font-normal">Unit</span>
+          </div>
+          <div className="text-[10px] text-emerald-800 font-sans">Sisa Saldo RTP Aktif</div>
+        </div>
+
+        {/* Stock Awal */}
         <div className="p-3 rounded-lg bg-white border border-slate-200/90 shadow-2xs space-y-1">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between font-sans">
             <span>Stock Awal</span>
             <Boxes className="h-3.5 w-3.5 text-slate-600" />
           </div>
-          <div className="text-base font-bold text-slate-900">{formatQty(totalStockAwal)} Unit</div>
-          <div className="text-[10px] text-slate-500 font-sans">Stock Aktual Internal</div>
+          <div className="text-base font-bold text-slate-900">{formatQty(totalStockAwal)}</div>
+          <div className="text-[9.5px] text-slate-500 font-sans truncate">Stock Internal</div>
         </div>
 
+        {/* Total OUT */}
         <div className="p-3 rounded-lg bg-white border border-rose-200/90 shadow-2xs space-y-1 bg-rose-50/20">
           <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700 flex items-center justify-between font-sans">
             <span>Total OUT</span>
             <ArrowUpRight className="h-3.5 w-3.5 text-rose-600" />
           </div>
-          <div className="text-base font-bold text-rose-700">{formatQty(totalOut)} Unit</div>
-          <div className="text-[10px] text-slate-500 font-sans">Pengiriman ke Cust</div>
+          <div className="text-base font-bold text-rose-700">{formatQty(totalOut)}</div>
+          <div className="text-[9.5px] text-slate-500 font-sans truncate">Kirim ke Cust</div>
         </div>
 
+        {/* Total IN */}
         <div className="p-3 rounded-lg bg-white border border-sky-200/90 shadow-2xs space-y-1 bg-sky-50/20">
           <div className="text-[10px] font-bold uppercase tracking-wider text-sky-800 flex items-center justify-between font-sans">
             <span>Total IN</span>
             <ArrowDownLeft className="h-3.5 w-3.5 text-sky-600" />
           </div>
-          <div className="text-base font-bold text-sky-800">{formatQty(totalIn)} Unit</div>
-          <div className="text-[10px] text-slate-500 font-sans">Penerimaan Kembali</div>
+          <div className="text-base font-bold text-sky-800">{formatQty(totalIn)}</div>
+          <div className="text-[9.5px] text-slate-500 font-sans truncate">Terima Kembali</div>
         </div>
 
-        <div className="p-3 rounded-lg bg-emerald-50/40 border border-emerald-300/90 shadow-2xs space-y-1 ring-1 ring-emerald-500/10">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-950 flex items-center justify-between font-sans">
-            <span>Stock Saat Ini</span>
-            <PackageCheck className="h-3.5 w-3.5 text-emerald-800" />
-          </div>
-          <div className="text-base font-black text-emerald-950">{formatQty(totalStockSaatIni)} Unit</div>
-          <div className="text-[10px] text-emerald-800 font-sans">Sisa Saldo RTP Aktif</div>
-        </div>
-
-        <div className="p-3 rounded-lg bg-white border border-amber-200/90 shadow-2xs space-y-1 bg-amber-50/20 col-span-2 sm:col-span-1">
+        {/* Temuan NG */}
+        <div className="p-3 rounded-lg bg-white border border-amber-200/90 shadow-2xs space-y-1 bg-amber-50/20">
           <div className="text-[10px] font-bold uppercase tracking-wider text-amber-900 flex items-center justify-between font-sans">
             <span>Temuan NG</span>
             <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
           </div>
           <div className="text-base font-bold text-amber-900">{countNG} Item</div>
-          <div className="text-[10px] text-slate-500 font-sans">Slot / Kaki / Dinding / Rangka</div>
+          <div className="text-[9.5px] text-slate-500 font-sans truncate">Slot / Kaki / Dinding / Rangka</div>
         </div>
       </div>
 
-      {/* FILTER & SEARCH CONTROLS */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200/90 shadow-2xs font-mono text-xs">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* FILTER & SEARCH CONTROLS (STACKED ON MOBILE) */}
+      <div className="bg-white p-3 rounded-lg border border-slate-200/90 shadow-2xs space-y-2.5 font-mono text-xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
           {/* Search Input */}
-          <div className="relative min-w-[220px]">
+          <div className="relative flex-1">
             <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cari customer, tipe..."
+              placeholder="Cari customer, tipe packaging..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-md border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs transition-colors"
+              className="w-full pl-8 pr-8 py-2 sm:py-1.5 rounded-md border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs transition-colors"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* Customer Filter */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Customer:</span>
+          {/* Customer & Type Filter (2 cols on mobile) */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
             <select
               value={selectedCustomer}
               onChange={(e) => setSelectedCustomer(e.target.value)}
-              className="py-1.5 px-2 rounded-md border border-slate-300 text-xs text-slate-800 bg-white focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 cursor-pointer shadow-2xs transition-colors"
+              className="w-full sm:w-auto py-2 sm:py-1.5 px-2 rounded-md border border-slate-300 text-xs text-slate-800 bg-white focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 cursor-pointer shadow-2xs"
             >
               <option value="ALL">Semua Customer ({customerList.length})</option>
               {customerList.map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
             </select>
-          </div>
 
-          {/* Type Filter */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Type:</span>
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              className="py-1.5 px-2 rounded-md border border-slate-300 text-xs text-slate-800 bg-white focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 cursor-pointer shadow-2xs transition-colors"
+              className="w-full sm:w-auto py-2 sm:py-1.5 px-2 rounded-md border border-slate-300 text-xs text-slate-800 bg-white focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 cursor-pointer shadow-2xs"
             >
-              <option value="ALL">Semua Type ({typeList.length})</option>
+              <option value="ALL">Semua Tipe ({typeList.length})</option>
               {typeList.map((t) => (
-                <option key={t} value={t}>{t}</option>
+                <option key={t} value={t}>
+                  {t}
+                </option>
               ))}
             </select>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-600">
+        {/* View Switcher & Data Count */}
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 flex-wrap gap-2 text-[11px]">
+          <div className="flex items-center gap-1.5 text-slate-600 font-mono">
             <span>Menampilkan:</span>
             <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-bold border border-emerald-200/90">
               {sortedData.length}
             </span>
-            <span className="text-slate-400">/ {items.length} data</span>
+            <span className="text-slate-400">/ {items.length} item</span>
           </div>
-          {(selectedCustomer !== 'ALL' || selectedType !== 'ALL' || searchQuery) && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedCustomer('ALL');
-                setSelectedType('ALL');
-                setSearchQuery('');
-              }}
-              className="px-2 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            >
-              Reset Filter
-            </button>
-          )}
+
+          <div className="flex items-center gap-2">
+            {(selectedCustomer !== 'ALL' || selectedType !== 'ALL' || searchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCustomer('ALL');
+                  setSelectedType('ALL');
+                  setSearchQuery('');
+                }}
+                className="px-2 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
+              >
+                Reset Filter
+              </button>
+            )}
+
+            {/* View Mode Toggle (Mobile / Tablet) */}
+            <div className="flex md:hidden items-center p-0.5 bg-slate-100 rounded-md border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  viewMode === 'cards'
+                    ? 'bg-white text-emerald-950 shadow-2xs border border-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <LayoutGrid className="h-3 w-3" />
+                <span>Kartu</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-white text-emerald-950 shadow-2xs border border-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Table2 className="h-3 w-3" />
+                <span>Tabel</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* MAIN DATA TABLE (CLEAN SHADCN/IOS AESTHETIC - NO LOUD BLOCKS) */}
-      <div className="rounded-md border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
+      {/* ========================================================================= */}
+      {/* 1. MOBILE CARD FEED VIEW (DESIGNED SPECIFICALLY FOR SMARTPHONES)          */}
+      {/* ========================================================================= */}
+      <div className={`${viewMode === 'cards' ? 'block md:hidden' : 'hidden'} space-y-3`}>
+        {sortedData.length === 0 ? (
+          <div className="p-8 text-center bg-white rounded-lg border border-slate-200 text-slate-500 space-y-3">
+            <p className="text-xs">Tidak ada data incoming packaging yang sesuai filter.</p>
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer"
+            >
+              <Plus className="h-4 w-4 text-emerald-200" />
+              <span>Tambah Data Pertama</span>
+            </button>
+          </div>
+        ) : (
+          sortedData.map((row, idx) => {
+            const hasNG =
+              (row.detailNG?.slot && row.detailNG.slot !== '-' && row.detailNG.slot !== '0') ||
+              (row.detailNG?.kaki && row.detailNG.kaki !== '-' && row.detailNG.kaki !== '0') ||
+              (row.detailNG?.dinding && row.detailNG.dinding !== '-' && row.detailNG.dinding !== '0') ||
+              (row.detailNG?.rangka && row.detailNG.rangka !== '-' && row.detailNG.rangka !== '0');
+
+            return (
+              <div
+                key={row.id || idx}
+                className="rounded-lg border border-slate-200/90 bg-white p-3.5 shadow-2xs space-y-3 transition-all hover:border-emerald-300 font-sans"
+              >
+                {/* Header Card: Customer, Date & Type Badge */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-[10px] font-mono text-slate-400 font-bold">#{idx + 1}</span>
+                      {row.tglIncoming && row.tglIncoming !== '-' && (
+                        <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
+                          <Calendar className="h-2.5 w-2.5 text-slate-500" />
+                          {row.tglIncoming}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 leading-tight truncate">{row.customer}</h3>
+                  </div>
+
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-mono text-[10.5px] font-bold border border-emerald-200/90 shrink-0">
+                    {row.type}
+                  </span>
+                </div>
+
+                {/* 4-Column Quantity Metric Grid */}
+                <div className="grid grid-cols-4 gap-1.5 p-2.5 rounded-md bg-slate-50/90 border border-slate-200/80 font-mono text-center">
+                  <div className="space-y-0.5">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Awal</div>
+                    <div className="text-xs font-bold text-slate-800">{formatQty(row.stockAktualInternal)}</div>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <div className="text-[9px] font-bold text-rose-700 uppercase">OUT</div>
+                    <div className="text-xs font-bold text-rose-700">
+                      {row.outQty > 0 ? formatQty(row.outQty) : '-'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <div className="text-[9px] font-bold text-sky-800 uppercase">IN</div>
+                    <div className="text-xs font-bold text-sky-800">
+                      {row.inQty > 0 ? formatQty(row.inQty) : '-'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-0.5 bg-emerald-100/60 p-1 rounded border border-emerald-200">
+                    <div className="text-[9px] font-bold text-emerald-950 uppercase">Saldo</div>
+                    <div className="text-xs font-black text-emerald-950">{formatQty(row.stockSaatIni)}</div>
+                  </div>
+                </div>
+
+                {/* Temuan Kerusakan (Detail NG) Chips */}
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold uppercase text-slate-500 font-mono">
+                    Detail Temuan Kerusakan (NG):
+                  </div>
+                  {hasNG ? (
+                    <div className="flex flex-wrap gap-1 font-mono text-[10px]">
+                      {row.detailNG?.slot && row.detailNG.slot !== '-' && row.detailNG.slot !== '0' && (
+                        <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                          Slot: {row.detailNG.slot}
+                        </span>
+                      )}
+                      {row.detailNG?.kaki && row.detailNG.kaki !== '-' && row.detailNG.kaki !== '0' && (
+                        <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                          Kaki: {row.detailNG.kaki}
+                        </span>
+                      )}
+                      {row.detailNG?.dinding && row.detailNG.dinding !== '-' && row.detailNG.dinding !== '0' && (
+                        <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                          Dinding: {row.detailNG.dinding}
+                        </span>
+                      )}
+                      {row.detailNG?.rangka && row.detailNG.rangka !== '-' && row.detailNG.rangka !== '0' && (
+                        <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                          Rangka: {row.detailNG.rangka}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-[10.5px] text-emerald-800 font-medium flex items-center gap-1 font-sans">
+                      <Check className="h-3 w-3 text-emerald-700" />
+                      <span>Kondisi Normal (Tidak ada temuan NG)</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Touch-Friendly Action Buttons (Min 44px Height) */}
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 font-mono text-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(row)}
+                    className="flex-1 min-h-[38px] py-2 px-3 rounded-md bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-950 font-bold border border-emerald-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-emerald-800" strokeWidth={2} />
+                    <span>Edit Baris</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTargetId(row.id)}
+                    className="min-h-[38px] py-2 px-3.5 rounded-md bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 font-bold border border-rose-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    title="Hapus Data"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                    <span>Hapus</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. FULL DATA TABLE VIEW (DESKTOP & OPTIONAL MOBILE TABLE)                   */}
+      {/* ========================================================================= */}
+      <div className={`${viewMode === 'table' ? 'block' : 'hidden md:block'} rounded-lg border border-slate-200/90 bg-white shadow-2xs overflow-hidden`}>
         <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
           <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
             <thead className="sticky top-0 z-10 shadow-2xs">
@@ -613,7 +805,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                         onClick={handleOpenCreate}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-800 text-white font-bold text-xs shadow-2xs hover:bg-emerald-900 cursor-pointer"
                       >
-                        <Plus className="h-3.5 w-3.5 text-amber-300" />
+                        <Plus className="h-3.5 w-3.5 text-emerald-200" />
                         <span>Tambah Data Pertama</span>
                       </button>
                     </div>
@@ -695,7 +887,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleOpenEdit(row)}
-                          className="p-1 rounded hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer"
+                          className="p-1.5 rounded hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer"
                           title="Edit Baris"
                         >
                           <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
@@ -703,7 +895,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                         <button
                           type="button"
                           onClick={() => setDeleteTargetId(row.id)}
-                          className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors cursor-pointer"
+                          className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors cursor-pointer"
                           title="Hapus Baris"
                         >
                           <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
@@ -740,22 +932,24 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
         </div>
       </div>
 
-      {/* MODAL FORM: CREATE / EDIT INCOMING PACKAGING */}
+      {/* ========================================================================= */}
+      {/* MODAL FORM: CREATE / EDIT (TOUCH-FRIENDLY & RESPONSIVE ON SMARTPHONES)    */}
+      {/* ========================================================================= */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 font-sans">
-          <div className="w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-emerald-100 p-4 bg-emerald-50/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 font-sans">
+          <div className="w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-emerald-100 p-3.5 sm:p-4 bg-emerald-50/50 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-800 text-white shadow-2xs font-bold font-mono text-xs">
                   {editingId ? <Pencil className="h-4 w-4 text-emerald-200" /> : <PackagePlus className="h-4 w-4 text-emerald-200" />}
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    {editingId ? 'Edit Data Incoming Packaging' : 'Tambah Data Incoming Packaging'}
+                  <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                    {editingId ? 'Edit Data Incoming Packaging' : 'Tambah Data Incoming RTP'}
                   </h3>
-                  <p className="text-[10px] text-slate-600 font-sans">
-                    {editingId ? 'Ubah mutasi atau kondisi detail NG' : 'Input data mutasi stock packaging RTP'}
+                  <p className="text-[10.5px] text-slate-600 font-sans">
+                    {editingId ? 'Ubah mutasi saldo atau kondisi temuan NG' : 'Input data mutasi saldo stock packaging RTP'}
                   </p>
                 </div>
               </div>
@@ -768,32 +962,32 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               </button>
             </div>
 
-            {/* Form Body */}
-            <form onSubmit={handleSaveForm} className="p-5 space-y-4 font-mono text-xs">
+            {/* Modal Form Body with Smooth Touch Scroll */}
+            <form onSubmit={handleSaveForm} className="p-4 sm:p-5 space-y-4 font-mono text-xs overflow-y-auto flex-1">
               {formError && (
-                <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-1.5 font-sans">
+                  <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
                   <span>{formError}</span>
                 </div>
               )}
 
-              {/* Row 1: Tgl & Customer with Autocomplete Reference from Stock */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Row 1: Tgl & Customer */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-600 uppercase">Tgl Incoming</label>
+                  <label className="text-[10.5px] font-bold text-slate-600 uppercase font-sans">Tgl Incoming</label>
                   <input
                     type="text"
                     value={formData.tglIncoming}
                     onChange={(e) => setFormData({ ...formData, tglIncoming: e.target.value })}
                     placeholder="DD/MM/YYYY"
-                    className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs"
+                    className="w-full px-3 py-2 sm:py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs text-sm sm:text-xs"
                   />
                 </div>
 
                 <div className="space-y-1 relative" ref={customerDropdownRef}>
-                  <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center justify-between">
+                  <label className="text-[10.5px] font-bold text-slate-600 uppercase flex items-center justify-between font-sans">
                     <span>Customer *</span>
-                    <span className="text-emerald-800 text-[9px] font-semibold lowercase">auto-suggest</span>
+                    <span className="text-emerald-800 text-[9.5px] font-semibold lowercase">auto-suggest</span>
                   </label>
                   <div className="relative">
                     <input
@@ -806,16 +1000,16 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                         setShowCustomerDropdown(true);
                       }}
                       placeholder="Ketik nama customer..."
-                      className="w-full pl-2.5 pr-7 py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs"
+                      className="w-full pl-3 pr-8 py-2 sm:py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs text-sm sm:text-xs"
                     />
-                    <Building2 className="h-3.5 w-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Building2 className="h-4 w-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
 
-                  {/* Floating Suggestions Dropdown */}
+                  {/* Autocomplete Suggestions */}
                   {showCustomerDropdown && customerSuggestions.length > 0 && (
                     <div className="absolute left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-xl z-50 divide-y divide-slate-100 font-sans text-xs">
-                      <div className="px-2.5 py-1 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase font-mono">
-                        Referensi Customer Stock:
+                      <div className="px-3 py-1 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase font-mono">
+                        Pilihan Customer:
                       </div>
                       {customerSuggestions.map((cust) => (
                         <button
@@ -825,10 +1019,10 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                             setFormData({ ...formData, customer: cust });
                             setShowCustomerDropdown(false);
                           }}
-                          className="w-full text-left px-2.5 py-1.5 hover:bg-emerald-50 hover:text-emerald-950 transition-colors cursor-pointer text-slate-800 font-medium flex items-center justify-between"
+                          className="w-full text-left px-3 py-2 hover:bg-emerald-50 hover:text-emerald-950 transition-colors cursor-pointer text-slate-800 font-medium flex items-center justify-between"
                         >
                           <span className="truncate">{cust}</span>
-                          <Check className="h-3 w-3 text-emerald-700 opacity-0 hover:opacity-100 shrink-0" />
+                          <Check className="h-3.5 w-3.5 text-emerald-700 opacity-0 hover:opacity-100 shrink-0" />
                         </button>
                       ))}
                     </div>
@@ -838,180 +1032,212 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
               {/* Row 2: Type Packaging */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-600 uppercase">Type Packaging RTP *</label>
+                <label className="text-[10.5px] font-bold text-slate-600 uppercase font-sans">Type Packaging RTP *</label>
                 <input
                   type="text"
                   required
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                   placeholder="Contoh: IDBM A / SHW0 A / BDK0 A / CNC HC"
-                  className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs"
+                  className="w-full px-3 py-2 sm:py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs text-sm sm:text-xs"
                 />
               </div>
 
-              {/* Row 3: Mutasi Quantity */}
-              <div className="p-3 rounded-md bg-slate-50 border border-slate-200 space-y-2.5">
-                <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+              {/* Row 3: Mutasi Quantity (Stock Awal, OUT, IN) */}
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2.5">
+                <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider font-sans">
                   Mutasi Saldo Packaging (Unit)
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-amber-950">Stock Aktual</label>
+                    <label className="text-[10px] font-bold text-amber-950 font-sans">Stock Awal</label>
                     <input
                       type="number"
                       min={0}
                       value={formData.stockAktualInternal}
-                      onChange={(e) => setFormData({ ...formData, stockAktualInternal: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded border border-amber-300 bg-white text-slate-900 font-bold focus:outline-hidden focus:border-amber-600 shadow-2xs"
+                      onChange={(e) => setFormData({ ...formData, stockAktualInternal: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className="w-full px-2 py-2 sm:py-1.5 rounded-md border border-amber-300 bg-white text-slate-900 font-bold text-center focus:outline-hidden focus:border-amber-600 text-sm sm:text-xs"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-rose-800">OUT (Keluar)</label>
+                    <label className="text-[10px] font-bold text-rose-800 font-sans">OUT</label>
                     <input
                       type="number"
                       min={0}
                       value={formData.outQty}
-                      onChange={(e) => setFormData({ ...formData, outQty: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded border border-rose-300 bg-white text-rose-700 font-bold focus:outline-hidden focus:border-rose-600 shadow-2xs"
+                      onChange={(e) => setFormData({ ...formData, outQty: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className="w-full px-2 py-2 sm:py-1.5 rounded-md border border-rose-300 bg-white text-rose-700 font-bold text-center focus:outline-hidden focus:border-rose-600 text-sm sm:text-xs"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-sky-800">IN (Masuk)</label>
+                    <label className="text-[10px] font-bold text-sky-800 font-sans">IN</label>
                     <input
                       type="number"
                       min={0}
                       value={formData.inQty}
-                      onChange={(e) => setFormData({ ...formData, inQty: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded border border-sky-300 bg-white text-sky-800 font-bold focus:outline-hidden focus:border-sky-600 shadow-2xs"
+                      onChange={(e) => setFormData({ ...formData, inQty: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className="w-full px-2 py-2 sm:py-1.5 rounded-md border border-sky-300 bg-white text-sky-800 font-bold text-center focus:outline-hidden focus:border-sky-600 text-sm sm:text-xs"
                     />
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs font-bold text-emerald-950">
-                  <span>Hasil Stock Saat Ini:</span>
-                  <span className="px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-950 border border-emerald-300 text-sm font-black">
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs font-bold text-emerald-950 font-sans">
+                  <span>Hasil Saldo Saat Ini:</span>
+                  <span className="px-2.5 py-1 rounded bg-emerald-100 text-emerald-950 border border-emerald-300 text-sm font-black font-mono">
                     {Number(formData.stockAktualInternal || 0) - Number(formData.outQty || 0) + Number(formData.inQty || 0)} Unit
                   </span>
                 </div>
               </div>
 
-              {/* Row 4: Detail NG (Input Qty) */}
-              <div className="p-3 rounded-md bg-slate-50 border border-slate-200 space-y-2.5">
+              {/* Row 4: Temuan Kerusakan (Detail NG) with Stepper Buttons (+ / -) */}
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase text-slate-600 tracking-wider">
-                    Temuan Kerusakan (Detail NG) - Input Qty
+                  <span className="text-[10px] font-bold uppercase text-slate-600 tracking-wider font-sans">
+                    Temuan Kerusakan (Detail NG)
                   </span>
-                  <span className="text-slate-400 font-normal lowercase text-[10px]">
-                    isi jumlah unit rusak
+                  <span className="text-slate-400 font-normal lowercase text-[10px] font-sans">
+                    tekan + / - untuk qty
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {/* Slot Qty */}
-                  <div className={`p-2 rounded-md border transition-all ${
-                    slotQty > 0 ? 'bg-rose-50/80 border-rose-300' : 'bg-white border-slate-200'
-                  }`}>
-                    <label className={`text-[10px] font-bold block mb-1 text-center ${
-                      slotQty > 0 ? 'text-rose-900 font-bold' : 'text-slate-600'
-                    }`}>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {/* Slot Stepper */}
+                  <div className={`p-2 rounded-md border transition-all ${slotQty > 0 ? 'bg-rose-50 border-rose-300' : 'bg-white border-slate-200'}`}>
+                    <label className={`text-[10px] font-bold block mb-1 text-center font-sans ${slotQty > 0 ? 'text-rose-900' : 'text-slate-600'}`}>
                       Slot
                     </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={slotQty}
-                      onChange={(e) => setSlotQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                      className={`w-full py-1 text-center font-bold text-xs rounded border focus:outline-hidden ${
-                        slotQty > 0
-                          ? 'border-rose-300 text-rose-800 bg-white'
-                          : 'border-slate-200 text-slate-700 bg-slate-50/50'
-                      }`}
-                    />
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setSlotQty(Math.max(0, slotQty - 1))}
+                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 cursor-pointer"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        value={slotQty}
+                        onChange={(e) => setSlotQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                        className="w-full text-center font-bold text-xs py-1 rounded border border-slate-200 bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSlotQty(slotQty + 1)}
+                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 cursor-pointer"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Kaki Qty */}
-                  <div className={`p-2 rounded-md border transition-all ${
-                    kakiQty > 0 ? 'bg-rose-50/80 border-rose-300' : 'bg-white border-slate-200'
-                  }`}>
-                    <label className={`text-[10px] font-bold block mb-1 text-center ${
-                      kakiQty > 0 ? 'text-rose-900 font-bold' : 'text-slate-600'
-                    }`}>
+                  {/* Kaki Stepper */}
+                  <div className={`p-2 rounded-md border transition-all ${kakiQty > 0 ? 'bg-rose-50 border-rose-300' : 'bg-white border-slate-200'}`}>
+                    <label className={`text-[10px] font-bold block mb-1 text-center font-sans ${kakiQty > 0 ? 'text-rose-900' : 'text-slate-600'}`}>
                       Kaki
                     </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={kakiQty}
-                      onChange={(e) => setKakiQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                      className={`w-full py-1 text-center font-bold text-xs rounded border focus:outline-hidden ${
-                        kakiQty > 0
-                          ? 'border-rose-300 text-rose-800 bg-white'
-                          : 'border-slate-200 text-slate-700 bg-slate-50/50'
-                      }`}
-                    />
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setKakiQty(Math.max(0, kakiQty - 1))}
+                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 cursor-pointer"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        value={kakiQty}
+                        onChange={(e) => setKakiQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                        className="w-full text-center font-bold text-xs py-1 rounded border border-slate-200 bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setKakiQty(kakiQty + 1)}
+                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 cursor-pointer"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Dinding Qty */}
-                  <div className={`p-2 rounded-md border transition-all ${
-                    dindingQty > 0 ? 'bg-rose-50/80 border-rose-300' : 'bg-white border-slate-200'
-                  }`}>
-                    <label className={`text-[10px] font-bold block mb-1 text-center ${
-                      dindingQty > 0 ? 'text-rose-900 font-bold' : 'text-slate-600'
-                    }`}>
+                  {/* Dinding Stepper */}
+                  <div className={`p-2 rounded-md border transition-all ${dindingQty > 0 ? 'bg-rose-50 border-rose-300' : 'bg-white border-slate-200'}`}>
+                    <label className={`text-[10px] font-bold block mb-1 text-center font-sans ${dindingQty > 0 ? 'text-rose-900' : 'text-slate-600'}`}>
                       Dinding
                     </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={dindingQty}
-                      onChange={(e) => setDindingQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                      className={`w-full py-1 text-center font-bold text-xs rounded border focus:outline-hidden ${
-                        dindingQty > 0
-                          ? 'border-rose-300 text-rose-800 bg-white'
-                          : 'border-slate-200 text-slate-700 bg-slate-50/50'
-                      }`}
-                    />
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setDindingQty(Math.max(0, dindingQty - 1))}
+                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 cursor-pointer"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        value={dindingQty}
+                        onChange={(e) => setDindingQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                        className="w-full text-center font-bold text-xs py-1 rounded border border-slate-200 bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setDindingQty(dindingQty + 1)}
+                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 cursor-pointer"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Rangka Qty */}
-                  <div className={`p-2 rounded-md border transition-all ${
-                    rangkaQty > 0 ? 'bg-rose-50/80 border-rose-300' : 'bg-white border-slate-200'
-                  }`}>
-                    <label className={`text-[10px] font-bold block mb-1 text-center ${
-                      rangkaQty > 0 ? 'text-rose-900 font-bold' : 'text-slate-600'
-                    }`}>
+                  {/* Rangka Stepper */}
+                  <div className={`p-2 rounded-md border transition-all ${rangkaQty > 0 ? 'bg-rose-50 border-rose-300' : 'bg-white border-slate-200'}`}>
+                    <label className={`text-[10px] font-bold block mb-1 text-center font-sans ${rangkaQty > 0 ? 'text-rose-900' : 'text-slate-600'}`}>
                       Rangka
                     </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={rangkaQty}
-                      onChange={(e) => setRangkaQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                      className={`w-full py-1 text-center font-bold text-xs rounded border focus:outline-hidden ${
-                        rangkaQty > 0
-                          ? 'border-rose-300 text-rose-800 bg-white'
-                          : 'border-slate-200 text-slate-700 bg-slate-50/50'
-                      }`}
-                    />
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setRangkaQty(Math.max(0, rangkaQty - 1))}
+                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 cursor-pointer"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        value={rangkaQty}
+                        onChange={(e) => setRangkaQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                        className="w-full text-center font-bold text-xs py-1 rounded border border-slate-200 bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setRangkaQty(rangkaQty + 1)}
+                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 cursor-pointer"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Modal Actions */}
+              {/* Modal Actions (Large Tap Targets) */}
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all cursor-pointer"
+                  className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all cursor-pointer text-center"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-md bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 ring-1 ring-emerald-700/50"
+                  className="flex-1 sm:flex-none px-5 py-2.5 sm:py-2 rounded-md bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 ring-1 ring-emerald-700/50"
                 >
                   <Check className="h-4 w-4 text-emerald-200" strokeWidth={2.5} />
-                  <span>{editingId ? 'Simpan Perubahan' : 'Tambahkan Baris'}</span>
+                  <span>{editingId ? 'Simpan' : 'Tambahkan'}</span>
                 </button>
               </div>
             </form>
@@ -1019,10 +1245,12 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
         </div>
       )}
 
-      {/* MODAL CONFIRM DELETE */}
+      {/* ========================================================================= */}
+      {/* MODAL CONFIRM DELETE                                                      */}
+      {/* ========================================================================= */}
       {deleteTargetId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 font-mono text-xs">
-          <div className="w-full max-w-sm rounded-md border border-slate-200 bg-white p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-2.5 text-rose-700">
               <AlertTriangle className="h-5 w-5" />
               <h3 className="text-sm font-bold text-slate-900">Konfirmasi Hapus Data</h3>
@@ -1034,14 +1262,14 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setDeleteTargetId(null)}
-                className="px-3 py-1.5 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-bold cursor-pointer"
+                className="px-3 py-2 rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-bold cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-3 py-1.5 rounded bg-rose-700 text-white hover:bg-rose-800 font-bold shadow-2xs cursor-pointer flex items-center gap-1"
+                className="px-3.5 py-2 rounded-md bg-rose-700 text-white hover:bg-rose-800 font-bold shadow-2xs cursor-pointer flex items-center gap-1"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 <span>Hapus Data</span>
@@ -1051,10 +1279,12 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
         </div>
       )}
 
-      {/* MODAL CONFIRM RESET ALL */}
+      {/* ========================================================================= */}
+      {/* MODAL CONFIRM RESET ALL                                                   */}
+      {/* ========================================================================= */}
       {isResetModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 font-mono text-xs">
-          <div className="w-full max-w-sm rounded-md border border-slate-200 bg-white p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-2.5 text-rose-700">
               <AlertTriangle className="h-5 w-5" />
               <h3 className="text-sm font-bold text-slate-900">Reset Semua Data Input</h3>
@@ -1066,14 +1296,14 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsResetModalOpen(false)}
-                className="px-3 py-1.5 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-bold cursor-pointer"
+                className="px-3 py-2 rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-bold cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleResetAll}
-                className="px-3 py-1.5 rounded bg-rose-700 text-white hover:bg-rose-800 font-bold shadow-2xs cursor-pointer flex items-center gap-1"
+                className="px-3.5 py-2 rounded-md bg-rose-700 text-white hover:bg-rose-800 font-bold shadow-2xs cursor-pointer flex items-center gap-1"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 <span>Ya, Kosongkan</span>
@@ -1082,6 +1312,21 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* FLOATING ACTION BUTTON (FAB) - BULAT DENGAN TANDA + DI POJOK KANAN BAWAH  */}
+      {/* ========================================================================= */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button
+          type="button"
+          onClick={handleOpenCreate}
+          title="Tambah Data Baru (RTP)"
+          aria-label="Tambah Data Baru"
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-white shadow-2xl ring-4 ring-white/80 hover:ring-emerald-400/50 transition-all cursor-pointer group"
+        >
+          <Plus className="h-6 w-6 text-emerald-100 group-hover:rotate-90 transition-transform duration-200" strokeWidth={2.8} />
+        </button>
+      </div>
     </div>
   );
 };

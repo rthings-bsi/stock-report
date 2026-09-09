@@ -626,7 +626,6 @@ export default function Home() {
         onOpenThemeModal={() => {
           if (canCustomizeLayout) setIsThemeModalOpen(true);
         }}
-        appTitle="Spindo Unit 5 - Warehouse"
         isCustomizingLayout={canCustomizeLayout ? isCustomizingLayout : false}
         onToggleCustomizeLayout={canCustomizeLayout ? () => setIsCustomizingLayout(!isCustomizingLayout) : undefined}
         isSaving={isSaving}
@@ -1193,6 +1192,7 @@ export default function Home() {
               <IncomingPackagingView
                 data={incomingPackagingData}
                 stockCustomers={allStockCustomers}
+                isAdmin={currentUser?.role === 'admin' || canUploadSAP}
                 isCustomizing={canEditIncomingPkg ? isCustomizingLayout : false}
                 onDataUpdate={async (newData) => {
                   setIncomingPackagingData(newData);

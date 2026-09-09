@@ -62,7 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSaveData,
   onSelectSnapshot,
   onOpenThemeModal,
-  appTitle = 'Spindo Unit 5 - Warehouse',
+  appTitle = '',
   isCustomizingLayout = false,
   onToggleCustomizeLayout,
   isSaving = false,
@@ -220,42 +220,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="h-6.5 w-auto object-contain"
             />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900">
-                {appTitle || 'Spindo Unit 5 - Warehouse'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Actions with Compact Menu */}
-        <div className="flex items-center gap-2.5">
-          {/* User Badge in Header */}
-          {currentUser && (
-            <div className="flex items-center gap-2 px-2.5 py-1 rounded-md border border-slate-200/80 bg-slate-50 shadow-2xs font-mono">
-              {currentUser.role === 'admin' ? (
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-800 shrink-0" strokeWidth={2} />
-              ) : (
-                <UserIcon className="h-3.5 w-3.5 text-slate-600 shrink-0" strokeWidth={2} />
-              )}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-800 leading-none">
-                  {currentUser.username}
-                </span>
-                <span
-                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
-                    currentUser.role === 'admin'
-                      ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
-                      : 'bg-slate-200/80 text-slate-700 border-slate-300'
-                  }`}
-                >
-                  {currentUser.role === 'admin' ? 'ADMIN' : 'STAFF'}
+          {appTitle && (
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900">
+                  {appTitle}
                 </span>
               </div>
             </div>
           )}
+        </div>
 
+        {/* Right Actions with Compact Menu */}
+        <div className="flex items-center gap-2.5">
           {/* Unified Dropdown Menu Button with Mini Calendar */}
           <div className="relative" ref={menuRef}>
             <button
