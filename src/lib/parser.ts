@@ -350,6 +350,23 @@ export function isCoilOrStripMaterial(desc: string | undefined | null, matNum: s
 }
 
 /**
+ * Normalisasi kode material SAP ke Base Key Wildcard (*)
+ * Format Spindo SAP standar: 3 karakter prefix (e.g. YAB, XCB, YBB, YDB) + 2 digit proses (00 s/d 99) + sisa kode
+ * Contoh: YAB01A0A0400+40000 (FG) dan YAB00A0A0400+40000 (WIP) -> YAB*A0A0400+40000
+ */
+export function getMaterialBaseKey(matCode: string): string {
+  if (!matCode) return '';
+  let clean = matCode.trim().toUpperCase();
+  // Normalisasi karakter O (Oh) ke 0 (Nol) pada token tengah kode material SAP (misal AOA0400 -> A0A0400)
+  clean = clean.replace(/([A-Z])O([A-Z])/g, '$10$2');
+  const match = clean.match(/^([A-Z0-9]{3})\d{2}([A-Z0-9+.\-_]+)$/);
+  if (match) {
+    return `${match[1]}*${match[2]}`;
+  }
+  return clean;
+}
+
+/**
  * Ekstraksi spesifikasi dimensi pipa: Diameter x Tebal x Panjang
  */
 export function extractPipeDimension(
@@ -575,12 +592,16 @@ export function parseExcelFiles(
     const isST = extractedPanjang < 3000;
     const isLT = !isST;
 
-    const status = String(getRowValue(row, ['Status', 'STATUS', 'Proses', 'Process']) || '').toUpperCase();
+    const status = String(getRowValue(row, ['Status', 'STATUS', 'Proses', 'Process', 'Status Proses', 'Jenis Proses', 'STAT', 'Kategori', 'Status Barang']) || '').toUpperCase().trim();
     const upperDesc = desc.toUpperCase();
-    
-    // Klasifikasi status FG (Finished Goods) vs WIP (Work In Process)
-    // Formula SAP / Excel: JIKA terdapat kata "MP" pada kolom Deskripsi (DESCRIPTION) ATAU kolom status bernilai FG/FINISHED/SUDAH/MP -> "FG", selain itu -> "WIP"
-    const isFG = upperDesc.includes('MP') || status.includes('FG') || status.includes('FINISHED') || status.includes('SUDAH') || status.includes('MP');
+
+    // Klasifikasi status FG vs WIP (Aturan Resmi Spindo):
+    // Jika pada kolom DESCRIPTION terdapat kata kunci "MP" -> FG (Finished Goods), selain itu -> WIP (Work In Process)
+    const hasMPKeyword = /\bMP\b/i.test(desc) || /\bMP\s/i.test(desc) || /\sMP\b/i.test(desc);
+    const isExplicitFG = status === 'FG' || status.includes('FINISHED') || status.includes('SUDAH');
+    const isExplicitWIP = status === 'WIP' || status.includes('BELUM');
+
+    const isFG = isExplicitWIP ? false : (isExplicitFG || hasMPKeyword);
     const isWIP = !isFG;
 
     const customer = String(getRowValue(row, ['Customer', 'CUSTOMER', 'Nama Customer', 'Pelanggan', 'Customers Gabungan']) || '').trim();
@@ -753,11 +774,12 @@ export function parseExcelFiles(
       target.primeTon += tonase;
     }
 
-    const kodeMat = matNum || `MAT-${idx}`;
+    const rawKodeMat = matNum || `MAT-${idx}`;
+    const baseKodeMat = getMaterialBaseKey(rawKodeMat);
     const pipeGrade: 'PRIME' | 'Grade C' | 'Grade E' = isGradeE ? 'Grade E' : (isGradeC ? 'Grade C' : 'PRIME');
 
-    if (!stockByMaterial[kodeMat]) {
-      stockByMaterial[kodeMat] = {
+    if (!stockByMaterial[baseKodeMat]) {
+      stockByMaterial[baseKodeMat] = {
         fgTon: 0,
         wipTon: 0,
         fgQty: 0,
@@ -774,9 +796,9 @@ export function parseExcelFiles(
         batches: []
       };
     }
-    stockByMaterial[kodeMat].gudangList.add(g);
-    if (!stockByMaterial[kodeMat].gudangBreakdown[g]) {
-      stockByMaterial[kodeMat].gudangBreakdown[g] = {
+    stockByMaterial[baseKodeMat].gudangList.add(g);
+    if (!stockByMaterial[baseKodeMat].gudangBreakdown[g]) {
+      stockByMaterial[baseKodeMat].gudangBreakdown[g] = {
         fgTon: 0,
         wipTon: 0,
         totalStockTon: 0,
@@ -790,37 +812,37 @@ export function parseExcelFiles(
     }
 
     if (pipeGrade === 'PRIME') {
-      stockByMaterial[kodeMat].primeTon += tonase;
-      stockByMaterial[kodeMat].gudangBreakdown[g].primeTon += tonase;
+      stockByMaterial[baseKodeMat].primeTon += tonase;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].primeTon += tonase;
     } else if (pipeGrade === 'Grade C') {
-      stockByMaterial[kodeMat].gradeCTon += tonase;
-      stockByMaterial[kodeMat].gudangBreakdown[g].gradeCTon += tonase;
+      stockByMaterial[baseKodeMat].gradeCTon += tonase;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].gradeCTon += tonase;
     } else {
-      stockByMaterial[kodeMat].gradeETon += tonase;
-      stockByMaterial[kodeMat].gudangBreakdown[g].gradeETon += tonase;
+      stockByMaterial[baseKodeMat].gradeETon += tonase;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].gradeETon += tonase;
     }
 
     if (isFG) {
-      stockByMaterial[kodeMat].fgTon += tonase;
-      stockByMaterial[kodeMat].fgQty += rowQty;
-      stockByMaterial[kodeMat].gudangBreakdown[g].fgTon += tonase;
-      stockByMaterial[kodeMat].gudangBreakdown[g].fgQty += rowQty;
-      stockByMaterial[kodeMat].gudangBreakdown[g].totalStockTon += tonase;
-      stockByMaterial[kodeMat].gudangBreakdown[g].totalStockQty += rowQty;
+      stockByMaterial[baseKodeMat].fgTon += tonase;
+      stockByMaterial[baseKodeMat].fgQty += rowQty;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].fgTon += tonase;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].fgQty += rowQty;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].totalStockTon += tonase;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].totalStockQty += rowQty;
     }
     if (isWIP) {
-      stockByMaterial[kodeMat].wipTon += tonase;
-      stockByMaterial[kodeMat].wipQty += rowQty;
-      stockByMaterial[kodeMat].gudangBreakdown[g].wipTon += tonase;
-      stockByMaterial[kodeMat].gudangBreakdown[g].wipQty += rowQty;
-      stockByMaterial[kodeMat].gudangBreakdown[g].totalStockTon += tonase;
-      stockByMaterial[kodeMat].gudangBreakdown[g].totalStockQty += rowQty;
+      stockByMaterial[baseKodeMat].wipTon += tonase;
+      stockByMaterial[baseKodeMat].wipQty += rowQty;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].wipTon += tonase;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].wipQty += rowQty;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].totalStockTon += tonase;
+      stockByMaterial[baseKodeMat].gudangBreakdown[g].totalStockQty += rowQty;
     }
 
     const rawIncDate = getRowValue(row, ['Inc.Date', 'Posting Date', 'TPTP Inc.Date', 'Prod. Year']);
     const formattedDate = formatSapDate(rawIncDate, rawBatch);
     const qty = parseNumber(row['TTL STOK BOm'] || row['TTL STOK BOM'] || row['Qty'] || 1);
-    stockByMaterial[kodeMat].batches.push({
+    stockByMaterial[baseKodeMat].batches.push({
       batch: rawBatch,
       date: formattedDate,
       rawDate: rawIncDate,
@@ -831,7 +853,7 @@ export function parseExcelFiles(
     if (isUnfifoPipe) {
       unfifoPipeList.push({
         gudang: g,
-        kodeMaterial: matNum || kodeMat,
+        kodeMaterial: matNum || rawKodeMat,
         ukuran: cleanDim,
         customer: customer || 'General Stock',
         batch: rawBatch,
@@ -1110,21 +1132,22 @@ export function parseExcelFiles(
       ]) || 'General Customer'
     ).trim();
 
+    const baseLooMat = getMaterialBaseKey(rawKodeMat);
     const { dimension: looCleanDim, panjangMm: looPanjang } = extractPipeDimension(desc, rawKodeMat);
     const type: 'LT' | 'ST' = looPanjang < 3000 ? 'ST' : 'LT';
 
-    if (!looAggMap[rawKodeMat]) {
-      looAggMap[rawKodeMat] = {
+    if (!looAggMap[baseLooMat]) {
+      looAggMap[baseLooMat] = {
         customer: custName,
         ukuran: looCleanDim,
-        kodeMaterial: rawKodeMat,
+        kodeMaterial: baseLooMat,
         looTon: 0,
         looQty: 0,
         type
       };
     }
-    looAggMap[rawKodeMat].looTon += looTon;
-    looAggMap[rawKodeMat].looQty += looQty;
+    looAggMap[baseLooMat].looTon += looTon;
+    looAggMap[baseLooMat].looQty += looQty;
   });
 
   const combinedMatKeys = Array.from(new Set([...Object.keys(stockByMaterial), ...Object.keys(looAggMap)]));

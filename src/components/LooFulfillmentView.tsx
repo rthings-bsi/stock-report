@@ -68,6 +68,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
 }) => {
   const [selectedGudang, setSelectedGudang] = useState<string>('ALL');
   const [chartSortMetric, setChartSortMetric] = useState<'stock' | 'loo'>('stock');
+  const [chartTopCount, setChartTopCount] = useState<number>(15);
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -279,7 +280,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
     return result;
   }, [stData, ltData, selectedGudang]);
 
-  // 3. Top 15 Customer + Ukuran items for the chart (matching user's Excel chart)
+  // 3. Top Customer + Ukuran items for the chart (matching user's Excel chart)
   const top15ChartItems = useMemo(() => {
     const copy = [...stockLooItems];
     if (chartSortMetric === 'stock') {
@@ -287,12 +288,12 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
     } else {
       copy.sort((a, b) => (b.looTon || 0) - (a.looTon || 0) || (b.totalStockTon || 0) - (a.totalStockTon || 0));
     }
-    return copy.slice(0, 15);
-  }, [stockLooItems, chartSortMetric]);
+    return copy.slice(0, chartTopCount);
+  }, [stockLooItems, chartSortMetric, chartTopCount]);
 
   const isEmpty = warehouseRecaps.length === 0;
 
-  // Chart configuration: Clustered column chart for Top 15 Customer + Ukuran
+  // Chart configuration: Clustered column chart for Top Customer + Ukuran (LOO vs WIP vs FG)
   const top15ChartData = {
     labels: top15ChartItems.map((item) => {
       const cleanCust = item.customer.replace(/^PT\.?\s*/i, '').trim();
@@ -303,25 +304,34 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
       {
         label: 'LOO (Ton)',
         data: top15ChartItems.map((r) => r.looTon),
-        backgroundColor: '#38bdf8', // Sky 400 (light blue like excel)
+        backgroundColor: '#38bdf8', // Sky 400 (light blue)
         hoverBackgroundColor: '#0284c7',
         borderRadius: 2,
-        barPercentage: 0.8,
+        barPercentage: 0.85,
         categoryPercentage: 0.85,
       },
       {
-        label: 'Stock (Ton)',
-        data: top15ChartItems.map((r) => r.totalStockTon),
-        backgroundColor: '#047857', // Emerald 700 (Spindo green)
+        label: 'Stock WIP (Ton)',
+        data: top15ChartItems.map((r) => r.wipTon),
+        backgroundColor: '#d97706', // Amber 600 (WIP)
+        hoverBackgroundColor: '#b45309',
+        borderRadius: 2,
+        barPercentage: 0.85,
+        categoryPercentage: 0.85,
+      },
+      {
+        label: 'Stock FG (Ton)',
+        data: top15ChartItems.map((r) => r.fgTon),
+        backgroundColor: '#047857', // Emerald 700 (FG)
         hoverBackgroundColor: '#065f46',
         borderRadius: 2,
-        barPercentage: 0.8,
+        barPercentage: 0.85,
         categoryPercentage: 0.85,
       },
     ],
   };
 
-  // Custom Chart.js inline plugin to draw data values above each bar (matching Excel chart)
+  // Custom Chart.js inline plugin to draw data values above each bar
   const top15DataLabelsPlugin = useMemo(() => ({
     id: 'top15DataLabels',
     afterDatasetsDraw(chart: any) {
@@ -336,8 +346,8 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
               ? val.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })
               : '-';
             ctx.save();
-            ctx.font = 'bold 8.5px monospace';
-            ctx.fillStyle = datasetIndex === 0 ? '#0284c7' : '#047857';
+            ctx.font = 'bold 8px monospace';
+            ctx.fillStyle = datasetIndex === 0 ? '#0284c7' : datasetIndex === 1 ? '#b45309' : '#047857';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
             ctx.fillText(text, element.x, Math.max(element.y - 3, 10));
@@ -784,14 +794,14 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           {cards.map((card, index) => {
-            // CARD 1: GRAFIK CLUSTERED BAR TOP 15 CUSTOMER + UKURAN (SESUAI GAMBAR SAP EXCEL)
+            // CARD 1: GRAFIK CLUSTERED BAR TOP CUSTOMER + UKURAN (SESUAI GAMBAR SAP EXCEL)
             if (card.id === 'top15-customer-chart' && top15ChartItems.length > 0) {
               return (
                 <CustomizableCard
                   key={card.id}
                   id={card.id}
-                  title={`Top 15 Customer+Ukuran ${selectedGudang !== 'ALL' ? selectedGudang : 'Semua Gudang'}`}
-                  subtitle="Perbandingan tonase open target LOO vs total stock pipa aktual (Top 15 item)"
+                  title={`Top ${chartTopCount} Customer+Ukuran ${selectedGudang !== 'ALL' ? selectedGudang : 'Semua Gudang'}`}
+                  subtitle={`Komparasi tonase target LOO vs stock pipa WIP & FG aktual (Top ${chartTopCount} item)`}
                   icon={BarChart3}
                   width={card.width}
                   isCustomizing={isCustomizing}
@@ -801,9 +811,16 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                   onMoveRight={() => handleMove(index, 'right')}
                   onWidthChange={(w) => handleWidthChange(card.id, w)}
                   badge={
-                    <span className="text-[10px] font-mono bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-200">
-                      Top {top15ChartItems.length} Item
-                    </span>
+                    <select
+                      value={chartTopCount}
+                      onChange={(e) => setChartTopCount(Number(e.target.value))}
+                      className="text-[10px] font-mono bg-emerald-50 text-emerald-900 font-bold px-2 py-0.5 rounded border border-emerald-300 focus:outline-hidden focus:ring-1 focus:ring-emerald-600 cursor-pointer shadow-2xs"
+                    >
+                      <option value={5}>Top 5 Item</option>
+                      <option value={10}>Top 10 Item</option>
+                      <option value={15}>Top 15 Item</option>
+                      <option value={20}>Top 20 Item</option>
+                    </select>
                   }
                   headerAction={
                     <div className="flex items-center gap-1.5 bg-slate-100 p-0.5 rounded border border-slate-200">
