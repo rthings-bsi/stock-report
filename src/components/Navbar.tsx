@@ -178,57 +178,37 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 w-full border-b border-emerald-950/10 bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Brand & Sidebar Toggle */}
-        <div className="flex items-center gap-2.5 sm:gap-3.5">
-          {onToggleSidebar && (
-            <button
-              type="button"
-              onClick={onToggleSidebar}
-              className={`hidden md:flex h-9 w-9 items-center justify-center rounded-md border transition-all cursor-pointer shadow-2xs ${
-                isSidebarOpen
-                  ? 'border-slate-200/90 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 font-bold'
-              }`}
-              title={isSidebarOpen ? 'Sembunyikan Sidebar (Ctrl+B)' : 'Tampilkan Sidebar (Ctrl+B)'}
-              aria-label="Toggle Sidebar"
-            >
-              {isSidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
-              ) : (
-                <PanelLeftOpen className="h-4 w-4" strokeWidth={2} />
-              )}
-            </button>
-          )}
-
+        {/* Brand Header */}
+        <div className="flex items-center gap-3">
+          {/* Mobile Menu Toggle */}
           {onToggleMobileSidebar && (
             <button
               type="button"
               onClick={onToggleMobileSidebar}
-              className="flex md:hidden h-9 w-9 items-center justify-center rounded-md border border-slate-200/90 bg-white text-slate-700 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
+              className="flex md:hidden h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
               title="Menu Navigasi"
               aria-label="Toggle Mobile Menu"
             >
-              <Menu className="h-4.5 w-4.5" strokeWidth={2} />
+              <Menu className="h-4 w-4" strokeWidth={2} />
             </button>
           )}
 
-          <div className="flex h-9 items-center justify-center rounded-md bg-white px-1.5 py-1 border border-slate-200/80 shadow-2xs shrink-0">
+          {/* Clean Brand Logo (No clunky box borders) */}
+          <div className="flex items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/spindo-logo.png"
               alt="SPINDO Logo"
-              className="h-6.5 w-auto object-contain"
+              className="h-8 w-auto object-contain"
             />
           </div>
-          {appTitle && (
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900">
-                  {appTitle}
-                </span>
-              </div>
-            </div>
-          )}
+
+          <div className="hidden sm:flex items-center gap-2.5">
+            <div className="h-4 w-[1px] bg-slate-200" />
+            <span className="text-xs font-mono font-bold tracking-wider text-slate-700 uppercase">
+              Unit 5 Karawang
+            </span>
+          </div>
         </div>
 
         {/* Right Actions with Compact Menu */}

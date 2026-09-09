@@ -392,32 +392,25 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-5 font-sans">
-      {/* SECTION HEADER BANNER & ACTION TOOLBAR (MOBILE FRIENDLY) */}
-      <div className="rounded-lg border border-emerald-200/90 bg-gradient-to-r from-emerald-50/70 via-emerald-50/20 to-white p-3.5 sm:p-5 shadow-2xs space-y-3 sm:space-y-4">
-        <div className="flex items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-emerald-800 text-white shadow-xs font-bold ring-2 ring-emerald-700/20 shrink-0">
-              <PackageCheck className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-emerald-100" strokeWidth={2.2} />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-tight">
-                  INCOMING PACKAGING (RTP)
-                </h1>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-mono font-bold bg-emerald-100/90 text-emerald-900 border border-emerald-300/80">
-                  Returnable Transport
-                </span>
-              </div>
-              <p className="text-[11px] sm:text-xs text-slate-600 font-sans mt-0.5 line-clamp-1 sm:line-clamp-none">
-                Mutasi stock packaging customer: Stock Awal, OUT, IN, dan Temuan NG
-              </p>
-            </div>
+      {/* SECTION HEADER BANNER TOP */}
+      <div className="rounded-md border border-black/20 theme-banner text-white p-3 sm:p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider">
+              Incoming Packaging (RTP)
+            </h2>
+            <span className="text-[9px] sm:text-[10px] font-mono bg-emerald-950/80 text-emerald-200 border border-emerald-700/80 px-1.5 py-0.5 rounded font-bold">
+              RTP
+            </span>
           </div>
+          <p className="hidden sm:block text-[11px] text-emerald-200 font-medium font-mono mt-0.5">
+            Mutasi stock packaging customer: Stock Awal, OUT, IN, dan Temuan NG
+          </p>
         </div>
 
-        {/* Admin-only Import & Export toolbar */}
+        {/* Admin-only Import & Export toolbar (Desktop only, hidden on mobile) */}
         {isAdmin && (
-          <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-emerald-100/70 flex-wrap font-mono text-xs w-full">
+          <div className="hidden sm:flex items-center gap-2 flex-wrap font-mono text-xs">
             <input
               ref={fileInputRef}
               type="file"
@@ -429,31 +422,31 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-2.5 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+              className="px-2.5 py-1.5 rounded-md border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
               title="Import File Excel / CSV"
             >
-              <Upload className="h-3.5 w-3.5 text-slate-500" strokeWidth={2} />
-              <span>Import Excel</span>
+              <Upload className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
+              <span>Import</span>
             </button>
 
             <button
               type="button"
               onClick={handleExportExcel}
-              className="px-2.5 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+              className="px-2.5 py-1.5 rounded-md border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
               title="Download Spreadsheet Excel"
             >
-              <Download className="h-3.5 w-3.5 text-slate-500" strokeWidth={2} />
-              <span>Export Excel</span>
+              <Download className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
+              <span>Export</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsResetModalOpen(true)}
-              className="px-2.5 py-1.5 rounded-md border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+              className="px-2.5 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
               title="Reset Semua Data Input"
             >
-              <RotateCcw className="h-3.5 w-3.5 text-rose-600" />
-              <span>Reset Data</span>
+              <RotateCcw className="h-3.5 w-3.5 text-rose-100" />
+              <span>Reset</span>
             </button>
           </div>
         )}
@@ -514,115 +507,62 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
         </div>
       </div>
 
-      {/* FILTER & SEARCH CONTROLS (STACKED ON MOBILE) */}
-      <div className="bg-white p-3 rounded-lg border border-slate-200/90 shadow-2xs space-y-2.5 font-mono text-xs">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+      {/* FILTER & SEARCH CONTROLS (ULTRA CLEAN & COMPACT) */}
+      <div className="bg-white p-2 sm:p-2.5 rounded-md border border-slate-200/90 shadow-2xs space-y-1.5 font-mono text-xs">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Search Input */}
           <div className="relative flex-1">
             <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cari customer, tipe packaging..."
+              placeholder="Cari customer / tipe..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-8 py-2 sm:py-1.5 rounded-md border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs transition-colors"
+              className="w-full pl-8 pr-7 py-1.5 rounded-md border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs transition-colors"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-3 w-3" />
               </button>
             )}
           </div>
 
-          {/* Customer & Type Filter (2 cols on mobile) */}
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
-            <select
-              value={selectedCustomer}
-              onChange={(e) => setSelectedCustomer(e.target.value)}
-              className="w-full sm:w-auto py-2 sm:py-1.5 px-2 rounded-md border border-slate-300 text-xs text-slate-800 bg-white focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 cursor-pointer shadow-2xs"
-            >
-              <option value="ALL">Semua Customer ({customerList.length})</option>
-              {customerList.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="w-full sm:w-auto py-2 sm:py-1.5 px-2 rounded-md border border-slate-300 text-xs text-slate-800 bg-white focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 cursor-pointer shadow-2xs"
-            >
-              <option value="ALL">Semua Tipe ({typeList.length})</option>
-              {typeList.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Customer Filter */}
+          <select
+            value={selectedCustomer}
+            onChange={(e) => setSelectedCustomer(e.target.value)}
+            className="py-1.5 px-2 rounded-md border border-slate-300 text-[11px] sm:text-xs text-slate-800 bg-white focus:outline-hidden focus:border-emerald-700 cursor-pointer shadow-2xs max-w-[135px] sm:max-w-none truncate"
+          >
+            <option value="ALL">Semua Customer</option>
+            {customerList.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* View Switcher & Data Count */}
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100 flex-wrap gap-2 text-[11px]">
-          <div className="flex items-center gap-1.5 text-slate-600 font-mono">
-            <span>Menampilkan:</span>
-            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-bold border border-emerald-200/90">
-              {sortedData.length}
-            </span>
-            <span className="text-slate-400">/ {items.length} item</span>
+        {/* Active Filter Notice & Reset */}
+        {(selectedCustomer !== 'ALL' || selectedType !== 'ALL' || searchQuery) && (
+          <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+            <span>Ditemukan: <strong className="text-slate-900">{sortedData.length}</strong> / {items.length} item</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCustomer('ALL');
+                setSelectedType('ALL');
+                setSearchQuery('');
+              }}
+              className="font-bold text-rose-700 hover:underline cursor-pointer"
+            >
+              Reset Filter
+            </button>
           </div>
-
-          <div className="flex items-center gap-2">
-            {(selectedCustomer !== 'ALL' || selectedType !== 'ALL' || searchQuery) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCustomer('ALL');
-                  setSelectedType('ALL');
-                  setSearchQuery('');
-                }}
-                className="px-2 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-              >
-                Reset Filter
-              </button>
-            )}
-
-            {/* View Mode Toggle (Mobile / Tablet) */}
-            <div className="flex md:hidden items-center p-0.5 bg-slate-100 rounded-md border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setViewMode('cards')}
-                className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                  viewMode === 'cards'
-                    ? 'bg-white text-emerald-950 shadow-2xs border border-slate-200'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <LayoutGrid className="h-3 w-3" />
-                <span>Kartu</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                  viewMode === 'table'
-                    ? 'bg-white text-emerald-950 shadow-2xs border border-slate-200'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Table2 className="h-3 w-3" />
-                <span>Tabel</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ========================================================================= */}

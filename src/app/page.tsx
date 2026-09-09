@@ -665,7 +665,7 @@ export default function Home() {
                     className="h-6 w-auto object-contain"
                   />
                 </div>
-                <span className="text-sm font-bold text-slate-900">Menu Navigasi</span>
+                <span className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">Menu Sistem</span>
               </div>
               <button
                 type="button"
@@ -677,58 +677,38 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Section 1: Dashboard Utama */}
+            {/* Section 1: Monitoring Gudang (Mobile) */}
             {dashboardMenuItems.length > 0 && (
               <div className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => setIsDashboardGroupOpen(!isDashboardGroupOpen)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-bold text-slate-800 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-950 transition-all border border-slate-200 cursor-pointer shadow-2xs"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <LayoutDashboard className="h-4 w-4 text-emerald-800 shrink-0" strokeWidth={2} />
-                    <span>Dashboard Utama</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono font-bold bg-white text-emerald-900 px-1.5 py-0.5 rounded border border-slate-200">
-                      {dashboardMenuItems.length}
-                    </span>
-                    <ChevronDown
-                      className={cn(
-                        "h-3.5 w-3.5 text-slate-500 transition-transform duration-200",
-                        isDashboardGroupOpen ? "rotate-0" : "-rotate-90"
-                      )}
-                      strokeWidth={2}
-                    />
-                  </div>
-                </button>
-
-                {isDashboardGroupOpen && (
-                  <nav className="ml-3 pl-2.5 border-l-2 border-emerald-800/20 space-y-1 pt-1">
-                    {dashboardMenuItems.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = activeTab === item.id;
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            handleSelectTab(item.id);
-                            setIsMobileSidebarOpen(false);
-                          }}
-                          className={cn(
-                            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-semibold transition-all text-left group cursor-pointer",
-                            isActive
-                              ? "bg-emerald-800 text-white font-bold shadow-2xs"
-                              : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
-                          )}
-                        >
-                          <Icon className={cn("h-3.5 w-3.5 shrink-0", isActive ? "text-white" : "text-slate-400")} strokeWidth={2} />
+                <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                  Monitoring Gudang
+                </div>
+                <nav className="space-y-0.5">
+                  {dashboardMenuItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          handleSelectTab(item.id);
+                          setIsMobileSidebarOpen(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer",
+                          isActive
+                            ? "bg-[#047857] text-white font-bold shadow-2xs"
+                            : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-slate-500")} strokeWidth={1.9} />
                           <span className="truncate">{item.label}</span>
-                        </button>
-                      );
-                    })}
-                  </nav>
-                )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </nav>
               </div>
             )}
 
@@ -736,9 +716,9 @@ export default function Home() {
             {operationalMenuItems.length > 0 && (
               <div className="pt-2 border-t border-slate-100 space-y-1">
                 <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
-                  Operasional &amp; Input Data
+                  Operasional
                 </div>
-                <nav className="space-y-1">
+                <nav className="space-y-0.5">
                   {operationalMenuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
@@ -750,21 +730,21 @@ export default function Home() {
                           setIsMobileSidebarOpen(false);
                         }}
                         className={cn(
-                          "w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-bold transition-all text-left cursor-pointer border shadow-2xs",
+                          "w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer",
                           isActive
-                            ? "bg-emerald-800 text-white border-emerald-900 shadow-xs ring-1 ring-emerald-700/50"
-                            : "text-emerald-950 bg-emerald-50/70 hover:bg-emerald-100/80 border-emerald-200/90 hover:border-emerald-300"
+                            ? "bg-[#047857] text-white font-bold shadow-2xs"
+                            : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
                         )}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-emerald-800")} strokeWidth={2.2} />
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-slate-500")} strokeWidth={1.9} />
                           <span className="truncate">{item.label}</span>
                         </div>
                         <span className={cn(
-                          "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border",
-                          isActive ? "bg-emerald-950/80 text-emerald-100 border-emerald-700/80" : "bg-emerald-100/80 text-emerald-900 border-emerald-200"
+                          "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ml-1 shrink-0",
+                          isActive ? "bg-emerald-900/60 text-emerald-100 border-emerald-600/40" : "bg-emerald-50 text-emerald-800 border-emerald-200"
                         )}>
-                          Input RTP
+                          Input
                         </span>
                       </button>
                     );
@@ -777,9 +757,9 @@ export default function Home() {
             {(canUploadSAP || canManageUsers) && (
               <div className="pt-2 border-t border-slate-100 space-y-1">
                 <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
-                  Kelola Data &amp; Hak Akses
+                  Pengaturan &amp; Data
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {canUploadSAP && (
                     <button
                       type="button"
@@ -787,13 +767,13 @@ export default function Home() {
                         setIsUploadOpen(true);
                         setIsMobileSidebarOpen(false);
                       }}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-bold text-slate-800 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-950 transition-all border border-slate-200 cursor-pointer shadow-2xs"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-semibold text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950 transition-all cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5">
-                        <Upload className="h-4 w-4 text-emerald-800" strokeWidth={2} />
-                        <span>Upload Raw SAP</span>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Upload className="h-4 w-4 text-slate-500 shrink-0" strokeWidth={1.9} />
+                        <span className="truncate">Upload Raw Data SAP</span>
                       </div>
-                      <span className="text-[10px] font-mono font-bold bg-white text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-200">
+                      <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 ml-1 shrink-0">
                         Excel
                       </span>
                     </button>
@@ -807,21 +787,21 @@ export default function Home() {
                         setIsMobileSidebarOpen(false);
                       }}
                       className={cn(
-                        "w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-bold transition-all text-left cursor-pointer border shadow-2xs",
+                        "w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer",
                         activeTab === 'users'
-                          ? "bg-emerald-800 text-white border-emerald-900 shadow-xs ring-1 ring-emerald-700/50"
-                          : "text-slate-800 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-950 border-slate-200"
+                          ? "bg-[#047857] text-white font-bold shadow-2xs"
+                          : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
                       )}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <Users className={cn("h-4 w-4 shrink-0", activeTab === 'users' ? "text-white" : "text-emerald-800")} strokeWidth={2} />
-                        <span>Kelola Pengguna</span>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Users className={cn("h-4 w-4 shrink-0", activeTab === 'users' ? "text-white" : "text-slate-500")} strokeWidth={1.9} />
+                        <span className="truncate">Kelola Pengguna</span>
                       </div>
                       <span className={cn(
-                        "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border",
-                        activeTab === 'users' ? "bg-emerald-950/80 text-emerald-100 border-emerald-700" : "bg-white text-emerald-900 border-emerald-200"
+                        "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ml-1 shrink-0",
+                        activeTab === 'users' ? "bg-emerald-900/60 text-emerald-100 border-emerald-600/40" : "bg-slate-100 text-slate-600 border-slate-200"
                       )}>
-                        Roles
+                        RBAC
                       </span>
                     </button>
                   )}
@@ -830,19 +810,26 @@ export default function Home() {
             )}
 
             {/* Mobile User Profile Footer */}
-            <div className="pt-2 border-t border-slate-100">
-              <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-between text-xs font-mono">
-                <div className="min-w-0">
-                  <div className="font-bold text-slate-900 truncate">{currentUser.name}</div>
-                  <div className="text-[10px] text-slate-500">{currentUser.department}</div>
+            <div className="pt-2 border-t border-slate-100 mt-auto">
+              <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-7 w-7 rounded-full bg-emerald-700 text-white flex items-center justify-center font-mono font-bold text-[11px] shrink-0">
+                    {currentUser.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900 text-xs truncate leading-tight">{currentUser.name}</div>
+                    <div className="text-[10px] font-mono text-slate-500 truncate leading-tight">
+                      {currentUser.role === 'admin' ? 'Administrator' : 'Staff Operasional'}
+                    </div>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="p-1.5 rounded hover:bg-rose-100 text-rose-700 transition-colors cursor-pointer shrink-0"
+                  className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
                   title="Keluar"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className="h-4 w-4" strokeWidth={1.9} />
                 </button>
               </div>
             </div>
@@ -852,91 +839,78 @@ export default function Home() {
 
       {/* Main Layout Container with Sidebar */}
       <div className="flex-1 flex max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
-        {/* Modern Clean Sidebar */}
-        {isSidebarOpen && (
-          <aside className="w-64 shrink-0 hidden md:flex flex-col gap-6 animate-in fade-in slide-in-from-left-2 duration-150">
-            <div className="rounded-md border border-slate-200/80 bg-white p-2.5 shadow-2xs space-y-1.5">
-              <div className="flex items-center justify-between px-2.5 py-1 border-b border-slate-100">
+        {/* Modern Clean Sidebar (Expandable / Collapsible Rail) */}
+        <aside
+          className={cn(
+            "shrink-0 hidden md:flex flex-col transition-all duration-200",
+            isSidebarOpen ? "w-64" : "w-14"
+          )}
+        >
+          {isSidebarOpen ? (
+            /* FULL SIDEBAR (w-64) */
+            <div className="rounded-md border border-slate-200/90 bg-white p-2.5 shadow-2xs space-y-2">
+              
+              {/* Sidebar Header */}
+              <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-100">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
-                  Navigasi
+                  Menu Navigasi
                 </span>
                 <button
                   type="button"
                   onClick={toggleSidebar}
-                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
-                  title="Sembunyikan Sidebar (Ctrl+B)"
+                  className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Kecilkan Sidebar (Ctrl+B)"
                 >
                   <PanelLeftClose className="h-3.5 w-3.5" strokeWidth={2} />
                 </button>
               </div>
 
-              {/* Menu Section 1: Dashboard Utama (Parent Group) */}
+              {/* Menu Section 1: Monitoring Gudang */}
               {dashboardMenuItems.length > 0 && (
-                <div className="pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setIsDashboardGroupOpen(!isDashboardGroupOpen)}
-                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-bold text-slate-800 bg-slate-50/90 hover:bg-emerald-50/80 hover:text-emerald-950 transition-all border border-slate-200/80 cursor-pointer shadow-2xs group"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <LayoutDashboard className="h-4 w-4 text-emerald-800 shrink-0 group-hover:scale-105 transition-transform" strokeWidth={2} />
-                      <span className="leading-tight">Dashboard Utama</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono font-bold bg-white text-emerald-900 px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">
-                        {dashboardMenuItems.length}
-                      </span>
-                      <ChevronDown
-                        className={cn(
-                          "h-3.5 w-3.5 text-slate-500 transition-transform duration-200",
-                          isDashboardGroupOpen ? "rotate-0" : "-rotate-90"
-                        )}
-                        strokeWidth={2}
-                      />
-                    </div>
-                  </button>
-
-                  {/* Sub-menu Items */}
-                  {isDashboardGroupOpen && (
-                    <nav className="mt-1.5 ml-2.5 pl-2.5 border-l-2 border-emerald-800/20 space-y-0.5 animate-in fade-in duration-150">
-                      {dashboardMenuItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = activeTab === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            id={`sidebar-${item.id}`}
-                            onClick={() => handleSelectTab(item.id)}
-                            className={cn(
-                              "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs transition-all text-left group cursor-pointer",
-                              isActive
-                                ? "bg-emerald-800 text-white font-bold shadow-2xs"
-                                : "text-slate-600 font-medium hover:bg-emerald-50/70 hover:text-emerald-950"
-                            )}
-                          >
+                <div className="space-y-0.5">
+                  <div className="px-2.5 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                    Monitoring Gudang
+                  </div>
+                  <nav className="space-y-0.5">
+                    {dashboardMenuItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          id={`sidebar-${item.id}`}
+                          onClick={() => handleSelectTab(item.id)}
+                          className={cn(
+                            "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer group",
+                            isActive
+                              ? "bg-[#047857] text-white shadow-2xs font-bold"
+                              : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
                             <Icon
                               className={cn(
-                                "h-3.5 w-3.5 shrink-0 transition-transform group-hover:scale-105",
-                                isActive ? "text-white" : "text-slate-400 group-hover:text-emerald-800"
+                                "h-4 w-4 shrink-0 transition-transform group-hover:scale-105",
+                                isActive ? "text-white" : "text-slate-500 group-hover:text-emerald-800"
                               )}
-                              strokeWidth={2}
+                              strokeWidth={1.9}
                             />
                             <span className="truncate leading-tight text-[11.5px]">
                               {item.label}
                             </span>
-                          </button>
-                        );
-                      })}
-                    </nav>
-                  )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </nav>
                 </div>
               )}
 
               {/* Menu Section 2: Operasional & Input Data (Desktop) */}
               {operationalMenuItems.length > 0 && (
-                <div className="pt-2 border-t border-slate-100 space-y-1">
-                  <div className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
-                    Operasional &amp; Input Data
+                <div className="pt-2 border-t border-slate-100 space-y-0.5">
+                  <div className="px-2.5 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                    Operasional
                   </div>
                   <nav className="space-y-0.5">
                     {operationalMenuItems.map((item) => {
@@ -948,29 +922,29 @@ export default function Home() {
                           id={`sidebar-${item.id}`}
                           onClick={() => handleSelectTab(item.id)}
                           className={cn(
-                            "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-bold transition-all text-left cursor-pointer border shadow-2xs group",
+                            "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer group",
                             isActive
-                              ? "bg-emerald-800 text-white border-emerald-900 shadow-xs ring-1 ring-emerald-700/50"
-                              : "text-emerald-950 bg-emerald-50/70 hover:bg-emerald-100/80 border-emerald-200/90 hover:border-emerald-300"
+                              ? "bg-[#047857] text-white shadow-2xs font-bold"
+                              : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
                           )}
                         >
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
                             <Icon
                               className={cn(
                                 "h-4 w-4 shrink-0 transition-transform group-hover:scale-105",
-                                isActive ? "text-white" : "text-emerald-800"
+                                isActive ? "text-white" : "text-slate-500 group-hover:text-emerald-800"
                               )}
-                              strokeWidth={2.2}
+                              strokeWidth={1.9}
                             />
                             <span className="truncate leading-tight text-[11.5px]">
                               {item.label}
                             </span>
                           </div>
                           <span className={cn(
-                            "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border",
-                            isActive ? "bg-emerald-950/80 text-emerald-100 border-emerald-700/80" : "bg-emerald-100/80 text-emerald-900 border-emerald-200"
+                            "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ml-1 shrink-0",
+                            isActive ? "bg-emerald-900/60 text-emerald-100 border-emerald-600/40" : "bg-emerald-50 text-emerald-800 border-emerald-200"
                           )}>
-                            Input RTP
+                            Input
                           </span>
                         </button>
                       );
@@ -981,22 +955,22 @@ export default function Home() {
 
               {/* Menu Kelola Data & Hak Akses: Desktop */}
               {(canUploadSAP || canManageUsers) && (
-                <div className="pt-2 border-t border-slate-100 space-y-1">
-                  <div className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
-                    Kelola Data &amp; Hak Akses
+                <div className="pt-2 border-t border-slate-100 space-y-0.5">
+                  <div className="px-2.5 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                    Pengaturan &amp; Data
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {canUploadSAP && (
                       <button
                         type="button"
                         onClick={() => setIsUploadOpen(true)}
-                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-semibold text-slate-700 bg-slate-50/70 hover:bg-emerald-50/80 hover:text-emerald-950 transition-all border border-slate-200/80 hover:border-emerald-300 cursor-pointer shadow-2xs group"
+                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-semibold text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950 transition-all text-left cursor-pointer group"
                       >
-                        <div className="flex items-center gap-2.5">
-                          <Upload className="h-4 w-4 text-emerald-700 group-hover:scale-105 transition-transform" strokeWidth={2} />
-                          <span>Upload Data SAP</span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Upload className="h-4 w-4 text-slate-500 group-hover:text-emerald-800 shrink-0 transition-transform group-hover:scale-105" strokeWidth={1.9} />
+                          <span className="truncate text-[11.5px] leading-tight">Upload Raw Data SAP</span>
                         </div>
-                        <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-200">
+                        <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 ml-1 shrink-0">
                           Excel
                         </span>
                       </button>
@@ -1008,21 +982,21 @@ export default function Home() {
                         id="sidebar-users"
                         onClick={() => handleSelectTab('users')}
                         className={cn(
-                          "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-bold transition-all text-left cursor-pointer border shadow-2xs group",
+                          "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer group",
                           activeTab === 'users'
-                            ? "bg-emerald-800 text-white border-emerald-900 shadow-xs ring-1 ring-emerald-700/50"
-                            : "text-slate-700 bg-slate-50/70 hover:bg-emerald-50/80 hover:text-emerald-950 border-slate-200/80 hover:border-emerald-300"
+                            ? "bg-[#047857] text-white shadow-2xs font-bold"
+                            : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
                         )}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <Users className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-105", activeTab === 'users' ? "text-white" : "text-emerald-700")} strokeWidth={2} />
-                          <span>Kelola Pengguna</span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Users className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-105", activeTab === 'users' ? "text-white" : "text-slate-500 group-hover:text-emerald-800")} strokeWidth={1.9} />
+                          <span className="truncate text-[11.5px] leading-tight">Kelola Pengguna</span>
                         </div>
                         <span className={cn(
-                          "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border",
-                          activeTab === 'users' ? "bg-emerald-950/80 text-emerald-100 border-emerald-700" : "bg-emerald-100 text-emerald-900 border-emerald-200"
+                          "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ml-1 shrink-0",
+                          activeTab === 'users' ? "bg-emerald-900/60 text-emerald-100 border-emerald-600/40" : "bg-slate-100 text-slate-600 border-slate-200"
                         )}>
-                          Roles
+                          RBAC
                         </span>
                       </button>
                     )}
@@ -1031,27 +1005,143 @@ export default function Home() {
               )}
 
               {/* User Profile Snippet in Sidebar Footer */}
-              <div className="pt-2 border-t border-slate-100">
-                <div className="p-2 rounded-md bg-slate-50/90 border border-slate-200/90 flex items-center justify-between text-xs font-mono">
-                  <div className="min-w-0 pr-1">
-                    <div className="font-bold text-slate-900 truncate text-[11px] leading-tight">
-                      {currentUser.name}
+              <div className="pt-2 border-t border-slate-100 mt-2">
+                <div className="p-2 rounded-md bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="h-6 w-6 rounded-full bg-emerald-700 text-white flex items-center justify-center font-mono font-bold text-[10px] shrink-0">
+                      {currentUser.name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="text-[10px] text-slate-500 truncate">{currentUser.department}</div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 text-[11px] truncate leading-tight">
+                        {currentUser.name}
+                      </div>
+                      <div className="text-[9px] font-mono text-slate-500 truncate leading-tight">
+                        {currentUser.role === 'admin' ? 'Administrator' : 'Staff Operasional'}
+                      </div>
+                    </div>
                   </div>
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors cursor-pointer shrink-0"
+                    className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
                     title="Keluar / Ganti Akun"
                   >
-                    <LogOut className="h-3.5 w-3.5" strokeWidth={2} />
+                    <LogOut className="h-3.5 w-3.5" strokeWidth={1.9} />
                   </button>
                 </div>
               </div>
             </div>
-          </aside>
-        )}
+          ) : (
+            /* COMPACT ICON RAIL (w-14) */
+            <div className="rounded-md border border-slate-200/90 bg-white p-2 shadow-2xs flex flex-col items-center gap-2">
+              {/* Expand Toggle */}
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="h-8 w-8 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
+                title="Perluas Sidebar (Ctrl+B)"
+              >
+                <PanelLeftOpen className="h-4 w-4" strokeWidth={2} />
+              </button>
+
+              <div className="w-6 h-[1px] bg-slate-100" />
+
+              {/* Dashboard Items */}
+              <div className="space-y-1 w-full flex flex-col items-center">
+                {dashboardMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSelectTab(item.id)}
+                      className={cn(
+                        "h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer",
+                        isActive
+                          ? "bg-[#047857] text-white shadow-2xs font-bold"
+                          : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-950"
+                      )}
+                      title={item.label}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.9} />
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Operational Items */}
+              {operationalMenuItems.length > 0 && (
+                <>
+                  <div className="w-6 h-[1px] bg-slate-100" />
+                  <div className="space-y-1 w-full flex flex-col items-center">
+                    {operationalMenuItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleSelectTab(item.id)}
+                          className={cn(
+                            "h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer",
+                            isActive
+                              ? "bg-[#047857] text-white shadow-2xs font-bold"
+                              : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-950"
+                          )}
+                          title={`${item.label} (Input RTP)`}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" strokeWidth={1.9} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Admin Tools */}
+              {(canUploadSAP || canManageUsers) && (
+                <>
+                  <div className="w-6 h-[1px] bg-slate-100" />
+                  <div className="space-y-1 w-full flex flex-col items-center">
+                    {canUploadSAP && (
+                      <button
+                        type="button"
+                        onClick={() => setIsUploadOpen(true)}
+                        className="h-8 w-8 flex items-center justify-center rounded-md text-slate-500 hover:bg-emerald-50 hover:text-emerald-950 transition-all cursor-pointer"
+                        title="Upload Raw Data SAP"
+                      >
+                        <Upload className="h-4 w-4" strokeWidth={1.9} />
+                      </button>
+                    )}
+                    {canManageUsers && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTab('users')}
+                        className={cn(
+                          "h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer",
+                          activeTab === 'users'
+                            ? "bg-[#047857] text-white shadow-2xs font-bold"
+                            : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-950"
+                        )}
+                        title="Kelola Pengguna & Roles"
+                      >
+                        <Users className="h-4 w-4" strokeWidth={1.9} />
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* User Avatar */}
+              <div className="w-6 h-[1px] bg-slate-100 mt-auto" />
+              <div
+                className="h-6 w-6 rounded-full bg-emerald-700 text-white flex items-center justify-center font-mono font-bold text-[10px] shrink-0"
+                title={`${currentUser.name} (${currentUser.role})`}
+              >
+                {currentUser.name.charAt(0).toUpperCase()}
+              </div>
+            </div>
+          )}
+        </aside>
 
         {/* Content Area */}
         <main className="flex-1 min-w-0 space-y-6">
