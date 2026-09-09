@@ -1,5 +1,5 @@
-# Supabase PostgreSQL Migration for Spindo Warehouse Dashboard
-# Jalankan query ini di Supabase SQL Editor:
+-- Supabase PostgreSQL Migration for Spindo Warehouse Dashboard
+-- Jalankan query ini di Supabase SQL Editor:
 
 CREATE TABLE IF NOT EXISTS warehouse_snapshots (
   id BIGSERIAL PRIMARY KEY,
@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS warehouse_snapshots (
   unfifo_coil_data JSONB DEFAULT '[]'::jsonb,
   unfifo_pipe_data JSONB DEFAULT '[]'::jsonb,
   damaged_packaging_data JSONB DEFAULT '[]'::jsonb,
+  incoming_packaging_data JSONB DEFAULT '[]'::jsonb,
   customer_breakdown JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

@@ -144,9 +144,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
         setUsers(data.users);
         try {
           localStorage.setItem('spindo_users_list', JSON.stringify(data.users));
-        } catch {}
+        } catch (err: any) { console.error("Fetch Error:", err); setRoleFormError("Error: " + (err.message || "Koneksi server."));}
       }
-    } catch {
+    } catch (err: any) { console.error("Fetch Error:", err); setRoleFormError("Error: " + (err.message || "Koneksi server."));
       const local = localStorage.getItem('spindo_users_list');
       if (local) setUsers(JSON.parse(local));
     } finally {
@@ -165,9 +165,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
         if (onRolesUpdated) onRolesUpdated(data.roles);
         try {
           localStorage.setItem('spindo_custom_roles', JSON.stringify(data.roles));
-        } catch {}
+        } catch (err: any) { console.error("Fetch Error:", err); setRoleFormError("Error: " + (err.message || "Koneksi server."));}
       }
-    } catch {
+    } catch (err: any) { console.error("Fetch Error:", err); setRoleFormError("Error: " + (err.message || "Koneksi server."));
       const local = localStorage.getItem('spindo_custom_roles');
       if (local) setRoles(JSON.parse(local));
     } finally {
@@ -248,7 +248,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
       } else {
         setUserFormError(data.error || 'Gagal menyimpan user.');
       }
-    } catch {
+    } catch (err: any) { console.error("Fetch Error:", err); setRoleFormError("Error: " + (err.message || "Koneksi server."));
       setUserFormError('Terjadi kesalahan koneksi server.');
     } finally {
       setIsSubmittingUser(false);
@@ -273,7 +273,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
       } else {
         setDeleteError(data.error || 'Gagal menghapus user.');
       }
-    } catch {
+    } catch (err: any) { console.error("Fetch Error:", err); setRoleFormError("Error: " + (err.message || "Koneksi server."));
       setDeleteError('Terjadi kesalahan koneksi saat menghapus.');
     } finally {
       setIsDeleting(false);
@@ -361,8 +361,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
       } else {
         setRoleFormError(data.error || 'Gagal menyimpan data role.');
       }
-    } catch {
-      setRoleFormError('Terjadi kesalahan koneksi server.');
+    } catch (err: any) {
+      console.error('Role Fetch Error:', err);
+      setRoleFormError(`Gagal (Client/JSON): ${err.message}`);
     } finally {
       setIsSubmittingRole(false);
     }
@@ -386,7 +387,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
       } else {
         setDeleteError(data.error || 'Gagal menghapus role.');
       }
-    } catch {
+    } catch (err: any) { console.error("Fetch Error:", err); setRoleFormError("Error: " + (err.message || "Koneksi server."));
       setDeleteError('Terjadi kesalahan koneksi saat menghapus role.');
     } finally {
       setIsDeleting(false);
