@@ -43,6 +43,15 @@ const WIDTH_OPTIONS: { label: string; value: CardWidth; short: string }[] = [
   { label: 'Kompak (33%)', value: 'col-span-4', short: '33%' },
 ];
 
+const COL_SPAN_MAP: Record<CardWidth, string> = {
+  'col-span-12': 'col-span-12 lg:col-span-12',
+  'col-span-8': 'col-span-12 lg:col-span-8',
+  'col-span-7': 'col-span-12 lg:col-span-7',
+  'col-span-6': 'col-span-12 lg:col-span-6',
+  'col-span-5': 'col-span-12 lg:col-span-5',
+  'col-span-4': 'col-span-12 lg:col-span-4',
+};
+
 export const CustomizableCard: React.FC<CustomizableCardProps> = ({
   id,
   title,
@@ -98,11 +107,11 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
 
   return (
     <div
-      className={`border transition-all duration-150 bg-white shadow-2xs flex flex-col justify-between overflow-hidden theme-card-rounded ${
+      className={`border transition-all duration-150 bg-white shadow-2xs flex flex-col justify-between overflow-hidden theme-card-rounded min-w-0 ${
         isCustomizing
           ? 'border-emerald-600 ring-1 ring-emerald-600/30'
           : 'border-slate-200 hover:border-slate-300'
-      } ${width}`}
+      } ${COL_SPAN_MAP[width] || 'col-span-12'}`}
     >
       {/* Header Card */}
       <div className="border-b border-slate-100 p-3 bg-slate-50/50 flex items-center justify-between gap-2">

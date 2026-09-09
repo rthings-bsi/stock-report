@@ -1054,7 +1054,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
 
       {/* TAB 1: PIPA UNFIFO CARDS */}
       {activeTab === 'pipe' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full">
           {pipeCards.map((card, index) => {
             if (card.id === 'chart-pipe-unfifo' && pipeData.length > 0) {
               return (
@@ -1072,7 +1072,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveRight={() => handleMovePipe(index, 'right')}
                   onWidthChange={(w) => handleWidthChangePipe(card.id, w)}
                 >
-                  <div className="h-56 w-full">
+                  <div className="h-64 sm:h-72 w-full min-w-0 p-1">
                     <Bar data={pipeBarChartData} options={pipeBarChartOptions} />
                   </div>
                 </CustomizableCard>
@@ -1095,8 +1095,8 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveRight={() => handleMovePipe(index, 'right')}
                   onWidthChange={(w) => handleWidthChangePipe(card.id, w)}
                 >
-                  <div className="flex flex-col justify-between h-full space-y-2 font-mono">
-                    <div className="h-44 w-full relative flex items-center justify-center">
+                  <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
+                    <div className="h-48 sm:h-56 w-full relative flex items-center justify-center min-w-0">
                       <Doughnut data={pipeSummaryDonutData} options={pipeSummaryDonutOptions} />
                       <div className="absolute flex flex-col items-center justify-center pointer-events-none pb-5">
                         <span className="text-[9px] text-slate-400 font-bold uppercase">Total Pipa</span>
@@ -1105,12 +1105,12 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-[11px]">
-                      <div className="p-1.5 rounded bg-slate-50 border border-slate-200">
+                    <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-100 text-[11px]">
+                      <div className="p-2 rounded bg-slate-50 border border-slate-200">
                         <span className="text-[9px] text-slate-500 font-sans block">Alokasi Gudang</span>
                         <strong className="text-slate-900 text-xs">{availablePipeGudangs.length - 1} Gudang</strong>
                       </div>
-                      <div className="p-1.5 rounded bg-slate-50 border border-slate-200">
+                      <div className="p-2 rounded bg-slate-50 border border-slate-200">
                         <span className="text-[9px] text-slate-500 font-sans block">Customer</span>
                         <strong className="text-slate-900 text-xs">{Array.from(new Set(filteredPipeData.map((d) => d.customer))).length} Cust</strong>
                       </div>
@@ -1153,18 +1153,18 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-1 items-start">
                       {/* Vertical Bar Chart */}
-                      <div className="lg:col-span-7 h-64 w-full">
+                      <div className="lg:col-span-7 xl:col-span-7 h-64 sm:h-72 w-full min-w-0">
                         <Bar data={pipeCausesBarData} options={pipeCausesBarOptions} />
                       </div>
 
                       {/* Breakdown Ranking Table */}
-                      <div className="lg:col-span-5 space-y-2 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-5 pt-3 lg:pt-0">
+                      <div className="lg:col-span-5 xl:col-span-5 space-y-2 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-6 pt-3 lg:pt-0">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                           Peringkat Dominasi Penyebab:
                         </span>
-                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
                           {pipeCausesSummary.map((item, rIdx) => {
                             const pct = totalPipeUnfifoTon > 0 ? ((item.totalTon / totalPipeUnfifoTon) * 100).toFixed(1) : 0;
                             return (
@@ -1389,7 +1389,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
 
       {/* TAB 2: COIL & STRIP UNFIFO CARDS */}
       {activeTab === 'coil' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full">
           {coilCards.map((card, index) => {
             if (card.id === 'chart-coil-unfifo' && coilData.length > 0) {
               return (
@@ -1407,7 +1407,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveRight={() => handleMoveCoil(index, 'right')}
                   onWidthChange={(w) => handleWidthChangeCoil(card.id, w)}
                 >
-                  <div className="h-56 w-full">
+                  <div className="h-64 sm:h-72 w-full min-w-0 p-1">
                     <Bar data={coilBarChartData} options={coilBarChartOptions} />
                   </div>
                 </CustomizableCard>
@@ -1430,8 +1430,8 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveRight={() => handleMoveCoil(index, 'right')}
                   onWidthChange={(w) => handleWidthChangeCoil(card.id, w)}
                 >
-                  <div className="flex flex-col justify-between h-full space-y-2 font-mono">
-                    <div className="h-44 w-full relative flex items-center justify-center">
+                  <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
+                    <div className="h-48 sm:h-56 w-full relative flex items-center justify-center min-w-0">
                       <Doughnut data={coilSummaryDonutData} options={coilSummaryDonutOptions} />
                       <div className="absolute flex flex-col items-center justify-center pointer-events-none pb-5">
                         <span className="text-[9px] text-slate-400 font-bold uppercase">Total Bahan</span>
@@ -1440,13 +1440,13 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-[11px]">
-                      <div className="p-1.5 rounded bg-emerald-50/60 border border-emerald-200">
+                    <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-100 text-[11px]">
+                      <div className="p-2 rounded bg-emerald-50/60 border border-emerald-200">
                         <span className="text-[9px] text-emerald-800 font-sans block font-bold uppercase">Coil</span>
                         <strong className="text-emerald-950 text-xs">{formatTon(totalCoilOnlyTon, { showUnit: true })}</strong>
                         <span className="text-[9px] text-emerald-700 block">{formatQty(totalCoilOnlyQty, { unit: 'Roll' })}</span>
                       </div>
-                      <div className="p-1.5 rounded bg-amber-50/60 border border-amber-200">
+                      <div className="p-2 rounded bg-amber-50/60 border border-amber-200">
                         <span className="text-[9px] text-amber-800 font-sans block font-bold uppercase">Strip</span>
                         <strong className="text-amber-950 text-xs">{formatTon(totalStripOnlyTon, { showUnit: true })}</strong>
                         <span className="text-[9px] text-amber-700 block">{formatQty(totalStripOnlyQty, { unit: 'Roll' })}</span>
@@ -1490,18 +1490,18 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-1 items-start">
                       {/* Vertical Bar Chart */}
-                      <div className="lg:col-span-7 h-64 w-full">
+                      <div className="lg:col-span-7 xl:col-span-7 h-64 sm:h-72 w-full min-w-0">
                         <Bar data={coilCausesBarData} options={coilCausesBarOptions} />
                       </div>
 
                       {/* Breakdown Ranking Table */}
-                      <div className="lg:col-span-5 space-y-2 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-5 pt-3 lg:pt-0">
+                      <div className="lg:col-span-5 xl:col-span-5 space-y-2 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-6 pt-3 lg:pt-0">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                           Peringkat Dominasi Kendala:
                         </span>
-                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
                           {coilCausesSummary.map((item, rIdx) => {
                             const pct = totalCoilUnfifoTon > 0 ? ((item.totalTon / totalCoilUnfifoTon) * 100).toFixed(1) : 0;
                             return (
