@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     const users = db.prepare('SELECT id, username, name, role, department, unit, password, created_at, updated_at FROM users ORDER BY id ASC').all();
     return NextResponse.json({ success: true, users });
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Gagal mengambil data user.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: `Gagal mengambil data user: ${error instanceof Error ? error.message : JSON.stringify(error)}` }, { status: 500 });
   }
 }
 
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     db.prepare(`INSERT INTO users (username, password, name, role, department, unit) VALUES (?, ?, ?, ?, ?, ?)`).run(cleanUsername, password.trim(), cleanName, cleanRole, cleanDept, cleanUnit);
     return NextResponse.json({ success: true, message: 'User baru berhasil ditambahkan.' });
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Gagal memproses data user.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: `Gagal memproses data user: ${error instanceof Error ? error.message : JSON.stringify(error)}` }, { status: 500 });
   }
 }
 
@@ -129,6 +129,6 @@ export async function DELETE(request: Request) {
     db.prepare('DELETE FROM users WHERE id = ?').run(userToDelete.id);
     return NextResponse.json({ success: true, message: `User "${userToDelete.username}" berhasil dihapus.` });
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Gagal menghapus user.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: `Gagal menghapus user: ${error instanceof Error ? error.message : JSON.stringify(error)}` }, { status: 500 });
   }
 }

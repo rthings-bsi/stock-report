@@ -32,7 +32,7 @@ export async function GET() {
     }));
     return NextResponse.json({ success: true, roles });
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Gagal mengambil data roles.', fallback: PRESET_ROLES }, { status: 500 });
+    return NextResponse.json({ success: false, error: `Gagal mengambil data roles: ${error instanceof Error ? error.message : JSON.stringify(error)}`, fallback: PRESET_ROLES }, { status: 500 });
   }
 }
 
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     db.prepare(`INSERT INTO roles (key, name, description, color, is_system, permissions) VALUES (?, ?, ?, ?, 0, ?)`).run(cleanKey, cleanName, cleanDesc, cleanColor, JSON.stringify(permsJson));
     return NextResponse.json({ success: true, message: `Role "${cleanName}" berhasil dibuat.`, role: { key: cleanKey, name: cleanName, permissions: permsJson } });
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Gagal memproses data role.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: `Gagal memproses data role: ${error instanceof Error ? error.message : JSON.stringify(error)}` }, { status: 500 });
   }
 }
 
@@ -112,6 +112,6 @@ export async function DELETE(request: Request) {
     db.prepare('DELETE FROM roles WHERE id = ?').run(roleToDelete.id);
     return NextResponse.json({ success: true, message: `Role "${roleToDelete.name}" berhasil dihapus.` });
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Gagal menghapus role.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: `Gagal menghapus role: ${error instanceof Error ? error.message : JSON.stringify(error)}` }, { status: 500 });
   }
 }

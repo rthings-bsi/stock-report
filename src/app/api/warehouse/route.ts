@@ -120,7 +120,7 @@ export async function GET(request: Request) {
   } catch (error: unknown) {
     console.error('Failed to get warehouse data:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to read data' },
+      { success: false, error: `Failed to read data: ${error instanceof Error ? error.message : JSON.stringify(error)}` },
       { status: 500 }
     );
   }
@@ -267,7 +267,7 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     console.error('Failed to save warehouse data:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to write data' },
+      { success: false, error: `Failed to write data: ${error instanceof Error ? error.message : JSON.stringify(error)}` },
       { status: 500 }
     );
   }
