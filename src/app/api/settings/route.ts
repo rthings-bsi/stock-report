@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabase, isSupabaseConfigured } from '../../../lib/supabase';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 let localDb: any = null;
 function getLocalDb() {
   if (!localDb) {

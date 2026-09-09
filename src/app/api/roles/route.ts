@@ -3,6 +3,9 @@ import db from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { CustomRole, PRESET_ROLES } from '@/types/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     if (isSupabaseConfigured && supabase) {

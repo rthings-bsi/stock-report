@@ -4,6 +4,9 @@ import db from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { StoredAccount } from '@/types/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Helper to verify and hash passwords
 function verifyPassword(plain: string, hashOrPlain: string): boolean {
   if (!hashOrPlain || !plain) return false;

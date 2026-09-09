@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabase, isSupabaseConfigured } from '../../../lib/supabase';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Fallback SQLite instance for local environment
 let localDb: any = null;
 function getLocalDb() {

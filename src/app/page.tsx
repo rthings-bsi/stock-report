@@ -231,7 +231,7 @@ export default function Home() {
   const loadSnapshotByKey = async (key: string) => {
     setSelectedSnapshotKey(key);
     try {
-      const res = await fetch(`/api/warehouse?key=${encodeURIComponent(key)}`);
+      const res = await fetch(`/api/warehouse?key=${encodeURIComponent(key)}`, { cache: 'no-store' });
       const json = await res.json();
       if (json?.success && json?.data) {
         const d = json.data;
@@ -284,32 +284,51 @@ export default function Home() {
         console.error('Failed to parse localStorage cache:', err);
       }
 
-      // 2. Sinkronkan dengan server database SQLite
+      // 2. Sinkronkan dengan server database Supabase / SQLite
       try {
-        const res = await fetch('/api/warehouse');
+        const res = await fetch('/api/warehouse', { cache: 'no-store' });
         const json = await res.json();
-        if (json?.success && json?.data) {
-          const d = json.data;
-          if (d.pipeCapacities?.length > 0) setPipeCapacities(d.pipeCapacities);
-          if (d.fastSlowData?.length > 0) setFastSlowData(d.fastSlowData);
-          if (d.coilStripData?.length > 0) setCoilStripData(d.coilStripData);
-          if (d.ncWarehouseData?.length > 0) setNcWarehouseData(d.ncWarehouseData);
-          if (d.ncItems?.length > 0) setNcItems(d.ncItems);
-          if (d.looSTData?.length > 0) setLooSTData(d.looSTData);
-          if (d.looLTData?.length > 0) setLooLTData(d.looLTData);
-          if (d.unfifoData?.length > 0) setUnfifoData(d.unfifoData);
-          setUnfifoCoilData(d.unfifoCoilData || []);
-          setUnfifoPipeData(d.unfifoPipeData || []);
-          if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
-          if (d.incomingPackagingData?.length > 0) setIncomingPackagingData(d.incomingPackagingData);
-          if (d.customerBreakdown) setCustomerBreakdown(d.customerBreakdown);
-          if (d.lastUpdated) setLastUpdated(d.lastUpdated);
-          setIsCustomData(true);
-          // Sync balik ke localStorage
-          localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(d));
+        if (json?.success) {
+          if (json.data) {
+            const d = json.data;
+            if (d.pipeCapacities?.length > 0) setPipeCapacities(d.pipeCapacities);
+            if (d.fastSlowData?.length > 0) setFastSlowData(d.fastSlowData);
+            if (d.coilStripData?.length > 0) setCoilStripData(d.coilStripData);
+            if (d.ncWarehouseData?.length > 0) setNcWarehouseData(d.ncWarehouseData);
+            if (d.ncItems?.length > 0) setNcItems(d.ncItems);
+            if (d.looSTData?.length > 0) setLooSTData(d.looSTData);
+            if (d.looLTData?.length > 0) setLooLTData(d.looLTData);
+            if (d.unfifoData?.length > 0) setUnfifoData(d.unfifoData);
+            setUnfifoCoilData(d.unfifoCoilData || []);
+            setUnfifoPipeData(d.unfifoPipeData || []);
+            if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
+            if (d.incomingPackagingData?.length > 0) setIncomingPackagingData(d.incomingPackagingData);
+            if (d.customerBreakdown) setCustomerBreakdown(d.customerBreakdown);
+            if (d.lastUpdated) setLastUpdated(d.lastUpdated);
+            setIsCustomData(true);
+            // Sync balik ke localStorage
+            localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(d));
+          } else {
+            // Database kosong / data sudah dihapus: bersihkan tampilan & cache
+            setPipeCapacities([]);
+            setFastSlowData([]);
+            setCoilStripData([]);
+            setNcWarehouseData([]);
+            setNcItems([]);
+            setLooSTData([]);
+            setLooLTData([]);
+            setUnfifoData([]);
+            setUnfifoCoilData([]);
+            setUnfifoPipeData([]);
+            setDamagedPackagingData([]);
+            setIncomingPackagingData([]);
+            setCustomerBreakdown({});
+            setIsCustomData(false);
+            localStorage.removeItem('spindo_warehouse_saved_state');
+          }
         }
       } catch (err) {
-        console.error('Failed to auto-load saved state from SQLite:', err);
+        console.error('Failed to auto-load saved state from server:', err);
       }
     }
     loadSavedData();
