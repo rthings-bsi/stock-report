@@ -801,7 +801,7 @@ export default function Home() {
       )}
 
       {/* Main Layout Container with Sidebar */}
-      <div className="flex-1 flex max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
+      <div className="flex-1 flex w-full mx-auto px-3 sm:px-6 lg:px-8 2xl:px-10 py-5 gap-5">
         {/* Modern Clean Sidebar (Expandable / Collapsible Rail) */}
         <aside
           className={cn(
