@@ -249,7 +249,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
         setUserFormError(data.error || 'Gagal menyimpan user.');
       }
     } catch (err: any) { console.error("Fetch Error:", err); setRoleFormError("Error: " + (err.message || "Koneksi server."));
-      setUserFormError('Terjadi kesalahan koneksi server.');
+      setUserFormError('Terjadi kesalahan koneksi server (Fetch Error).');
     } finally {
       setIsSubmittingUser(false);
     }
