@@ -4,7 +4,8 @@ import * as fs from 'fs';
 
 let Database;
 try {
-  Database = require('better-sqlite3');
+  // Hide from Next.js/Webpack static analyzer to prevent Serverless crashes
+  Database = eval("require('better-sqlite3')");
 } catch (e) {
   console.warn('better-sqlite3 not available (Vercel Serverless environment)');
 }
