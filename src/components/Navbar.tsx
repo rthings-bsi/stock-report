@@ -35,7 +35,6 @@ interface NavbarProps {
   onResetData: () => void;
   onSaveData: () => void;
   onSelectSnapshot: (key: string) => void;
-  onOpenThemeModal?: () => void;
   appTitle?: string;
   isCustomizingLayout?: boolean;
   onToggleCustomizeLayout?: () => void;
@@ -61,7 +60,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetData,
   onSaveData,
   onSelectSnapshot,
-  onOpenThemeModal,
   appTitle = '',
   isCustomizingLayout = false,
   onToggleCustomizeLayout,
@@ -286,21 +284,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span className="text-[11px]">{isCustomizingLayout ? 'Selesai Atur Card' : 'Atur Posisi & Ukuran Card'}</span>
                     </div>
                     {isCustomizingLayout && <Check className="h-3 w-3 text-amber-300" strokeWidth={2.5} />}
-                  </button>
-                )}
-
-                {/* Kustomisasi Desain UI Modal Trigger (Admin Only) */}
-                {currentUser?.role === 'admin' && onOpenThemeModal && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenThemeModal();
-                      setIsOpenMenu(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-slate-100 text-slate-800 transition-colors cursor-pointer text-[11px] mb-1.5"
-                  >
-                    <Palette className="h-3.5 w-3.5 text-emerald-800" strokeWidth={2} />
-                    <span>Kustomisasi Judul & Tema UI</span>
                   </button>
                 )}
 

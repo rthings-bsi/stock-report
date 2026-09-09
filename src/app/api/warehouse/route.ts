@@ -28,13 +28,14 @@ export async function GET(request: Request) {
         const { data, error } = await supabase
           .from('warehouse_snapshots')
           .select('snapshot_key, last_updated, created_at')
+          .neq('snapshot_key', 'app_settings')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
         return NextResponse.json({ success: true, snapshots: data || [] });
       }
 
-      let query = supabase.from('warehouse_snapshots').select('*');
+      let query = supabase.from('warehouse_snapshots').select('*').neq('snapshot_key', 'app_settings');
       if (key === 'latest') {
         query = query.order('created_at', { ascending: false }).limit(1);
       } else {
@@ -63,6 +64,7 @@ export async function GET(request: Request) {
         unfifoCoilData: row.unfifo_coil_data ? (typeof row.unfifo_coil_data === 'string' ? JSON.parse(row.unfifo_coil_data) : row.unfifo_coil_data) : [],
         unfifoPipeData: row.unfifo_pipe_data ? (typeof row.unfifo_pipe_data === 'string' ? JSON.parse(row.unfifo_pipe_data) : row.unfifo_pipe_data) : [],
         damagedPackagingData: row.damaged_packaging_data ? (typeof row.damaged_packaging_data === 'string' ? JSON.parse(row.damaged_packaging_data) : row.damaged_packaging_data) : [],
+        incomingPackagingData: row.incoming_packaging_data ? (typeof row.incoming_packaging_data === 'string' ? JSON.parse(row.incoming_packaging_data) : row.incoming_packaging_data) : [],
         customerBreakdown: row.customer_breakdown ? (typeof row.customer_breakdown === 'string' ? JSON.parse(row.customer_breakdown) : row.customer_breakdown) : {},
         createdAt: row.created_at,
       };

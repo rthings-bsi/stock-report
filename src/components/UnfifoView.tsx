@@ -109,12 +109,44 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
   const [tempIssueText, setTempIssueText] = useState<string>('');
 
   useEffect(() => {
+    // 1. Load from localStorage for immediate render
     try {
       const savedP = localStorage.getItem('spindo_unfifo_pipe_issues');
       if (savedP) setPipeIssues(JSON.parse(savedP));
       const savedC = localStorage.getItem('spindo_unfifo_coil_issues');
       if (savedC) setCoilIssues(JSON.parse(savedC));
     } catch {}
+
+    // 2. Fetch latest from Database via /api/settings
+    fetch('/api/settings?key=unfifo_pipe_issues')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.success && res.data && typeof res.data === 'object') {
+          setPipeIssues((prev) => {
+            const merged = { ...prev, ...res.data };
+            try {
+              localStorage.setItem('spindo_unfifo_pipe_issues', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
+      })
+      .catch((err) => console.warn('Failed to load pipe issues from DB:', err));
+
+    fetch('/api/settings?key=unfifo_coil_issues')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.success && res.data && typeof res.data === 'object') {
+          setCoilIssues((prev) => {
+            const merged = { ...prev, ...res.data };
+            try {
+              localStorage.setItem('spindo_unfifo_coil_issues', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
+      })
+      .catch((err) => console.warn('Failed to load coil issues from DB:', err));
   }, []);
 
   const handleSaveIssue = (type: 'pipe' | 'coil', key: string, text: string) => {
@@ -129,6 +161,14 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
         try {
           localStorage.setItem('spindo_unfifo_pipe_issues', JSON.stringify(updated));
         } catch {}
+
+        // Sync to Database
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'unfifo_pipe_issues', value: updated })
+        }).catch((err) => console.warn('Failed to save pipe issue to DB:', err));
+
         return updated;
       });
     } else {
@@ -142,6 +182,14 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
         try {
           localStorage.setItem('spindo_unfifo_coil_issues', JSON.stringify(updated));
         } catch {}
+
+        // Sync to Database
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'unfifo_coil_issues', value: updated })
+        }).catch((err) => console.warn('Failed to save coil issue to DB:', err));
+
         return updated;
       });
     }
@@ -347,11 +395,10 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
 
   const pipeCausesSummary = useMemo(() => {
     const summaryMap: Record<string, { cause: string; count: number; totalTon: number; totalQty: number }> = {};
-    const hasCustomIssues = pipeData.some((d) => Boolean(pipeIssues[getPipeKey(d)]));
-
-    if (hasCustomIssues) {
-      pipeData.forEach((d) => {
-        const issue = pipeIssues[getPipeKey(d)];
+    
+    pipeData.forEach((d) => {
+      const issue = pipeIssues[getPipeKey(d)];
+      if (issue && issue.trim()) {
         const category = parseCauseCategory(issue);
         if (!summaryMap[category]) {
           summaryMap[category] = { cause: category, count: 0, totalTon: 0, totalQty: 0 };
@@ -359,27 +406,8 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
         summaryMap[category].count += 1;
         summaryMap[category].totalTon += d.tonase;
         summaryMap[category].totalQty += d.qtyBtg;
-      });
-    } else {
-      const baselineCauses = [
-        { cause: 'Belum ada PO', weight: 0.38 },
-        { cause: 'Hold Qc', weight: 0.28 },
-        { cause: 'Pipa Tertumpuk', weight: 0.22 },
-        { cause: 'Pipa Khusus Order Tertentu', weight: 0.12 },
-      ];
-
-      const totalT = pipeData.reduce((sum, d) => sum + d.tonase, 0);
-      const totalQ = pipeData.reduce((sum, d) => sum + d.qtyBtg, 0);
-
-      baselineCauses.forEach((b) => {
-        summaryMap[b.cause] = {
-          cause: b.cause,
-          count: Math.max(1, Math.round(pipeData.length * b.weight)),
-          totalTon: Number((totalT * b.weight).toFixed(2)),
-          totalQty: Math.max(1, Math.round(totalQ * b.weight))
-        };
-      });
-    }
+      }
+    });
 
     return Object.values(summaryMap).sort((a, b) => b.totalTon - a.totalTon);
   }, [pipeData, pipeIssues]);
@@ -447,11 +475,10 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
 
   const coilCausesSummary = useMemo(() => {
     const summaryMap: Record<string, { cause: string; count: number; totalTon: number; totalQty: number }> = {};
-    const hasCustomIssues = coilData.some((d) => Boolean(coilIssues[getCoilKey(d)]));
 
-    if (hasCustomIssues) {
-      coilData.forEach((d) => {
-        const issue = coilIssues[getCoilKey(d)];
+    coilData.forEach((d) => {
+      const issue = coilIssues[getCoilKey(d)];
+      if (issue && issue.trim()) {
         const category = parseCauseCategory(issue);
         if (!summaryMap[category]) {
           summaryMap[category] = { cause: category, count: 0, totalTon: 0, totalQty: 0 };
@@ -459,27 +486,8 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
         summaryMap[category].count += 1;
         summaryMap[category].totalTon += d.tonase;
         summaryMap[category].totalQty += d.qtyRoll;
-      });
-    } else {
-      const baselineCauses = [
-        { cause: 'Menunggu Urutan Jadwal Mesin Slitting / Mill', weight: 0.42 },
-        { cause: 'Penataan Slitting Bay Padat / Akses Crane', weight: 0.28 },
-        { cause: 'Spesifikasi Khusus Order Tertentu (Reserved)', weight: 0.18 },
-        { cause: 'Hold Mutu Permukaan Coil / Rekomendasi QC', weight: 0.12 },
-      ];
-
-      const totalT = coilData.reduce((sum, d) => sum + d.tonase, 0);
-      const totalQ = coilData.reduce((sum, d) => sum + d.qtyRoll, 0);
-
-      baselineCauses.forEach((b) => {
-        summaryMap[b.cause] = {
-          cause: b.cause,
-          count: Math.max(1, Math.round(coilData.length * b.weight)),
-          totalTon: Number((totalT * b.weight).toFixed(2)),
-          totalQty: Math.max(1, Math.round(totalQ * b.weight))
-        };
-      });
-    }
+      }
+    });
 
     return Object.values(summaryMap).sort((a, b) => b.totalTon - a.totalTon);
   }, [coilData, coilIssues]);
@@ -1118,7 +1126,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                 <CustomizableCard
                   key={card.id}
                   id={card.id}
-                  title="Faktor Penyebab UNFIFO Produk Pipa (Tonase & Frekuensi)"
+                  title="Faktor Penyebab UNFIFO Produk Pipa"
                   subtitle="Distribusi tonase per kategori kendala pengeluaran pipa di Plant 1105"
                   icon={BarChart3}
                   width={card.width}
@@ -1129,48 +1137,60 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveRight={() => handleMovePipe(index, 'right')}
                   onWidthChange={(w) => handleWidthChangePipe(card.id, w)}
                   badge={
-                    <span className="text-[10px] font-mono bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded font-bold">
-                      {pipeCausesSummary.length} Kategori Masalah
-                    </span>
+                    pipeCausesSummary.length > 0 ? (
+                      <span className="text-[10px] font-mono bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded font-bold">
+                        {pipeCausesSummary.length} Kategori Masalah
+                      </span>
+                    ) : undefined
                   }
                 >
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
-                    {/* Vertical Bar Chart */}
-                    <div className="lg:col-span-7 h-64 w-full">
-                      <Bar data={pipeCausesBarData} options={pipeCausesBarOptions} />
+                  {pipeCausesSummary.length === 0 ? (
+                    <div className="py-8 px-4 text-center font-mono">
+                      <AlertTriangle className="h-7 w-7 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-slate-700">Belum Ada Catatan Alasan / Issue Pipa</p>
+                      <p className="text-[11px] text-slate-400 font-sans mt-0.5">
+                        Klik tombol <span className="text-emerald-700 font-bold font-mono">&quot;+ Catat Alasan&quot;</span> pada tabel di bawah untuk mengisi kendala aktual di lapangan.
+                      </p>
                     </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+                      {/* Vertical Bar Chart */}
+                      <div className="lg:col-span-7 h-64 w-full">
+                        <Bar data={pipeCausesBarData} options={pipeCausesBarOptions} />
+                      </div>
 
-                    {/* Breakdown Ranking Table */}
-                    <div className="lg:col-span-5 space-y-2 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-5 pt-3 lg:pt-0">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                        Peringkat Dominasi Penyebab:
-                      </span>
-                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                        {pipeCausesSummary.map((item, rIdx) => {
-                          const pct = totalPipeUnfifoTon > 0 ? ((item.totalTon / totalPipeUnfifoTon) * 100).toFixed(1) : 0;
-                          return (
-                            <div
-                              key={item.cause}
-                              className="p-2 rounded bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-2 hover:bg-slate-100/80 transition-colors"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="h-5 w-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                                  {rIdx + 1}
-                                </span>
-                                <span className="text-[11px] font-sans font-semibold text-slate-800 truncate" title={item.cause}>
-                                  {item.cause}
-                                </span>
+                      {/* Breakdown Ranking Table */}
+                      <div className="lg:col-span-5 space-y-2 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-5 pt-3 lg:pt-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                          Peringkat Dominasi Penyebab:
+                        </span>
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                          {pipeCausesSummary.map((item, rIdx) => {
+                            const pct = totalPipeUnfifoTon > 0 ? ((item.totalTon / totalPipeUnfifoTon) * 100).toFixed(1) : 0;
+                            return (
+                              <div
+                                key={item.cause}
+                                className="p-2 rounded bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-2 hover:bg-slate-100/80 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="h-5 w-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                    {rIdx + 1}
+                                  </span>
+                                  <span className="text-[11px] font-sans font-semibold text-slate-800 truncate" title={item.cause}>
+                                    {item.cause}
+                                  </span>
+                                </div>
+                                <div className="text-right shrink-0 text-[11px]">
+                                  <strong className="text-slate-900">{formatTon(item.totalTon, { showUnit: true })}</strong>
+                                  <span className="text-[10px] text-slate-500 block">({pct}% &bull; {item.count} item)</span>
+                                </div>
                               </div>
-                              <div className="text-right shrink-0 text-[11px]">
-                                <strong className="text-slate-900">{formatTon(item.totalTon, { showUnit: true })}</strong>
-                                <span className="text-[10px] text-slate-500 block">({pct}% &bull; {item.count} item)</span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </CustomizableCard>
               );
             }
@@ -1454,48 +1474,60 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveRight={() => handleMoveCoil(index, 'right')}
                   onWidthChange={(w) => handleWidthChangeCoil(card.id, w)}
                   badge={
-                    <span className="text-[10px] font-mono bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded font-bold">
-                      {coilCausesSummary.length} Kategori Masalah
-                    </span>
+                    coilCausesSummary.length > 0 ? (
+                      <span className="text-[10px] font-mono bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded font-bold">
+                        {coilCausesSummary.length} Kategori Masalah
+                      </span>
+                    ) : undefined
                   }
                 >
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
-                    {/* Vertical Bar Chart */}
-                    <div className="lg:col-span-7 h-64 w-full">
-                      <Bar data={coilCausesBarData} options={coilCausesBarOptions} />
+                  {coilCausesSummary.length === 0 ? (
+                    <div className="py-8 px-4 text-center font-mono">
+                      <AlertTriangle className="h-7 w-7 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-slate-700">Belum Ada Catatan Alasan / Issue Coil & Strip</p>
+                      <p className="text-[11px] text-slate-400 font-sans mt-0.5">
+                        Klik tombol <span className="text-emerald-700 font-bold font-mono">&quot;+ Catat Alasan&quot;</span> pada tabel di bawah untuk mengisi kendala aktual di lapangan.
+                      </p>
                     </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+                      {/* Vertical Bar Chart */}
+                      <div className="lg:col-span-7 h-64 w-full">
+                        <Bar data={coilCausesBarData} options={coilCausesBarOptions} />
+                      </div>
 
-                    {/* Breakdown Ranking Table */}
-                    <div className="lg:col-span-5 space-y-2 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-5 pt-3 lg:pt-0">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                        Peringkat Dominasi Kendala:
-                      </span>
-                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                        {coilCausesSummary.map((item, rIdx) => {
-                          const pct = totalCoilUnfifoTon > 0 ? ((item.totalTon / totalCoilUnfifoTon) * 100).toFixed(1) : 0;
-                          return (
-                            <div
-                              key={item.cause}
-                              className="p-2 rounded bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-2 hover:bg-slate-100/80 transition-colors"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="h-5 w-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                                  {rIdx + 1}
-                                </span>
-                                <span className="text-[11px] font-sans font-semibold text-slate-800 truncate" title={item.cause}>
-                                  {item.cause}
-                                </span>
+                      {/* Breakdown Ranking Table */}
+                      <div className="lg:col-span-5 space-y-2 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-5 pt-3 lg:pt-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                          Peringkat Dominasi Kendala:
+                        </span>
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                          {coilCausesSummary.map((item, rIdx) => {
+                            const pct = totalCoilUnfifoTon > 0 ? ((item.totalTon / totalCoilUnfifoTon) * 100).toFixed(1) : 0;
+                            return (
+                              <div
+                                key={item.cause}
+                                className="p-2 rounded bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-2 hover:bg-slate-100/80 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="h-5 w-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                    {rIdx + 1}
+                                  </span>
+                                  <span className="text-[11px] font-sans font-semibold text-slate-800 truncate" title={item.cause}>
+                                    {item.cause}
+                                  </span>
+                                </div>
+                                <div className="text-right shrink-0 text-[11px]">
+                                  <strong className="text-slate-900">{formatTon(item.totalTon, { showUnit: true })}</strong>
+                                  <span className="text-[10px] text-slate-500 block">({pct}% &bull; {item.count} roll)</span>
+                                </div>
                               </div>
-                              <div className="text-right shrink-0 text-[11px]">
-                                <strong className="text-slate-900">{formatTon(item.totalTon, { showUnit: true })}</strong>
-                                <span className="text-[10px] text-slate-500 block">({pct}% &bull; {item.count} roll)</span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </CustomizableCard>
               );
             }

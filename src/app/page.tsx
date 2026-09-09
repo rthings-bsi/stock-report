@@ -72,8 +72,6 @@ import {
 } from '@/types/warehouse';
 import { ParsedWarehouseState } from '@/lib/parser';
 import { cn, formatTon, formatPercent } from '@/lib/utils';
-import { UIThemeConfig, DEFAULT_UI_THEME, COLOR_PRESETS, RADIUS_PRESETS } from '@/types/theme';
-import { UIThemeModal } from '@/components/UIThemeModal';
 
 const VALID_TABS = [
   'capacity',
@@ -111,8 +109,6 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState<string>('02.09.2026 - 07:31 WIB');
   const [isCustomData, setIsCustomData] = useState<boolean>(false);
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
-  const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
-  const [uiTheme, setUiTheme] = useState<UIThemeConfig>(DEFAULT_UI_THEME);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [isCustomizingLayout, setIsCustomizingLayout] = useState<boolean>(false);
@@ -230,47 +226,6 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  // Load saved theme from localStorage on mount and apply CSS variables
-  const applyThemeToDOM = (t: UIThemeConfig) => {
-    if (typeof window === 'undefined') return;
-    const root = document.documentElement;
-    const body = document.body;
-    
-    // 1. Primary color mapping
-    const colorPreset = COLOR_PRESETS.find((c) => c.id === t.primaryColor) || COLOR_PRESETS[0];
-    root.style.setProperty('--primary-banner', colorPreset.bannerHex);
-    root.style.setProperty('--primary-header', colorPreset.headerHex);
-
-    // 2. Card Radius mapping
-    const radiusPreset = RADIUS_PRESETS.find((r) => r.id === t.cardRadius) || RADIUS_PRESETS[2];
-    root.style.setProperty('--card-radius', radiusPreset.px);
-
-    // 3. Background Pattern mapping
-    body.classList.remove('bg-theme-clean-slate', 'bg-theme-soft-ambient', 'bg-theme-pure-white', 'bg-theme-cool-grey');
-    body.classList.add(`bg-theme-${t.bgPattern || 'clean-slate'}`);
-  };
-
-  useEffect(() => {
-    try {
-      const savedTheme = localStorage.getItem('spindo_ui_theme');
-      if (savedTheme) {
-        const parsed = JSON.parse(savedTheme);
-        setUiTheme(parsed);
-        applyThemeToDOM(parsed);
-      } else {
-        applyThemeToDOM(DEFAULT_UI_THEME);
-      }
-    } catch {}
-  }, []);
-
-  const handleSaveTheme = (newTheme: UIThemeConfig) => {
-    setUiTheme(newTheme);
-    applyThemeToDOM(newTheme);
-    try {
-      localStorage.setItem('spindo_ui_theme', JSON.stringify(newTheme));
-    } catch {}
-  };
 
   // Load specific snapshot key
   const loadSnapshotByKey = async (key: string) => {
@@ -623,9 +578,6 @@ export default function Home() {
         onResetData={handleResetData}
         onSaveData={handleSaveData}
         onSelectSnapshot={loadSnapshotByKey}
-        onOpenThemeModal={() => {
-          if (canCustomizeLayout) setIsThemeModalOpen(true);
-        }}
         isCustomizingLayout={canCustomizeLayout ? isCustomizingLayout : false}
         onToggleCustomizeLayout={canCustomizeLayout ? () => setIsCustomizingLayout(!isCustomizingLayout) : undefined}
         isSaving={isSaving}
@@ -637,14 +589,6 @@ export default function Home() {
         onToggleMobileSidebar={() => setIsMobileSidebarOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
-      />
-
-      {/* Theme Customizer Modal */}
-      <UIThemeModal
-        isOpen={isThemeModalOpen}
-        onClose={() => setIsThemeModalOpen(false)}
-        currentTheme={uiTheme}
-        onSaveTheme={handleSaveTheme}
       />
 
       {/* Mobile Drawer Navigation */}
