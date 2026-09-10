@@ -11,6 +11,7 @@ import {
   MASTER_CUSTOMERS,
   getBoxTypesForCustomer
 } from '@/lib/packagingMaster';
+import { exportPackagingCheckSheet } from '@/lib/exportPackagingExcel';
 import {
   Plus,
   Minus,
@@ -159,16 +160,58 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Load from local cache immediately on mount, then sync with database API
   useEffect(() => {
-    if (data) {
+    try {
+      const cached = localStorage.getItem('spindo_audit_pkg_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setItems(parsed);
+        }
+      }
+    } catch {}
+
+    const fetchServerData = async () => {
+      try {
+        const res = await fetch('/api/incoming-packaging', { cache: 'no-store' });
+        const json = await res.json();
+        if (json?.success && Array.isArray(json.items)) {
+          setItems(json.items);
+          localStorage.setItem('spindo_audit_pkg_cache', JSON.stringify(json.items));
+          if (onDataUpdate) {
+            onDataUpdate(json.items);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync packaging audits from database:', err);
+      }
+    };
+    fetchServerData();
+  }, []);
+
+  useEffect(() => {
+    if (data && data.length > 0) {
       setItems(data);
     }
   }, [data]);
 
-  const notifyChange = (newItems: IncomingPackagingItem[]) => {
+  const notifyChange = async (newItems: IncomingPackagingItem[]) => {
     setItems(newItems);
+    try {
+      localStorage.setItem('spindo_audit_pkg_cache', JSON.stringify(newItems));
+    } catch {}
     if (onDataUpdate) {
       onDataUpdate(newItems);
+    }
+    try {
+      await fetch('/api/incoming-packaging', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newItems),
+      });
+    } catch (err) {
+      console.error('Failed to save packaging audits to server:', err);
     }
   };
 
@@ -297,12 +340,20 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
       rangka: rangkaQty > 0 ? `${rangkaQty}` : '-'
     };
 
+    const targetDate = normalizeDateToIso(formData.tglIncoming) || todayIso;
+
+    // Auto-update filter tanggal agar item yang baru disimpan langsung tampak di daftar
+    if (selectedDate && selectedDate !== targetDate) {
+      setSelectedDate(targetDate);
+    }
+
     if (editingId) {
       const updated = items.map((item) => {
         if (item.id === editingId) {
           return {
             ...item,
             ...formData,
+            tglIncoming: targetDate,
             stockSaatIni: calculatedStock,
             detailNG: formattedNG
           };
@@ -314,6 +365,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
       const newItem: IncomingPackagingItem = {
         id: `audit_pkg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         ...formData,
+        tglIncoming: targetDate,
         stockSaatIni: calculatedStock,
         detailNG: formattedNG
       };
@@ -331,29 +383,16 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     setDeleteTargetId(null);
   };
 
-  // Export to Excel
-  const handleExportExcel = () => {
-    if (items.length === 0) return;
-    const exportRows = items.map((item, idx) => ({
-      No: idx + 1,
-      'Tgl Audit': item.tglIncoming || '-',
-      Customer: item.customer,
-      'Type Box': item.type,
-      'Stock Awal': item.stockAktualInternal,
-      OUT: item.outQty,
-      IN: item.inQty,
-      'Stock Saat Ini': item.stockSaatIni,
-      'Detail NG Slot': item.detailNG?.slot ?? '-',
-      'Detail NG Kaki': item.detailNG?.kaki ?? '-',
-      'Detail NG Dinding': item.detailNG?.dinding ?? '-',
-      'Detail NG Rangka': item.detailNG?.rangka ?? '-',
-      Keterangan: item.keterangan || '-'
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Audit Packaging');
-    XLSX.writeFile(workbook, `audit_harian_packaging_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  // Export to Excel (Styled Check Sheet Packaging Standard Spindo)
+  const handleExportExcel = async () => {
+    const dataToExport = filteredData.length > 0 ? filteredData : items;
+    if (dataToExport.length === 0) return;
+    try {
+      const dateLabel = selectedDate ? formatDisplayDate(selectedDate) : undefined;
+      await exportPackagingCheckSheet(dataToExport, dateLabel);
+    } catch (err) {
+      console.error('Failed to export styled check sheet:', err);
+    }
   };
 
   // Import from Excel file
@@ -677,7 +716,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
           <button
             type="button"
             onClick={() => setIsFilterModalOpen(true)}
-            className={`px-3 py-1.5 rounded-md border font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 transition-colors ${
+            className={`px-2.5 py-1.5 rounded-md border font-bold text-xs flex items-center gap-1 cursor-pointer shadow-2xs shrink-0 transition-colors ${
               activeFilterCount > 0
                 ? 'bg-emerald-50 border-emerald-700 text-emerald-950'
                 : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
@@ -690,6 +729,16 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                 {activeFilterCount}
               </span>
             )}
+          </button>
+
+          {/* Export Check Sheet Button (Mobile) */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="p-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer shadow-2xs shrink-0"
+            title="Download Excel Check Sheet"
+          >
+            <Download className="h-4 w-4 text-emerald-800" strokeWidth={2.2} />
           </button>
         </div>
 
@@ -954,17 +1003,39 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
         ))}
 
         {sortedData.length === 0 && (
-          <div className="py-12 text-center text-slate-400 text-xs font-sans space-y-2 bg-white rounded-lg border border-slate-200 p-4">
-            <Box className="h-8 w-8 text-slate-300 mx-auto" />
-            <div>Belum ada data audit packaging untuk filter ini.</div>
-            <button
-              type="button"
-              onClick={handleOpenCreate}
-              className="px-3 py-1.5 rounded-md bg-emerald-800 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Input Audit Sekarang</span>
-            </button>
+          <div className="py-10 text-center text-slate-500 text-xs font-sans space-y-3 bg-white rounded-lg border border-slate-200 p-5 shadow-2xs">
+            <Box className="h-8 w-8 text-slate-400 mx-auto" />
+            <div className="space-y-1">
+              <div className="font-bold text-slate-800 text-sm">
+                {items.length > 0
+                  ? `Tidak ada data audit untuk tanggal ${selectedDate ? formatDisplayDate(selectedDate) : 'ini'}`
+                  : 'Belum ada data audit packaging'}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {items.length > 0
+                  ? `Tersimpan ${items.length} data audit pada riwayat tanggal lain.`
+                  : 'Silakan input catatan audit fisik harian packaging.'}
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-1 flex-wrap font-mono">
+              {items.length > 0 && selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate('')}
+                  className="px-3 py-1.5 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold text-xs cursor-pointer shadow-2xs"
+                >
+                  Tampilkan Semua ({items.length} Data)
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleOpenCreate}
+                className="px-3 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>+ Tambah Audit Baru</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -1232,17 +1303,38 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
                   {sortedData.length === 0 && (
                     <tr>
-                      <td colSpan={14} className="py-12 text-center text-slate-400 text-xs font-sans">
-                        <div className="space-y-1.5">
-                          <Box className="h-7 w-7 text-slate-300 mx-auto" />
-                          <div>Tidak ada data audit packaging yang sesuai filter.</div>
-                          <button
-                            type="button"
-                            onClick={handleOpenCreate}
-                            className="text-emerald-800 font-bold hover:underline cursor-pointer text-xs inline-block"
-                          >
-                            + Tambah Baris Audit Baru
-                          </button>
+                      <td colSpan={14} className="py-12 text-center text-slate-500 text-xs font-sans">
+                        <div className="space-y-2.5 max-w-sm mx-auto">
+                          <Box className="h-8 w-8 text-slate-400 mx-auto" />
+                          <div className="font-bold text-slate-800 text-sm">
+                            {items.length > 0
+                              ? `Tidak ada data audit untuk tanggal ${selectedDate ? formatDisplayDate(selectedDate) : 'ini'}`
+                              : 'Belum ada data audit packaging'}
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            {items.length > 0
+                              ? `Tersimpan ${items.length} data audit pada riwayat tanggal lain.`
+                              : 'Silakan klik tombol di bawah untuk menambah audit harian.'}
+                          </p>
+                          <div className="flex items-center justify-center gap-2 pt-1 font-mono">
+                            {items.length > 0 && selectedDate && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDate('')}
+                                className="px-3 py-1.5 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold text-xs cursor-pointer shadow-2xs"
+                              >
+                                Tampilkan Semua ({items.length} Data)
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={handleOpenCreate}
+                              className="px-3 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              <span>+ Tambah Baris Audit Baru</span>
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
