@@ -406,6 +406,12 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
 
     const isGradeE = targetGrade === 'Grade E';
 
+    // Top 3 terbesar by totalTon untuk warning highlight
+    const top3Ids = [...items]
+      .sort((a, b) => b.totalTon - a.totalTon)
+      .slice(0, 3)
+      .map((i) => i.id || `${i.gudang}-${i.ukuran}-${i.customer}`);
+
     return (
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
@@ -422,18 +428,36 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px] bg-white">
-            {sorted.map((item, idx) => (
+            {sorted.map((item, idx) => {
+              const itemKey = item.id || `${item.gudang}-${item.ukuran}-${item.customer}`;
+              const isTop3 = top3Ids.includes(itemKey);
+              return (
               <tr
-                key={item.id || idx}
+                key={itemKey}
                 onClick={() => {
                   setSelectedNCModalGrade(targetGrade);
                   setModalGudangFilter(selectedGudang);
                   setModalSearchQuery(item.ukuran);
                 }}
-                className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                className={`hover:bg-slate-50/80 transition-colors cursor-pointer group ${
+                  isTop3
+                    ? isGradeE
+                      ? 'bg-rose-50/60 border-l-[3px] border-l-rose-500'
+                      : 'bg-amber-50/60 border-l-[3px] border-l-amber-500'
+                    : ''
+                }`}
                 title="Klik untuk membuka detail rincian stock & No NC"
               >
-                <td className="py-2.5 px-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                <td className="py-2.5 px-3 text-center font-bold">
+                  {isTop3 ? (
+                    <span className={`inline-flex items-center gap-0.5 ${isGradeE ? 'text-rose-700' : 'text-amber-700'}`}>
+                      <AlertTriangle className="h-3 w-3" strokeWidth={2.2} />
+                      <span>{idx + 1}</span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">{idx + 1}</span>
+                  )}
+                </td>
                 <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
                   <span className="bg-slate-100 border border-slate-200 text-slate-800 px-2 py-0.5 rounded text-[11px] font-bold">
                     {item.gudang}
@@ -469,7 +493,8 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   </div>
                 </td>
               </tr>
-            ))}
+            );
+            })}
             {sorted.length === 0 && (
               <tr>
                 <td colSpan={8} className="py-8 text-center text-slate-400 text-xs font-sans">
