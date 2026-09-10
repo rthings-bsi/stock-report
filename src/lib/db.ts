@@ -58,6 +58,34 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           );
 
+          CREATE TABLE IF NOT EXISTS incoming_packaging (
+            id TEXT PRIMARY KEY,
+            tgl_incoming TEXT NOT NULL,
+            customer TEXT NOT NULL,
+            type TEXT NOT NULL,
+            stock_aktual_internal INTEGER DEFAULT 0,
+            out_qty INTEGER DEFAULT 0,
+            in_qty INTEGER DEFAULT 0,
+            stock_saat_ini INTEGER DEFAULT 0,
+            slot TEXT DEFAULT '-',
+            kaki TEXT DEFAULT '-',
+            dinding TEXT DEFAULT '-',
+            rangka TEXT DEFAULT '-',
+            keterangan TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS damaged_packaging (
+            id TEXT PRIMARY KEY,
+            customer TEXT,
+            type TEXT,
+            qty INTEGER DEFAULT 0,
+            status TEXT,
+            keterangan TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+
           CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,

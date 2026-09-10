@@ -16,12 +16,13 @@ import {
 import { UserSession, StoredAccount, PRESET_ACCOUNTS } from '@/types/auth';
 
 interface LoginPageProps {
-  onLogin: (session: UserSession) => void;
+  onLogin: (session: UserSession, rememberMe?: boolean) => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  const [rememberMe, setRememberMe] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -45,7 +46,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           role: data.user.role,
           department: data.user.department || 'Warehouse Staff',
           unit: data.user.unit || 'Unit 5 - Spindo'
-        });
+        }, rememberMe);
         return;
       }
 
@@ -67,7 +68,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           role: match.role,
           department: match.department,
           unit: match.unit
-        });
+        }, rememberMe);
       } else {
         setErrorMsg(data?.error || 'Username atau password tidak sesuai.');
       }
@@ -90,7 +91,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           role: match.role,
           department: match.department,
           unit: match.unit
-        });
+        }, rememberMe);
       } else {
         setErrorMsg('Username atau password tidak sesuai.');
       }
@@ -265,16 +266,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               </div>
             </div>
 
-            {/* Helper Link ke WhatsApp Admin */}
-            <div className="text-xs text-slate-500 pt-0.5 text-center">
-              Lupa password?{' '}
+            {/* Remember Me & Forgot Password Link */}
+            <div className="flex items-center justify-between text-xs pt-1">
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none text-slate-600 hover:text-slate-900 font-mono">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-slate-300 text-[#047857] focus:ring-[#047857]/20 h-4 w-4 cursor-pointer accent-[#047857]"
+                />
+                <span>Ingat Saya</span>
+              </label>
+
               <a
                 href="https://wa.me/6287776216046?text=Halo%20Admin%2C%20saya%20ingin%20reset%20password%20akun%20Spindo%20Warehouse."
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#047857] hover:text-[#065f46] font-semibold hover:underline cursor-pointer"
+                className="text-[#047857] hover:text-[#065f46] font-semibold hover:underline cursor-pointer font-mono"
               >
-                Hubungi Admin
+                Lupa Password?
               </a>
             </div>
 

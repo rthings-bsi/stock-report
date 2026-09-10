@@ -169,21 +169,57 @@ export default function Home() {
     } catch {}
   };
 
-  // Load saved auth session
+  // Load saved auth session (sessionStorage takes precedence; fallback to valid rememberMe in localStorage)
   useEffect(() => {
     try {
-      const savedAuth = localStorage.getItem('spindo_auth_user');
-      if (savedAuth) {
-        setCurrentUser(JSON.parse(savedAuth));
+      // 1. Cek active session dari sessionStorage (hilang saat tab/browser ditutup)
+      const sessionAuth = sessionStorage.getItem('spindo_auth_session');
+      if (sessionAuth) {
+        setCurrentUser(JSON.parse(sessionAuth));
+        setIsAuthChecking(false);
+        return;
       }
+
+      // 2. Cek apakah ada opsi "Ingat Saya" (dengan masa berlaku 7 hari)
+      const rememberAuthStr = localStorage.getItem('spindo_auth_remember');
+      if (rememberAuthStr) {
+        const rememberData = JSON.parse(rememberAuthStr);
+        if (rememberData.expiresAt && Date.now() < rememberData.expiresAt && rememberData.user) {
+          setCurrentUser(rememberData.user);
+          sessionStorage.setItem('spindo_auth_session', JSON.stringify(rememberData.user));
+          setIsAuthChecking(false);
+          return;
+        } else {
+          // Token expired, hapus
+          localStorage.removeItem('spindo_auth_remember');
+        }
+      }
+
+      // Bersihkan legacy permanent login jika ada
+      localStorage.removeItem('spindo_auth_user');
     } catch {}
     setIsAuthChecking(false);
   }, []);
 
-  const handleLogin = (session: UserSession) => {
+  const handleLogin = (session: UserSession, rememberMe: boolean = false) => {
     setCurrentUser(session);
     try {
-      localStorage.setItem('spindo_auth_user', JSON.stringify(session));
+      // Selalu simpan di sessionStorage agar aktif selama tab/window terbuka
+      sessionStorage.setItem('spindo_auth_session', JSON.stringify(session));
+
+      if (rememberMe) {
+        // Simpan di localStorage dengan masa berlaku 7 hari
+        const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        localStorage.setItem(
+          'spindo_auth_remember',
+          JSON.stringify({ user: session, expiresAt })
+        );
+      } else {
+        localStorage.removeItem('spindo_auth_remember');
+      }
+
+      // Hapus legacy permanent auth key
+      localStorage.removeItem('spindo_auth_user');
     } catch {}
   };
 
@@ -191,6 +227,8 @@ export default function Home() {
     setCurrentUser(null);
     setIsCustomizingLayout(false);
     try {
+      sessionStorage.removeItem('spindo_auth_session');
+      localStorage.removeItem('spindo_auth_remember');
       localStorage.removeItem('spindo_auth_user');
     } catch {}
   };
@@ -286,45 +324,39 @@ export default function Home() {
 
       // 2. Sinkronkan dengan server database Supabase / SQLite
       try {
-        const res = await fetch('/api/warehouse', { cache: 'no-store' });
-        const json = await res.json();
-        if (json?.success) {
-          if (json.data) {
-            const d = json.data;
-            if (d.pipeCapacities?.length > 0) setPipeCapacities(d.pipeCapacities);
-            if (d.fastSlowData?.length > 0) setFastSlowData(d.fastSlowData);
-            if (d.coilStripData?.length > 0) setCoilStripData(d.coilStripData);
-            if (d.ncWarehouseData?.length > 0) setNcWarehouseData(d.ncWarehouseData);
-            if (d.ncItems?.length > 0) setNcItems(d.ncItems);
-            if (d.looSTData?.length > 0) setLooSTData(d.looSTData);
-            if (d.looLTData?.length > 0) setLooLTData(d.looLTData);
-            if (d.unfifoData?.length > 0) setUnfifoData(d.unfifoData);
-            setUnfifoCoilData(d.unfifoCoilData || []);
-            setUnfifoPipeData(d.unfifoPipeData || []);
-            if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
-            if (d.incomingPackagingData?.length > 0) setIncomingPackagingData(d.incomingPackagingData);
-            if (d.customerBreakdown) setCustomerBreakdown(d.customerBreakdown);
-            if (d.lastUpdated) setLastUpdated(d.lastUpdated);
-            setIsCustomData(true);
-            // Sync balik ke localStorage
-            localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(d));
-          } else {
-            // Database kosong / data sudah dihapus: bersihkan tampilan & cache
-            setPipeCapacities([]);
-            setFastSlowData([]);
-            setCoilStripData([]);
-            setNcWarehouseData([]);
-            setNcItems([]);
-            setLooSTData([]);
-            setLooLTData([]);
-            setUnfifoData([]);
-            setUnfifoCoilData([]);
-            setUnfifoPipeData([]);
-            setDamagedPackagingData([]);
-            setIncomingPackagingData([]);
-            setCustomerBreakdown({});
-            setIsCustomData(false);
-            localStorage.removeItem('spindo_warehouse_saved_state');
+        const [whRes, pkgRes] = await Promise.allSettled([
+          fetch('/api/warehouse', { cache: 'no-store' }),
+          fetch('/api/incoming-packaging', { cache: 'no-store' })
+        ]);
+
+        if (whRes.status === 'fulfilled') {
+          const json = await whRes.value.json();
+          if (json?.success) {
+            if (json.data) {
+              const d = json.data;
+              if (d.pipeCapacities?.length > 0) setPipeCapacities(d.pipeCapacities);
+              if (d.fastSlowData?.length > 0) setFastSlowData(d.fastSlowData);
+              if (d.coilStripData?.length > 0) setCoilStripData(d.coilStripData);
+              if (d.ncWarehouseData?.length > 0) setNcWarehouseData(d.ncWarehouseData);
+              if (d.ncItems?.length > 0) setNcItems(d.ncItems);
+              if (d.looSTData?.length > 0) setLooSTData(d.looSTData);
+              if (d.looLTData?.length > 0) setLooLTData(d.looLTData);
+              if (d.unfifoData?.length > 0) setUnfifoData(d.unfifoData);
+              setUnfifoCoilData(d.unfifoCoilData || []);
+              setUnfifoPipeData(d.unfifoPipeData || []);
+              if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
+              if (d.customerBreakdown) setCustomerBreakdown(d.customerBreakdown);
+              if (d.lastUpdated) setLastUpdated(d.lastUpdated);
+              setIsCustomData(true);
+            }
+          }
+        }
+
+        // Load incoming packaging dari tabel terpisah
+        if (pkgRes.status === 'fulfilled') {
+          const pkgJson = await pkgRes.value.json();
+          if (pkgJson?.success && Array.isArray(pkgJson.items)) {
+            setIncomingPackagingData(pkgJson.items);
           }
         }
       } catch (err) {
@@ -544,7 +576,7 @@ export default function Home() {
   }, [allDashboardMenuItems, currentUser, userPermissions]);
 
   const allOperationalMenuItems = useMemo(() => [
-    { id: 'incoming_pkg', label: 'Incoming Packaging', icon: PackageCheck, desc: 'Input & Mutasi Stock RTP', permKey: 'viewIncomingPkg' },
+    { id: 'incoming_pkg', label: 'Audit Harian Packaging', icon: PackageCheck, desc: 'Audit Mutasi & Kondisi RTP', permKey: 'viewIncomingPkg' },
   ] as const, []);
 
   // Filter operational menu items dynamically based on role permissions
@@ -1251,14 +1283,11 @@ export default function Home() {
                   setIncomingPackagingData(newData);
                   setIsCustomData(true);
                   try {
-                    const localSaved = localStorage.getItem('spindo_warehouse_saved_state');
-                    const prev = localSaved ? JSON.parse(localSaved) : {};
-                    const updatedState = { ...prev, incomingPackagingData: newData };
-                    localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(updatedState));
-                    await fetch('/api/warehouse', {
+                    // Sync langsung ke tabel database terpisah incoming_packaging
+                    await fetch('/api/incoming-packaging', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(updatedState),
+                      body: JSON.stringify(newData),
                     });
                   } catch (err) {
                     console.error('Failed to sync incoming packaging data:', err);

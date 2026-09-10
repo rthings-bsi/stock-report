@@ -871,7 +871,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                 { key: 'viewUnfifo', label: 'UNFIFO' },
                 { key: 'viewLoo', label: 'LOO' },
                 { key: 'viewDamagedPkg', label: 'Packaging Rusak' },
-                { key: 'viewIncomingPkg', label: 'Incoming RTP' },
+                { key: 'viewIncomingPkg', label: 'Audit Packaging' },
                 { key: 'viewUserManagement', label: 'Kelola User' }
               ] as const;
 
@@ -1328,7 +1328,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                     { key: 'viewUnfifo', label: 'UNFIFO Audit', desc: 'Audit Alur Pengeluaran Barang' },
                     { key: 'viewLoo', label: 'Stock Pipa vs LOO', desc: 'Pemenuhan Target Order Terbuka' },
                     { key: 'viewDamagedPkg', label: 'Data Packaging Rusak', desc: 'Temuan Kerusakan & Status Repack' },
-                    { key: 'viewIncomingPkg', label: 'Incoming Packaging (RTP)', desc: 'Pencatatan Mutasi Stock RTP Customer' },
+                    { key: 'viewIncomingPkg', label: 'Audit Harian Packaging (RTP)', desc: 'Pencatatan Audit Harian & Mutasi Stock RTP' },
                     { key: 'viewUserManagement', label: 'Menu Kelola Pengguna & Roles', desc: 'Akses Tab Manajemen User/Roles' }
                   ].map((item) => {
                     const isChecked = Boolean(roleFormData.permissions[item.key as keyof RolePermissions]);
