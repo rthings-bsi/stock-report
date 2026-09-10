@@ -5,6 +5,8 @@ import { IncomingPackagingItem } from '../../../types/warehouse';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const SNAPSHOT_KEY_AUDIT_PKG = 'audit_incoming_packaging';
+
 // Fallback SQLite instance for local environment
 let localDb: any = null;
 function getLocalDb() {
@@ -25,45 +27,79 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
 
-    // 1. SUPABASE
+    // 1. SUPABASE CLOUD (Primary)
     if (isSupabaseConfigured && supabase) {
-      let query = supabase
-        .from('incoming_packaging')
-        .select('*')
-        .order('created_at', { ascending: false });
+      try {
+        // Cek record dedicated audit_incoming_packaging
+        const { data, error } = await supabase
+          .from('warehouse_snapshots')
+          .select('incoming_packaging_data, last_updated')
+          .eq('snapshot_key', SNAPSHOT_KEY_AUDIT_PKG)
+          .maybeSingle();
 
-      if (date) {
-        query = query.eq('tgl_incoming', date);
-      }
+        let rawItems: any = null;
+        if (!error && data?.incoming_packaging_data) {
+          rawItems = typeof data.incoming_packaging_data === 'string'
+            ? JSON.parse(data.incoming_packaging_data)
+            : data.incoming_packaging_data;
+        }
 
-      const { data, error } = await query;
-      if (!error && data) {
-        const items: IncomingPackagingItem[] = data.map((r: any) => ({
-          id: r.id,
-          tglIncoming: r.tgl_incoming,
-          customer: r.customer,
-          type: r.type,
-          stockAktualInternal: r.stock_aktual_internal || 0,
-          outQty: r.out_qty || 0,
-          inQty: r.in_qty || 0,
-          stockSaatIni: r.stock_saat_ini || 0,
-          detailNG: {
-            slot: r.slot || '-',
-            kaki: r.kaki || '-',
-            dinding: r.dinding || '-',
-            rangka: r.rangka || '-'
-          },
-          keterangan: r.keterangan || ''
-        }));
-        return NextResponse.json({ success: true, items });
+        // Fallback jika dedicated record belum ada, cek latest snapshot
+        if (!rawItems || (Array.isArray(rawItems) && rawItems.length === 0)) {
+          const { data: latestData } = await supabase
+            .from('warehouse_snapshots')
+            .select('incoming_packaging_data')
+            .neq('snapshot_key', 'app_settings')
+            .neq('snapshot_key', SNAPSHOT_KEY_AUDIT_PKG)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (latestData?.incoming_packaging_data) {
+            rawItems = typeof latestData.incoming_packaging_data === 'string'
+              ? JSON.parse(latestData.incoming_packaging_data)
+              : latestData.incoming_packaging_data;
+          }
+        }
+
+        if (Array.isArray(rawItems)) {
+          let items: IncomingPackagingItem[] = rawItems;
+          if (date) {
+            items = items.filter((i) => i.tglIncoming === date || i.tglIncoming?.startsWith(date));
+          }
+          return NextResponse.json({ success: true, items });
+        }
+      } catch (err) {
+        console.warn('Supabase incoming_packaging query error, falling back to SQLite:', err);
       }
     }
 
-    // 2. SQLITE LOCAL
+    // 2. SQLITE LOCAL (Fallback)
     const db = getLocalDb();
     if (!db) {
       return NextResponse.json({ success: true, items: [] });
     }
+
+    // Ensure table exists
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS incoming_packaging (
+        id TEXT PRIMARY KEY,
+        tgl_incoming TEXT NOT NULL,
+        customer TEXT NOT NULL,
+        type TEXT NOT NULL,
+        stock_aktual_internal INTEGER DEFAULT 0,
+        out_qty INTEGER DEFAULT 0,
+        in_qty INTEGER DEFAULT 0,
+        stock_saat_ini INTEGER DEFAULT 0,
+        slot TEXT DEFAULT '-',
+        kaki TEXT DEFAULT '-',
+        dinding TEXT DEFAULT '-',
+        rangka TEXT DEFAULT '-',
+        keterangan TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
     let rows: any[] = [];
     if (date) {
@@ -81,7 +117,7 @@ export async function GET(request: Request) {
       rows = stmt.all();
     }
 
-    // Jika tabel terpisah masih kosong, cek fallback ke legacy snapshots
+    // Fallback: jika tabel SQLite kosong, cek legacy warehouse_snapshots
     if (rows.length === 0) {
       try {
         const legacyStmt = db.prepare(`
@@ -93,33 +129,6 @@ export async function GET(request: Request) {
         if (legacyRow?.incoming_packaging_data) {
           const legacyItems: IncomingPackagingItem[] = JSON.parse(legacyRow.incoming_packaging_data);
           if (Array.isArray(legacyItems) && legacyItems.length > 0) {
-            // Migrasi otomatis ke tabel terpisah
-            const insertStmt = db.prepare(`
-              INSERT OR REPLACE INTO incoming_packaging (
-                id, tgl_incoming, customer, type, stock_aktual_internal, out_qty, in_qty, stock_saat_ini, slot, kaki, dinding, rangka, keterangan
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `);
-
-            const insertMany = db.transaction((itemsToInsert: IncomingPackagingItem[]) => {
-              for (const item of itemsToInsert) {
-                insertStmt.run(
-                  item.id,
-                  item.tglIncoming || '',
-                  item.customer,
-                  item.type,
-                  item.stockAktualInternal || 0,
-                  item.outQty || 0,
-                  item.inQty || 0,
-                  item.stockSaatIni || 0,
-                  String(item.detailNG?.slot ?? '-'),
-                  String(item.detailNG?.kaki ?? '-'),
-                  String(item.detailNG?.dinding ?? '-'),
-                  String(item.detailNG?.rangka ?? '-'),
-                  item.keterangan || ''
-                );
-              }
-            });
-            insertMany(legacyItems);
             return NextResponse.json({ success: true, items: legacyItems });
           }
         }
@@ -161,76 +170,94 @@ export async function POST(request: Request) {
     const body = await request.json();
     const items: IncomingPackagingItem[] = Array.isArray(body) ? body : (body.items || []);
 
-    // 1. SUPABASE
+    const nowStr = new Date().toLocaleString('id-ID');
+
+    // 1. SUPABASE CLOUD (Primary)
     if (isSupabaseConfigured && supabase) {
-      if (items.length === 0) {
-        await supabase.from('incoming_packaging').delete().neq('id', '___NON_EXISTENT___');
-        return NextResponse.json({ success: true, message: 'All items cleared' });
+      const payload = {
+        snapshot_key: SNAPSHOT_KEY_AUDIT_PKG,
+        last_updated: nowStr,
+        pipe_capacities: '[]',
+        fast_slow_data: '[]',
+        coil_strip_data: '[]',
+        nc_warehouse_data: '[]',
+        nc_items: '[]',
+        loo_st_data: '[]',
+        loo_lt_data: '[]',
+        unfifo_data: '[]',
+        incoming_packaging_data: JSON.stringify(items)
+      };
+
+      const { error } = await supabase
+        .from('warehouse_snapshots')
+        .upsert(payload, { onConflict: 'snapshot_key' });
+
+      if (error) {
+        console.error('Supabase upsert audit_incoming_packaging error:', error);
+        throw error;
       }
-
-      const rows = items.map((item) => ({
-        id: item.id,
-        tgl_incoming: item.tglIncoming || '',
-        customer: item.customer,
-        type: item.type,
-        stock_aktual_internal: item.stockAktualInternal || 0,
-        out_qty: item.outQty || 0,
-        in_qty: item.inQty || 0,
-        stock_saat_ini: item.stockSaatIni || 0,
-        slot: String(item.detailNG?.slot ?? '-'),
-        kaki: String(item.detailNG?.kaki ?? '-'),
-        dinding: String(item.detailNG?.dinding ?? '-'),
-        rangka: String(item.detailNG?.rangka ?? '-'),
-        keterangan: item.keterangan || '',
-        updated_at: new Date().toISOString()
-      }));
-
-      const { error } = await supabase.from('incoming_packaging').upsert(rows, { onConflict: 'id' });
-      if (error) throw error;
-
-      return NextResponse.json({ success: true, count: rows.length });
     }
 
-    // 2. SQLITE LOCAL
+    // 2. SQLITE LOCAL (Fallback / Persistence)
     const db = getLocalDb();
-    if (!db) {
-      return NextResponse.json({ success: true, count: items.length, note: 'Database unconfigured' });
-    }
+    if (db) {
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS incoming_packaging (
+            id TEXT PRIMARY KEY,
+            tgl_incoming TEXT NOT NULL,
+            customer TEXT NOT NULL,
+            type TEXT NOT NULL,
+            stock_aktual_internal INTEGER DEFAULT 0,
+            out_qty INTEGER DEFAULT 0,
+            in_qty INTEGER DEFAULT 0,
+            stock_saat_ini INTEGER DEFAULT 0,
+            slot TEXT DEFAULT '-',
+            kaki TEXT DEFAULT '-',
+            dinding TEXT DEFAULT '-',
+            rangka TEXT DEFAULT '-',
+            keterangan TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
 
-    if (items.length === 0) {
-      db.prepare('DELETE FROM incoming_packaging').run();
-      return NextResponse.json({ success: true, message: 'Table cleared' });
-    }
+        if (items.length === 0) {
+          db.prepare('DELETE FROM incoming_packaging').run();
+        } else {
+          const insertStmt = db.prepare(`
+            INSERT OR REPLACE INTO incoming_packaging (
+              id, tgl_incoming, customer, type, stock_aktual_internal, out_qty, in_qty, stock_saat_ini, slot, kaki, dinding, rangka, keterangan, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `);
 
-    const insertStmt = db.prepare(`
-      INSERT OR REPLACE INTO incoming_packaging (
-        id, tgl_incoming, customer, type, stock_aktual_internal, out_qty, in_qty, stock_saat_ini, slot, kaki, dinding, rangka, keterangan, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `);
+          const insertMany = db.transaction((itemsToInsert: IncomingPackagingItem[]) => {
+            db.prepare('DELETE FROM incoming_packaging').run();
+            for (const item of itemsToInsert) {
+              insertStmt.run(
+                item.id,
+                item.tglIncoming || '',
+                item.customer,
+                item.type,
+                item.stockAktualInternal || 0,
+                item.outQty || 0,
+                item.inQty || 0,
+                item.stockSaatIni || 0,
+                String(item.detailNG?.slot ?? '-'),
+                String(item.detailNG?.kaki ?? '-'),
+                String(item.detailNG?.dinding ?? '-'),
+                String(item.detailNG?.rangka ?? '-'),
+                item.keterangan || ''
+              );
+            }
+          });
 
-    const insertMany = db.transaction((itemsToInsert: IncomingPackagingItem[]) => {
-      // Clear and rewrite with current state
-      db.prepare('DELETE FROM incoming_packaging').run();
-      for (const item of itemsToInsert) {
-        insertStmt.run(
-          item.id,
-          item.tglIncoming || '',
-          item.customer,
-          item.type,
-          item.stockAktualInternal || 0,
-          item.outQty || 0,
-          item.inQty || 0,
-          item.stockSaatIni || 0,
-          String(item.detailNG?.slot ?? '-'),
-          String(item.detailNG?.kaki ?? '-'),
-          String(item.detailNG?.dinding ?? '-'),
-          String(item.detailNG?.rangka ?? '-'),
-          item.keterangan || ''
-        );
+          insertMany(items);
+        }
+      } catch (sqlErr) {
+        console.warn('SQLite incoming_packaging write error:', sqlErr);
       }
-    });
-
-    insertMany(items);
+    }
 
     return NextResponse.json({ success: true, count: items.length });
   } catch (error: unknown) {
@@ -249,11 +276,32 @@ export async function DELETE(request: Request) {
 
     if (isSupabaseConfigured && supabase) {
       if (id) {
-        await supabase.from('incoming_packaging').delete().eq('id', id);
+        const { data } = await supabase
+          .from('warehouse_snapshots')
+          .select('incoming_packaging_data')
+          .eq('snapshot_key', SNAPSHOT_KEY_AUDIT_PKG)
+          .maybeSingle();
+
+        if (data?.incoming_packaging_data) {
+          const parsed = JSON.parse(data.incoming_packaging_data);
+          const filtered = Array.isArray(parsed) ? parsed.filter((i: any) => i.id !== id) : [];
+          await supabase
+            .from('warehouse_snapshots')
+            .upsert({
+              snapshot_key: SNAPSHOT_KEY_AUDIT_PKG,
+              incoming_packaging_data: JSON.stringify(filtered),
+              last_updated: new Date().toLocaleString('id-ID')
+            }, { onConflict: 'snapshot_key' });
+        }
       } else {
-        await supabase.from('incoming_packaging').delete().neq('id', '___NON_EXISTENT___');
+        await supabase
+          .from('warehouse_snapshots')
+          .upsert({
+            snapshot_key: SNAPSHOT_KEY_AUDIT_PKG,
+            incoming_packaging_data: '[]',
+            last_updated: new Date().toLocaleString('id-ID')
+          }, { onConflict: 'snapshot_key' });
       }
-      return NextResponse.json({ success: true });
     }
 
     const db = getLocalDb();

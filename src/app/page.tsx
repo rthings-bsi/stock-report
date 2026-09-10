@@ -1186,9 +1186,9 @@ export default function Home() {
             />
           </div> */}
 
-          {/* Global Alert Notification Banner */}
+          {/* Global Alert Notification Banner (Hidden on Mobile) */}
           {overcapacityWh && (
-            <div className="flex items-center gap-3 rounded-md border border-amber-300 bg-amber-50/90 p-3.5 text-xs text-amber-900 shadow-2xs">
+            <div className="hidden sm:flex items-center gap-3 rounded-md border border-amber-300 bg-amber-50/90 p-3.5 text-xs text-amber-900 shadow-2xs">
               <AlertTriangle className="h-5 w-5 text-amber-700 shrink-0" />
               <div className="flex-1">
                 <span className="font-bold">Peringatan Kapasitas Terisi Melebihi Batas: </span>

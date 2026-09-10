@@ -32,13 +32,18 @@ export async function GET(request: Request) {
           .from('warehouse_snapshots')
           .select('snapshot_key, last_updated, created_at')
           .neq('snapshot_key', 'app_settings')
+          .neq('snapshot_key', 'audit_incoming_packaging')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
         return NextResponse.json({ success: true, snapshots: data || [] });
       }
 
-      let query = supabase.from('warehouse_snapshots').select('*').neq('snapshot_key', 'app_settings');
+      let query = supabase
+        .from('warehouse_snapshots')
+        .select('*')
+        .neq('snapshot_key', 'app_settings')
+        .neq('snapshot_key', 'audit_incoming_packaging');
       if (key === 'latest') {
         query = query.order('created_at', { ascending: false }).limit(1);
       } else {

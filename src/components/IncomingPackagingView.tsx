@@ -98,7 +98,7 @@ function formatDisplayDate(val?: string): string {
 }
 
 const EMPTY_FORM: Omit<IncomingPackagingItem, 'id'> = {
-  tglIncoming: getTodayDisplayString(),
+  tglIncoming: getTodayIsoString(),
   customer: MASTER_CUSTOMERS[0] || '',
   type: (PACKAGING_CUSTOMER_BOX_MASTER[MASTER_CUSTOMERS[0]] || [])[0] || '',
   stockAktualInternal: 0,
@@ -126,10 +126,12 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   const [selectedType, setSelectedType] = useState('ALL');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
 
-  // Date Filter State: Default to 'TODAY' (Hari ini)
+  // Date Filter State: Default to today (Hari ini)
   const todayIso = useMemo(() => getTodayIsoString(), []);
-  const [dateFilterMode, setDateFilterMode] = useState<'TODAY' | 'ALL' | 'CUSTOM'>('TODAY');
-  const [selectedCustomDate, setSelectedCustomDate] = useState<string>(todayIso);
+  const [selectedDate, setSelectedDate] = useState<string>(todayIso);
+
+  // Filter Pop-up Modal State for Mobile & Quick Access
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
   // Modal State for Add & Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -192,7 +194,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
     setFormData({
       ...EMPTY_FORM,
-      tglIncoming: getTodayDisplayString(),
+      tglIncoming: getTodayIsoString(),
       customer: defaultCust,
       type: defaultBox
     });
@@ -217,7 +219,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     setIsCustomType(!isMasterBox);
 
     setFormData({
-      tglIncoming: item.tglIncoming || getTodayDisplayString(),
+      tglIncoming: normalizeDateToIso(item.tglIncoming) || getTodayIsoString(),
       customer: item.customer,
       type: item.type,
       stockAktualInternal: item.stockAktualInternal,
@@ -401,14 +403,10 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   // Filtered & Sorted Data
   const filteredData = useMemo(() => {
     return items.filter((item) => {
-      // 1. Date Filter
-      if (dateFilterMode === 'TODAY') {
+      // 1. Date Filter: Jika selectedDate diisi, bandingkan dengan tanggal item
+      if (selectedDate) {
         const itemDateIso = normalizeDateToIso(item.tglIncoming);
-        // If item has a date, check against today. If date missing, keep it in today's view for safety
-        if (itemDateIso && itemDateIso !== todayIso) return false;
-      } else if (dateFilterMode === 'CUSTOM') {
-        const itemDateIso = normalizeDateToIso(item.tglIncoming);
-        if (itemDateIso && itemDateIso !== selectedCustomDate) return false;
+        if (itemDateIso && itemDateIso !== selectedDate) return false;
       }
 
       // 2. Customer Filter
@@ -428,7 +426,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
       return matchCust && matchType && matchSearch;
     });
-  }, [items, dateFilterMode, selectedCustomDate, todayIso, selectedCustomer, selectedType, searchQuery]);
+  }, [items, selectedDate, selectedCustomer, selectedType, searchQuery]);
 
   const sortedData = useMemo(() => {
     return [...filteredData].sort((a, b) => {
@@ -476,6 +474,16 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     return items.filter((i) => normalizeDateToIso(i.tglIncoming) === todayIso).length;
   }, [items, todayIso]);
 
+  // Count active non-default filters
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedDate !== todayIso) count++;
+    if (selectedCustomer !== 'ALL') count++;
+    if (selectedType !== 'ALL') count++;
+    if (searchQuery.trim()) count++;
+    return count;
+  }, [selectedDate, todayIso, selectedCustomer, selectedType, searchQuery]);
+
   const currentBoxOptions = useMemo(() => {
     if (!formData.customer) return [];
     return getBoxTypesForCustomer(formData.customer);
@@ -512,16 +520,16 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   };
 
   return (
-    <div className="space-y-4 sm:space-y-5 font-sans">
+    <div className="space-y-3 sm:space-y-5 font-sans pb-16 sm:pb-0">
       {/* SECTION HEADER BANNER TOP */}
-      <div className="rounded-md border border-black/20 theme-banner text-white p-3 sm:p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+      <div className="rounded-md border border-black/20 theme-banner text-white p-2.5 sm:p-3.5 shadow-2xs flex items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider">
               Audit Harian Packaging (RTP)
             </h2>
             <span className="text-[9px] sm:text-[10px] font-mono bg-emerald-950/80 text-emerald-200 border border-emerald-700/80 px-1.5 py-0.5 rounded font-bold">
-              Audit Hari Ini: {todayItemCount} Box
+              Hari Ini: {todayItemCount} Box
             </span>
           </div>
           <p className="hidden sm:block text-[11px] text-emerald-200 font-medium font-mono mt-0.5">
@@ -529,8 +537,8 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
           </p>
         </div>
 
-        {/* Action Toolbar */}
-        <div className="flex items-center gap-2 flex-wrap font-mono text-xs">
+        {/* Action Toolbar (Desktop only for Header Buttons) */}
+        <div className="hidden sm:flex items-center gap-2 flex-wrap font-mono text-xs">
           <button
             type="button"
             onClick={handleOpenCreate}
@@ -554,7 +562,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="hidden sm:flex px-2.5 py-1.5 rounded-md border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer items-center justify-center gap-1.5 text-xs"
+                className="px-2.5 py-1.5 rounded-md border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
                 title="Import File Excel / CSV"
               >
                 <Upload className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
@@ -564,7 +572,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               <button
                 type="button"
                 onClick={handleExportExcel}
-                className="hidden sm:flex px-2.5 py-1.5 rounded-md border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer items-center justify-center gap-1.5 text-xs"
+                className="px-2.5 py-1.5 rounded-md border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
                 title="Download Spreadsheet Excel"
               >
                 <Download className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
@@ -574,7 +582,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsResetModalOpen(true)}
-                className="hidden sm:flex px-2.5 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-semibold transition-all shadow-2xs cursor-pointer items-center justify-center gap-1.5 text-xs"
+                className="px-2.5 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
                 title="Reset Semua Data Input"
               >
                 <RotateCcw className="h-3.5 w-3.5 text-rose-100" />
@@ -585,10 +593,10 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
         </div>
       </div>
 
-      {/* KPI STATS CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3 font-mono text-xs">
+      {/* DESKTOP FULL KPI STATS CARDS (HIDDEN ON MOBILE) */}
+      <div className="hidden sm:grid sm:grid-cols-5 gap-3 font-mono text-xs">
         {/* Hero Card: Stock Saat Ini */}
-        <div className="col-span-2 sm:col-span-1 p-3 rounded-lg bg-emerald-50/50 border border-emerald-300/90 shadow-2xs space-y-1 ring-1 ring-emerald-500/10">
+        <div className="p-3 rounded-lg bg-emerald-50/50 border border-emerald-300/90 shadow-2xs space-y-1 ring-1 ring-emerald-500/10">
           <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-950 flex items-center justify-between font-sans">
             <span>Stock Saat Ini</span>
             <PackageCheck className="h-3.5 w-3.5 text-emerald-800" />
@@ -630,7 +638,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
         </div>
 
         {/* Temuan NG */}
-        <div className="col-span-2 sm:col-span-1 p-3 rounded-lg bg-white border border-amber-200/90 shadow-2xs space-y-1 bg-amber-50/20">
+        <div className="p-3 rounded-lg bg-white border border-amber-200/90 shadow-2xs space-y-1 bg-amber-50/20">
           <div className="text-[10px] font-bold uppercase tracking-wider text-amber-900 flex items-center justify-between font-sans">
             <span>Temuan NG</span>
             <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
@@ -640,100 +648,114 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
         </div>
       </div>
 
-      {/* TOOLBAR: DATE AUDIT FILTER & SEARCH (ULTRA CLEAN) */}
-      <div className="bg-white p-2.5 sm:p-3 rounded-md border border-slate-200/90 shadow-2xs space-y-2.5 font-mono text-xs">
-        {/* Row 1: Date Filter Tabs */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 font-sans mr-1">
-              <Calendar className="h-3.5 w-3.5 text-emerald-800" />
-              <span>Tanggal Audit:</span>
-            </span>
-
-            {/* Button: Hari Ini (Default) */}
-            <button
-              type="button"
-              onClick={() => setDateFilterMode('TODAY')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer text-xs flex items-center gap-1.5 ${
-                dateFilterMode === 'TODAY'
-                  ? 'bg-emerald-800 text-white shadow-2xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
-              }`}
-            >
-              <span>Hari Ini</span>
-              <span className={`text-[10px] px-1 rounded ${dateFilterMode === 'TODAY' ? 'bg-emerald-950 text-emerald-200' : 'bg-slate-200 text-slate-600'}`}>
-                {todayItemCount}
-              </span>
-            </button>
-
-            {/* Button: Semua Tanggal */}
-            <button
-              type="button"
-              onClick={() => setDateFilterMode('ALL')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer text-xs flex items-center gap-1.5 ${
-                dateFilterMode === 'ALL'
-                  ? 'bg-emerald-800 text-white shadow-2xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
-              }`}
-            >
-              <span>Semua Riwayat</span>
-              <span className={`text-[10px] px-1 rounded ${dateFilterMode === 'ALL' ? 'bg-emerald-950 text-emerald-200' : 'bg-slate-200 text-slate-600'}`}>
-                {items.length}
-              </span>
-            </button>
-
-            {/* Custom Date Input Picker */}
-            <div className="flex items-center gap-1">
-              <input
-                type="date"
-                value={selectedCustomDate}
-                onChange={(e) => {
-                  setSelectedCustomDate(e.target.value);
-                  setDateFilterMode('CUSTOM');
-                }}
-                className={`py-0.5 px-2 rounded-md border text-xs font-mono cursor-pointer shadow-2xs ${
-                  dateFilterMode === 'CUSTOM'
-                    ? 'border-emerald-800 bg-emerald-50 text-emerald-950 font-bold'
-                    : 'border-slate-300 bg-white text-slate-700'
-                }`}
-                title="Pilih tanggal spesifik"
-              />
-            </div>
-          </div>
-
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 self-end sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                viewMode === 'table' ? 'bg-emerald-800 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
-              }`}
-              title="Tampilan Tabel Detail"
-            >
-              <Table2 className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                viewMode === 'cards' ? 'bg-emerald-800 text-white font-bold' : 'text-slate-600 hover:bg-slate-100'
-              }`}
-              title="Tampilan Kartu Ringkas"
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Row 2: Search & Dropdown Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-          {/* Search Input */}
-          <div className="sm:col-span-6 relative">
+      {/* TOOLBAR: FILTER & SEARCH */}
+      {/* 1. MOBILE COMPACT TOOLBAR (1 BARIS DENGAN POP-UP FILTER) */}
+      <div className="sm:hidden bg-white p-2 rounded-md border border-slate-200/90 shadow-2xs space-y-1.5 font-mono text-xs">
+        <div className="flex items-center gap-1.5">
+          {/* Quick Search */}
+          <div className="relative flex-1">
             <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cari customer, tipe box, atau keterangan..."
+              placeholder="Cari audit..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-7 py-1.5 rounded-md border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-emerald-700 shadow-2xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter Pop-up Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setIsFilterModalOpen(true)}
+            className={`px-3 py-1.5 rounded-md border font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 transition-colors ${
+              activeFilterCount > 0
+                ? 'bg-emerald-50 border-emerald-700 text-emerald-950'
+                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <Filter className="h-3.5 w-3.5 text-emerald-800" strokeWidth={2.2} />
+            <span>Filter</span>
+            {activeFilterCount > 0 && (
+              <span className="h-4 w-4 rounded-full bg-emerald-800 text-white text-[9px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Active Filter Notice & Reset (Mobile) */}
+        {(selectedCustomer !== 'ALL' || selectedType !== 'ALL' || searchQuery || selectedDate !== todayIso) && (
+          <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100 font-sans">
+            <span className="truncate">
+              {sortedData.length} baris &bull; {selectedDate ? formatDisplayDate(selectedDate) : 'Semua Tgl'}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCustomer('ALL');
+                setSelectedType('ALL');
+                setSearchQuery('');
+                setSelectedDate(todayIso);
+              }}
+              className="font-bold text-rose-700 hover:underline cursor-pointer whitespace-nowrap ml-2"
+            >
+              Reset
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 2. DESKTOP EXPANDED TOOLBAR */}
+      <div className="hidden sm:block bg-white p-2.5 sm:p-3 rounded-md border border-slate-200/90 shadow-2xs space-y-2 font-mono text-xs">
+        <div className="grid grid-cols-12 gap-2 items-center">
+          {/* Tanggal Audit Picker */}
+          <div className="col-span-3 flex items-center gap-1.5">
+            <div className="relative flex-1">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full py-1.5 px-2.5 rounded-md border border-slate-300 text-xs font-mono text-slate-800 bg-white focus:outline-hidden focus:border-emerald-700 shadow-2xs cursor-pointer"
+                title="Filter Tanggal Audit"
+              />
+            </div>
+            {selectedDate ? (
+              <button
+                type="button"
+                onClick={() => setSelectedDate('')}
+                className="px-2 py-1.5 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[10.5px] text-slate-600 font-bold whitespace-nowrap cursor-pointer shadow-2xs"
+                title="Tampilkan Semua Tanggal"
+              >
+                Semua
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayIso)}
+                className="px-2 py-1.5 rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[10.5px] text-emerald-900 font-bold whitespace-nowrap cursor-pointer shadow-2xs"
+                title="Kembali ke Tanggal Hari Ini"
+              >
+                Hari Ini
+              </button>
+            )}
+          </div>
+
+          {/* Search Input */}
+          <div className="col-span-4 relative">
+            <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Cari customer, tipe box, ket..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-8 pr-7 py-1.5 rounded-md border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs transition-colors"
@@ -750,7 +772,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
           </div>
 
           {/* Customer Filter */}
-          <div className="sm:col-span-3">
+          <div className="col-span-3">
             <select
               value={selectedCustomer}
               onChange={(e) => {
@@ -768,31 +790,52 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
             </select>
           </div>
 
-          {/* Type Box Filter */}
-          <div className="sm:col-span-3">
+          {/* Type Box Filter & Desktop View Toggle */}
+          <div className="col-span-2 flex items-center gap-1.5">
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
               className="w-full py-1.5 px-2 rounded-md border border-slate-300 text-xs text-slate-800 bg-white focus:outline-hidden focus:border-emerald-700 cursor-pointer shadow-2xs truncate font-mono"
             >
-              <option value="ALL">Semua Tipe Box</option>
+              <option value="ALL">Semua Box</option>
               {typeList.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
               ))}
             </select>
+
+            <div className="flex items-center gap-0.5 border border-slate-200 rounded-md p-0.5 bg-slate-50 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`p-1 rounded transition-colors cursor-pointer ${
+                  viewMode === 'table' ? 'bg-emerald-800 text-white font-bold' : 'text-slate-500 hover:bg-slate-200'
+                }`}
+                title="Tampilan Tabel"
+              >
+                <Table2 className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`p-1 rounded transition-colors cursor-pointer ${
+                  viewMode === 'cards' ? 'bg-emerald-800 text-white font-bold' : 'text-slate-500 hover:bg-slate-200'
+                }`}
+                title="Tampilan Kartu"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Active Filter Notice & Reset */}
-        {(selectedCustomer !== 'ALL' || selectedType !== 'ALL' || searchQuery || dateFilterMode !== 'TODAY') && (
+        {/* Active Filter Notice & Reset (Desktop) */}
+        {(selectedCustomer !== 'ALL' || selectedType !== 'ALL' || searchQuery || selectedDate !== todayIso) && (
           <div className="flex items-center justify-between text-[10.5px] text-slate-500 pt-1 border-t border-slate-100 font-sans">
             <span>
-              Menampilkan: <strong className="text-slate-900 font-mono">{sortedData.length}</strong> dari{' '}
-              <span className="font-mono">{items.length}</span> baris
-              {dateFilterMode === 'TODAY' && ' (Data Hari Ini)'}
-              {dateFilterMode === 'CUSTOM' && ` (Tanggal: ${formatDisplayDate(selectedCustomDate)})`}
+              Menampilkan: <strong className="text-slate-900 font-mono">{sortedData.length}</strong> / <span className="font-mono">{items.length}</span> baris
+              {selectedDate ? ` (Tgl: ${formatDisplayDate(selectedDate)})` : ' (Semua Tanggal)'}
             </span>
             <button
               type="button"
@@ -800,326 +843,439 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                 setSelectedCustomer('ALL');
                 setSelectedType('ALL');
                 setSearchQuery('');
-                setDateFilterMode('TODAY');
+                setSelectedDate(todayIso);
               }}
               className="font-bold text-rose-700 hover:underline cursor-pointer text-xs"
             >
-              Reset Semua Filter
+              Reset Filter
             </button>
           </div>
         )}
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. MOBILE CARDS VIEW                                                      */}
+      {/* 1. MOBILE CARDS VIEW (OTOMATIS TAMPIL DI SMARTPHONE / LAYAR KECIL)       */}
       {/* ========================================================================= */}
-      {viewMode === 'cards' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 font-mono text-xs">
-          {sortedData.map((item, idx) => (
-            <div
-              key={item.id || idx}
-              className="p-3.5 rounded-lg border border-slate-200/90 bg-white shadow-2xs hover:border-emerald-300 transition-all space-y-2.5 relative"
+      <div className="sm:hidden grid grid-cols-1 gap-2.5 font-mono text-xs">
+        {sortedData.map((item, idx) => (
+          <div
+            key={item.id || idx}
+            className="p-3.5 rounded-lg border border-slate-200/90 bg-white shadow-2xs hover:border-emerald-300 transition-all space-y-2.5 relative"
+          >
+            <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+              <div className="space-y-1 flex-1">
+                <div className="font-bold text-slate-900 text-xs leading-tight">{item.customer}</div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-bold border border-emerald-300/80 text-[10.5px]">
+                    {item.type}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-sans">
+                    {formatDisplayDate(item.tglIncoming)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(item)}
+                  className="p-1.5 rounded hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors"
+                  title="Edit Baris"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTargetId(item.id)}
+                  className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors"
+                  title="Hapus Baris"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Mutasi Numbers */}
+            <div className="grid grid-cols-4 gap-1 text-center text-[11px] bg-slate-50 p-2 rounded-md border border-slate-100">
+              <div>
+                <div className="text-[9px] text-slate-500 uppercase font-sans">Awal</div>
+                <div className="font-bold text-slate-900">{formatQty(item.stockAktualInternal)}</div>
+              </div>
+              <div>
+                <div className="text-[9px] text-rose-700 uppercase font-sans">OUT</div>
+                <div className="font-bold text-rose-700">{item.outQty > 0 ? formatQty(item.outQty) : '-'}</div>
+              </div>
+              <div>
+                <div className="text-[9px] text-sky-800 uppercase font-sans">IN</div>
+                <div className="font-bold text-sky-800">{item.inQty > 0 ? formatQty(item.inQty) : '-'}</div>
+              </div>
+              <div>
+                <div className="text-[9px] text-emerald-950 font-bold uppercase font-sans">Saat Ini</div>
+                <div className="font-black text-emerald-950">{formatQty(item.stockSaatIni)}</div>
+              </div>
+            </div>
+
+            {/* Temuan NG */}
+            <div className="flex items-center justify-between text-[10.5px]">
+              <span className="text-slate-500">Temuan NG:</span>
+              <div className="flex items-center gap-1 flex-wrap justify-end">
+                {item.detailNG?.slot && item.detailNG.slot !== '-' && item.detailNG.slot !== '0' && (
+                  <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
+                    Slot: {item.detailNG.slot}
+                  </span>
+                )}
+                {item.detailNG?.kaki && item.detailNG.kaki !== '-' && item.detailNG.kaki !== '0' && (
+                  <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
+                    Kaki: {item.detailNG.kaki}
+                  </span>
+                )}
+                {item.detailNG?.dinding && item.detailNG.dinding !== '-' && item.detailNG.dinding !== '0' && (
+                  <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
+                    Dinding: {item.detailNG.dinding}
+                  </span>
+                )}
+                {item.detailNG?.rangka && item.detailNG.rangka !== '-' && item.detailNG.rangka !== '0' && (
+                  <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
+                    Rangka: {item.detailNG.rangka}
+                  </span>
+                )}
+                {(!item.detailNG || Object.values(item.detailNG).every((v) => !v || v === '-' || v === '0')) && (
+                  <span className="text-emerald-700 font-medium">Kondisi OK (0 NG)</span>
+                )}
+              </div>
+            </div>
+
+            {item.keterangan && (
+              <div className="text-[10px] text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100 font-sans">
+                Ket: {item.keterangan}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {sortedData.length === 0 && (
+          <div className="py-12 text-center text-slate-400 text-xs font-sans space-y-2 bg-white rounded-lg border border-slate-200 p-4">
+            <Box className="h-8 w-8 text-slate-300 mx-auto" />
+            <div>Belum ada data audit packaging untuk filter ini.</div>
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              className="px-3 py-1.5 rounded-md bg-emerald-800 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
             >
-              <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
-                <div>
-                  <div className="font-bold text-slate-900 text-sm">{item.customer}</div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-bold border border-emerald-300/80 text-[11px]">
-                      {item.type}
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      Tgl: {formatDisplayDate(item.tglIncoming)}
-                    </span>
+              <Plus className="h-3.5 w-3.5" />
+              <span>Input Audit Sekarang</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. DESKTOP / TABLET VIEW (TABLE / CARDS TOGGLEABLE)                      */}
+      {/* ========================================================================= */}
+      <div className="hidden sm:block">
+        {viewMode === 'cards' ? (
+          <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 font-mono text-xs">
+            {sortedData.map((item, idx) => (
+              <div
+                key={item.id || idx}
+                className="p-3.5 rounded-lg border border-slate-200/90 bg-white shadow-2xs hover:border-emerald-300 transition-all space-y-2.5 relative"
+              >
+                <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">{item.customer}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-bold border border-emerald-300/80 text-[11px]">
+                        {item.type}
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        Tgl: {formatDisplayDate(item.tglIncoming)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(item)}
+                      className="p-1 rounded hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer"
+                      title="Edit Baris"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTargetId(item.id)}
+                      className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors cursor-pointer"
+                      title="Hapus Baris"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEdit(item)}
-                    className="p-1 rounded hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors"
-                    title="Edit Baris"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTargetId(item.id)}
-                    className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors"
-                    title="Hapus Baris"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                {/* Mutasi Numbers */}
+                <div className="grid grid-cols-4 gap-1.5 text-center text-[11px] bg-slate-50 p-2 rounded-md border border-slate-100">
+                  <div>
+                    <div className="text-[9.5px] text-slate-500">Awal</div>
+                    <div className="font-bold text-slate-900">{formatQty(item.stockAktualInternal)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9.5px] text-rose-700">OUT</div>
+                    <div className="font-bold text-rose-700">{item.outQty > 0 ? formatQty(item.outQty) : '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9.5px] text-sky-800">IN</div>
+                    <div className="font-bold text-sky-800">{item.inQty > 0 ? formatQty(item.inQty) : '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9.5px] text-emerald-950 font-bold">Saat Ini</div>
+                    <div className="font-black text-emerald-950">{formatQty(item.stockSaatIni)}</div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Mutasi Numbers */}
-              <div className="grid grid-cols-4 gap-1.5 text-center text-[11px] bg-slate-50 p-2 rounded-md border border-slate-100">
-                <div>
-                  <div className="text-[9.5px] text-slate-500">Awal</div>
-                  <div className="font-bold text-slate-900">{formatQty(item.stockAktualInternal)}</div>
-                </div>
-                <div>
-                  <div className="text-[9.5px] text-rose-700">OUT</div>
-                  <div className="font-bold text-rose-700">{item.outQty > 0 ? formatQty(item.outQty) : '-'}</div>
-                </div>
-                <div>
-                  <div className="text-[9.5px] text-sky-800">IN</div>
-                  <div className="font-bold text-sky-800">{item.inQty > 0 ? formatQty(item.inQty) : '-'}</div>
-                </div>
-                <div>
-                  <div className="text-[9.5px] text-emerald-950 font-bold">Saat Ini</div>
-                  <div className="font-black text-emerald-950">{formatQty(item.stockSaatIni)}</div>
-                </div>
-              </div>
-
-              {/* Temuan NG */}
-              <div className="flex items-center justify-between text-[10.5px]">
-                <span className="text-slate-500">Temuan NG:</span>
-                <div className="flex items-center gap-1 flex-wrap">
-                  {item.detailNG?.slot && item.detailNG.slot !== '-' && item.detailNG.slot !== '0' && (
-                    <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
-                      Slot: {item.detailNG.slot}
-                    </span>
-                  )}
-                  {item.detailNG?.kaki && item.detailNG.kaki !== '-' && item.detailNG.kaki !== '0' && (
-                    <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
-                      Kaki: {item.detailNG.kaki}
-                    </span>
-                  )}
-                  {item.detailNG?.dinding && item.detailNG.dinding !== '-' && item.detailNG.dinding !== '0' && (
-                    <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
-                      Dinding: {item.detailNG.dinding}
-                    </span>
-                  )}
-                  {item.detailNG?.rangka && item.detailNG.rangka !== '-' && item.detailNG.rangka !== '0' && (
-                    <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
-                      Rangka: {item.detailNG.rangka}
-                    </span>
-                  )}
-                  {(!item.detailNG || Object.values(item.detailNG).every((v) => !v || v === '-' || v === '0')) && (
-                    <span className="text-emerald-700 font-medium">Kondisi OK (0 NG)</span>
-                  )}
-                </div>
-              </div>
-
-              {item.keterangan && (
-                <div className="text-[10px] text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100 font-sans">
-                  Ket: {item.keterangan}
-                </div>
-              )}
-            </div>
-          ))}
-
-          {sortedData.length === 0 && (
-            <div className="col-span-full py-12 text-center text-slate-400 text-xs font-sans space-y-2 bg-white rounded-lg border border-slate-200">
-              <Box className="h-8 w-8 text-slate-300 mx-auto" />
-              <div>Belum ada data audit packaging untuk filter ini.</div>
-              <button
-                type="button"
-                onClick={handleOpenCreate}
-                className="px-3 py-1.5 rounded-md bg-emerald-800 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Input Audit Sekarang</span>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 2. DESKTOP / TABLET DATA TABLE VIEW                                       */}
-      {/* ========================================================================= */}
-      {viewMode === 'table' && (
-        <div className="bg-white rounded-md border border-slate-200/90 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
-            <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10 bg-slate-100 text-[10.5px] shadow-2xs">
-                <tr className="group text-slate-700">
-                  <th rowSpan={2} className="py-2.5 px-3 text-center font-bold text-slate-400 w-10 border-b border-r border-slate-200 bg-slate-100">
-                    #
-                  </th>
-                  {renderSortHeader('Tgl Audit', 'tglIncoming', 'center', 'border-b border-r border-slate-200 bg-slate-100 min-w-[90px]', 2)}
-                  {renderSortHeader('Customer', 'customer', 'left', 'border-b border-r border-slate-200 bg-slate-100 min-w-[180px]', 2)}
-                  {renderSortHeader('Type Box', 'type', 'left', 'border-b border-r border-slate-200 bg-slate-100 min-w-[110px]', 2)}
-                  {renderSortHeader('Stock Awal', 'stockAktualInternal', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-slate-700', 2)}
-                  {renderSortHeader('OUT', 'outQty', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-rose-700', 2)}
-                  {renderSortHeader('IN', 'inQty', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-sky-800', 2)}
-                  {renderSortHeader('Stock Akhir', 'stockSaatIni', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-emerald-950 font-black', 2)}
-
-                  {/* Group Header: Temuan NG */}
-                  <th colSpan={4} className="py-1 px-2 text-center font-bold border-b border-r border-slate-200 bg-amber-50/80 text-amber-950 text-[10px]">
-                    Detail Temuan NG (Unit)
-                  </th>
-
-                  <th rowSpan={2} className="py-2.5 px-3 text-left font-bold text-slate-600 border-b border-r border-slate-200 bg-slate-100 min-w-[140px]">
-                    Keterangan
-                  </th>
-                  <th rowSpan={2} className="py-2.5 px-3 text-center font-bold text-slate-400 w-20 border-b border-slate-200 bg-slate-100">
-                    Aksi
-                  </th>
-                </tr>
-
-                {/* Sub-header row for Detail NG */}
-                <tr className="text-slate-600 text-[10px]">
-                  <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
-                    Slot
-                  </th>
-                  <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
-                    Kaki
-                  </th>
-                  <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
-                    Dinding
-                  </th>
-                  <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
-                    Rangka
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px] bg-white">
-                {sortedData.map((row, idx) => (
-                  <tr key={row.id || idx} className="hover:bg-slate-50 transition-colors group">
-                    <td className="py-2.5 px-3 text-center text-slate-400 font-bold border-r border-slate-100">
-                      {idx + 1}
-                    </td>
-                    <td className="py-2.5 px-3 text-center border-r border-slate-100 whitespace-nowrap text-slate-600">
-                      {formatDisplayDate(row.tglIncoming)}
-                    </td>
-                    <td className="py-2.5 px-3 font-bold text-slate-900 border-r border-slate-100">
-                      <span>{row.customer}</span>
-                    </td>
-                    <td className="py-2.5 px-3 border-r border-slate-100 whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-bold border border-emerald-300/80 shadow-2xs inline-block">
-                        {row.type}
+                {/* Temuan NG */}
+                <div className="flex items-center justify-between text-[10.5px]">
+                  <span className="text-slate-500">Temuan NG:</span>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {item.detailNG?.slot && item.detailNG.slot !== '-' && item.detailNG.slot !== '0' && (
+                      <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
+                        Slot: {item.detailNG.slot}
                       </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-medium text-slate-700 border-r border-slate-100">
-                      {formatQty(row.stockAktualInternal)}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-bold text-rose-700 border-r border-slate-100">
-                      {row.outQty > 0 ? formatQty(row.outQty) : <span className="text-slate-300 font-normal">-</span>}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-bold text-sky-800 border-r border-slate-100">
-                      {row.inQty > 0 ? formatQty(row.inQty) : <span className="text-slate-300 font-normal">-</span>}
-                    </td>
-                    <td className="py-2.5 px-3 text-right border-r border-slate-100">
-                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-black border border-emerald-300/80 shadow-2xs inline-block">
-                        {formatQty(row.stockSaatIni)}
+                    )}
+                    {item.detailNG?.kaki && item.detailNG.kaki !== '-' && item.detailNG.kaki !== '0' && (
+                      <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
+                        Kaki: {item.detailNG.kaki}
                       </span>
-                    </td>
+                    )}
+                    {item.detailNG?.dinding && item.detailNG.dinding !== '-' && item.detailNG.dinding !== '0' && (
+                      <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
+                        Dinding: {item.detailNG.dinding}
+                      </span>
+                    )}
+                    {item.detailNG?.rangka && item.detailNG.rangka !== '-' && item.detailNG.rangka !== '0' && (
+                      <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[10px]">
+                        Rangka: {item.detailNG.rangka}
+                      </span>
+                    )}
+                    {(!item.detailNG || Object.values(item.detailNG).every((v) => !v || v === '-' || v === '0')) && (
+                      <span className="text-emerald-700 font-medium">Kondisi OK (0 NG)</span>
+                    )}
+                  </div>
+                </div>
 
-                    {/* NG Details */}
-                    <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
-                      {row.detailNG?.slot && row.detailNG.slot !== '-' && row.detailNG.slot !== '0' ? (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                          {row.detailNG.slot}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
-                      {row.detailNG?.kaki && row.detailNG.kaki !== '-' && row.detailNG.kaki !== '0' ? (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                          {row.detailNG.kaki}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
-                      {row.detailNG?.dinding && row.detailNG.dinding !== '-' && row.detailNG.dinding !== '0' ? (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                          {row.detailNG.dinding}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
-                      {row.detailNG?.rangka && row.detailNG.rangka !== '-' && row.detailNG.rangka !== '0' ? (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                          {row.detailNG.rangka}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
-                    </td>
-
-                    <td className="py-2.5 px-3 border-r border-slate-100 text-slate-500 font-sans truncate max-w-[200px]" title={row.keterangan}>
-                      {row.keterangan || '-'}
-                    </td>
-
-                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(row)}
-                          className="p-1.5 rounded hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer"
-                          title="Edit Baris"
-                        >
-                          <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTargetId(row.id)}
-                          className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors cursor-pointer"
-                          title="Hapus Baris"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-                {sortedData.length === 0 && (
-                  <tr>
-                    <td colSpan={14} className="py-12 text-center text-slate-400 text-xs font-sans">
-                      <div className="space-y-1.5">
-                        <Box className="h-7 w-7 text-slate-300 mx-auto" />
-                        <div>Tidak ada data audit packaging yang sesuai filter.</div>
-                        <button
-                          type="button"
-                          onClick={handleOpenCreate}
-                          className="text-emerald-800 font-bold hover:underline cursor-pointer text-xs inline-block"
-                        >
-                          + Tambah Baris Audit Baru
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                {item.keterangan && (
+                  <div className="text-[10px] text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100 font-sans">
+                    Ket: {item.keterangan}
+                  </div>
                 )}
-              </tbody>
+              </div>
+            ))}
 
-              <tfoot className="sticky bottom-0 border-t-2 border-slate-300 bg-slate-100 font-bold text-[11px] text-slate-900 shadow-[0_-2px_4px_rgba(0,0,0,0.06)]">
-                <tr>
-                  <td colSpan={4} className="py-3 px-3 uppercase tracking-wider text-slate-700 text-[10px] bg-slate-100">
-                    TOTAL AUDIT ({sortedData.length} Baris)
-                  </td>
-                  <td className="py-3 px-3 text-right text-slate-900 font-bold bg-slate-100">
-                    {formatQty(totalStockAwal)}
-                  </td>
-                  <td className="py-3 px-3 text-right text-rose-700 font-bold bg-slate-100">
-                    {formatQty(totalOut)}
-                  </td>
-                  <td className="py-3 px-3 text-right text-sky-800 font-bold bg-slate-100">
-                    {formatQty(totalIn)}
-                  </td>
-                  <td className="py-3 px-3 text-right text-emerald-950 font-black bg-slate-100">
-                    {formatQty(totalStockSaatIni)}
-                  </td>
-                  <td colSpan={6} className="py-3 px-2 text-center text-slate-600 text-[10px] bg-slate-100">
-                    Total Temuan NG: {countNG} Box
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+            {sortedData.length === 0 && (
+              <div className="col-span-full py-12 text-center text-slate-400 text-xs font-sans space-y-2 bg-white rounded-lg border border-slate-200">
+                <Box className="h-8 w-8 text-slate-300 mx-auto" />
+                <div>Belum ada data audit packaging untuk filter ini.</div>
+                <button
+                  type="button"
+                  onClick={handleOpenCreate}
+                  className="px-3 py-1.5 rounded-md bg-emerald-800 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Input Audit Sekarang</span>
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="bg-white rounded-md border border-slate-200/90 shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
+              <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
+                <thead className="sticky top-0 z-10 bg-slate-100 text-[10.5px] shadow-2xs">
+                  <tr className="group text-slate-700">
+                    <th rowSpan={2} className="py-2.5 px-3 text-center font-bold text-slate-400 w-10 border-b border-r border-slate-200 bg-slate-100">
+                      #
+                    </th>
+                    {renderSortHeader('Tgl Audit', 'tglIncoming', 'center', 'border-b border-r border-slate-200 bg-slate-100 min-w-[90px]', 2)}
+                    {renderSortHeader('Customer', 'customer', 'left', 'border-b border-r border-slate-200 bg-slate-100 min-w-[180px]', 2)}
+                    {renderSortHeader('Type Box', 'type', 'left', 'border-b border-r border-slate-200 bg-slate-100 min-w-[110px]', 2)}
+                    {renderSortHeader('Stock Awal', 'stockAktualInternal', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-slate-700', 2)}
+                    {renderSortHeader('OUT', 'outQty', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-rose-700', 2)}
+                    {renderSortHeader('IN', 'inQty', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-sky-800', 2)}
+                    {renderSortHeader('Stock Akhir', 'stockSaatIni', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-emerald-950 font-black', 2)}
+
+                    {/* Group Header: Temuan NG */}
+                    <th colSpan={4} className="py-1 px-2 text-center font-bold border-b border-r border-slate-200 bg-amber-50/80 text-amber-950 text-[10px]">
+                      Detail Temuan NG (Unit)
+                    </th>
+
+                    <th rowSpan={2} className="py-2.5 px-3 text-left font-bold text-slate-600 border-b border-r border-slate-200 bg-slate-100 min-w-[140px]">
+                      Keterangan
+                    </th>
+                    <th rowSpan={2} className="py-2.5 px-3 text-center font-bold text-slate-400 w-20 border-b border-slate-200 bg-slate-100">
+                      Aksi
+                    </th>
+                  </tr>
+
+                  {/* Sub-header row for Detail NG */}
+                  <tr className="text-slate-600 text-[10px]">
+                    <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
+                      Slot
+                    </th>
+                    <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
+                      Kaki
+                    </th>
+                    <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
+                      Dinding
+                    </th>
+                    <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
+                      Rangka
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px] bg-white">
+                  {sortedData.map((row, idx) => (
+                    <tr key={row.id || idx} className="hover:bg-slate-50 transition-colors group">
+                      <td className="py-2.5 px-3 text-center text-slate-400 font-bold border-r border-slate-100">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2.5 px-3 text-center border-r border-slate-100 whitespace-nowrap text-slate-600">
+                        {formatDisplayDate(row.tglIncoming)}
+                      </td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900 border-r border-slate-100">
+                        <span>{row.customer}</span>
+                      </td>
+                      <td className="py-2.5 px-3 border-r border-slate-100 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-bold border border-emerald-300/80 shadow-2xs inline-block">
+                          {row.type}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-medium text-slate-700 border-r border-slate-100">
+                        {formatQty(row.stockAktualInternal)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-rose-700 border-r border-slate-100">
+                        {row.outQty > 0 ? formatQty(row.outQty) : <span className="text-slate-300 font-normal">-</span>}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-sky-800 border-r border-slate-100">
+                        {row.inQty > 0 ? formatQty(row.inQty) : <span className="text-slate-300 font-normal">-</span>}
+                      </td>
+                      <td className="py-2.5 px-3 text-right border-r border-slate-100">
+                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-black border border-emerald-300/80 shadow-2xs inline-block">
+                          {formatQty(row.stockSaatIni)}
+                        </span>
+                      </td>
+
+                      {/* NG Details */}
+                      <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
+                        {row.detailNG?.slot && row.detailNG.slot !== '-' && row.detailNG.slot !== '0' ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                            {row.detailNG.slot}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
+                        {row.detailNG?.kaki && row.detailNG.kaki !== '-' && row.detailNG.kaki !== '0' ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                            {row.detailNG.kaki}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
+                        {row.detailNG?.dinding && row.detailNG.dinding !== '-' && row.detailNG.dinding !== '0' ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                            {row.detailNG.dinding}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
+                        {row.detailNG?.rangka && row.detailNG.rangka !== '-' && row.detailNG.rangka !== '0' ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                            {row.detailNG.rangka}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+
+                      <td className="py-2.5 px-3 border-r border-slate-100 text-slate-500 font-sans truncate max-w-[200px]" title={row.keterangan}>
+                        {row.keterangan || '-'}
+                      </td>
+
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(row)}
+                            className="p-1.5 rounded hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer"
+                            title="Edit Baris"
+                          >
+                            <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTargetId(row.id)}
+                            className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors cursor-pointer"
+                            title="Hapus Baris"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {sortedData.length === 0 && (
+                    <tr>
+                      <td colSpan={14} className="py-12 text-center text-slate-400 text-xs font-sans">
+                        <div className="space-y-1.5">
+                          <Box className="h-7 w-7 text-slate-300 mx-auto" />
+                          <div>Tidak ada data audit packaging yang sesuai filter.</div>
+                          <button
+                            type="button"
+                            onClick={handleOpenCreate}
+                            className="text-emerald-800 font-bold hover:underline cursor-pointer text-xs inline-block"
+                          >
+                            + Tambah Baris Audit Baru
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+
+                <tfoot className="sticky bottom-0 border-t-2 border-slate-300 bg-slate-100 font-bold text-[11px] text-slate-900 shadow-[0_-2px_4px_rgba(0,0,0,0.06)]">
+                  <tr>
+                    <td colSpan={4} className="py-3 px-3 uppercase tracking-wider text-slate-700 text-[10px] bg-slate-100">
+                      TOTAL AUDIT ({sortedData.length} Baris)
+                    </td>
+                    <td className="py-3 px-3 text-right text-slate-900 font-bold bg-slate-100">
+                      {formatQty(totalStockAwal)}
+                    </td>
+                    <td className="py-3 px-3 text-right text-rose-700 font-bold bg-slate-100">
+                      {formatQty(totalOut)}
+                    </td>
+                    <td className="py-3 px-3 text-right text-sky-800 font-bold bg-slate-100">
+                      {formatQty(totalIn)}
+                    </td>
+                    <td className="py-3 px-3 text-right text-emerald-950 font-black bg-slate-100">
+                      {formatQty(totalStockSaatIni)}
+                    </td>
+                    <td colSpan={6} className="py-3 px-2 text-center text-slate-600 text-[10px] bg-slate-100">
+                      Total Temuan NG: {countNG} Box
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ========================================================================= */}
       {/* MODAL FORM: INPUT / EDIT AUDIT HARIAN PACKAGING                           */}
@@ -1162,17 +1318,15 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
               {/* Row 1: Tgl Audit */}
               <div className="space-y-1">
-                <label className="text-[10.5px] font-bold text-slate-600 uppercase font-sans flex items-center justify-between">
-                  <span>Tanggal Audit *</span>
-                  <span className="text-emerald-800 text-[9.5px] font-semibold">Format: DD/MM/YYYY</span>
+                <label className="text-[10.5px] font-bold text-slate-600 uppercase font-sans">
+                  Tanggal Audit *
                 </label>
                 <input
-                  type="text"
+                  type="date"
                   required
-                  value={formData.tglIncoming}
+                  value={normalizeDateToIso(formData.tglIncoming)}
                   onChange={(e) => setFormData({ ...formData, tglIncoming: e.target.value })}
-                  placeholder="DD/MM/YYYY"
-                  className="w-full px-3 py-2 rounded-md border border-slate-300 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs text-sm sm:text-xs"
+                  className="w-full px-3 py-2 rounded-md border border-slate-300 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs text-xs font-mono cursor-pointer"
                 />
               </div>
 
@@ -1540,6 +1694,181 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
           </div>
         </div>
       )}
+      {/* FILTER POP-UP MODAL (MODAL KHUSUS FILTER TAMPILAN) */}
+      {isFilterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 font-sans">
+          <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-emerald-100 p-3.5 bg-emerald-50/60 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-800 text-white shadow-2xs">
+                  <Filter className="h-4 w-4 text-emerald-100" strokeWidth={2.2} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                    Filter Data Audit Packaging
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-sans">
+                    Atur tanggal, customer, dan tipe box packaging
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFilterModalOpen(false)}
+                className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-emerald-100/60 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 space-y-3.5 font-mono text-xs overflow-y-auto flex-1">
+              {/* Field 1: Tanggal Audit */}
+              <div className="space-y-1.5">
+                <label className="text-[10.5px] font-bold text-slate-600 uppercase flex items-center justify-between font-sans">
+                  <span>Tanggal Audit</span>
+                  <div className="flex items-center gap-1 font-mono text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(todayIso)}
+                      className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                        selectedDate === todayIso
+                          ? 'bg-emerald-800 text-white border-emerald-900 font-bold'
+                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                      }`}
+                    >
+                      Hari Ini
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate('')}
+                      className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                        !selectedDate
+                          ? 'bg-emerald-800 text-white border-emerald-900 font-bold'
+                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                  </div>
+                </label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full py-2 px-3 rounded-md border border-slate-300 text-xs font-mono text-slate-900 bg-white focus:outline-hidden focus:border-emerald-700 shadow-2xs cursor-pointer"
+                />
+              </div>
+
+              {/* Field 2: Customer */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-slate-600 uppercase font-sans">
+                  Pilih Customer
+                </label>
+                <select
+                  value={selectedCustomer}
+                  onChange={(e) => {
+                    setSelectedCustomer(e.target.value);
+                    setSelectedType('ALL');
+                  }}
+                  className="w-full py-2 px-2.5 rounded-md border border-slate-300 text-xs text-slate-900 bg-white focus:outline-hidden focus:border-emerald-700 cursor-pointer shadow-2xs font-mono"
+                >
+                  <option value="ALL">Semua Customer ({customerList.length})</option>
+                  {customerList.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Field 3: Type Box */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-slate-600 uppercase font-sans">
+                  Pilih Type Box
+                </label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="w-full py-2 px-2.5 rounded-md border border-slate-300 text-xs text-slate-900 bg-white focus:outline-hidden focus:border-emerald-700 cursor-pointer shadow-2xs font-mono"
+                >
+                  <option value="ALL">Semua Tipe Box ({typeList.length})</option>
+                  {typeList.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Field 4: Pencarian Keyword */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-slate-600 uppercase font-sans">
+                  Pencarian Kata Kunci
+                </label>
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Ketik customer, tipe, keterangan..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-7 py-2 rounded-md border border-slate-300 text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-emerald-700 shadow-2xs"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between font-mono text-xs shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCustomer('ALL');
+                  setSelectedType('ALL');
+                  setSearchQuery('');
+                  setSelectedDate(todayIso);
+                }}
+                className="px-3 py-1.5 rounded-md border border-slate-300 text-rose-700 hover:bg-rose-50 font-bold cursor-pointer text-[11px]"
+              >
+                Reset Filter
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsFilterModalOpen(false)}
+                className="px-4 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 text-white font-bold cursor-pointer shadow-2xs flex items-center gap-1.5 text-xs"
+              >
+                <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                <span>Terapkan ({sortedData.length} Baris)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING ACTION BUTTON (FAB) FOR MOBILE */}
+      <div className="fixed bottom-6 right-5 sm:hidden z-40">
+        <button
+          type="button"
+          onClick={handleOpenCreate}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#047857] hover:bg-[#065f46] text-white shadow-xl shadow-emerald-950/40 active:scale-90 transition-all cursor-pointer ring-2 ring-white/80"
+          aria-label="Tambah Data Audit"
+          title="Tambah Data Audit"
+        >
+          <Plus className="h-6 w-6 text-white" strokeWidth={2.5} />
+        </button>
+      </div>
     </div>
   );
 };
