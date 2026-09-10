@@ -235,20 +235,20 @@ export default function Home() {
       const json = await res.json();
       if (json?.success && json?.data) {
         const d = json.data;
-        if (d.pipeCapacities?.length > 0) setPipeCapacities(d.pipeCapacities);
-        if (d.fastSlowData?.length > 0) setFastSlowData(d.fastSlowData);
-        if (d.coilStripData?.length > 0) setCoilStripData(d.coilStripData);
-        if (d.ncWarehouseData?.length > 0) setNcWarehouseData(d.ncWarehouseData);
-        if (d.ncItems?.length > 0) setNcItems(d.ncItems);
-        if (d.looSTData?.length > 0) setLooSTData(d.looSTData);
-        if (d.looLTData?.length > 0) setLooLTData(d.looLTData);
-        if (d.unfifoData?.length > 0) setUnfifoData(d.unfifoData);
+        setPipeCapacities(d.pipeCapacities || []);
+        setFastSlowData(d.fastSlowData || []);
+        setCoilStripData(d.coilStripData || []);
+        setNcWarehouseData(d.ncWarehouseData || []);
+        setNcItems(d.ncItems || []);
+        setLooSTData(d.looSTData || []);
+        setLooLTData(d.looLTData || []);
+        setUnfifoData(d.unfifoData || []);
         setUnfifoCoilData(d.unfifoCoilData || []);
         setUnfifoPipeData(d.unfifoPipeData || []);
-        if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
-        if (d.incomingPackagingData?.length > 0) setIncomingPackagingData(d.incomingPackagingData);
-        if (d.customerBreakdown) setCustomerBreakdown(d.customerBreakdown);
-        if (d.lastUpdated) setLastUpdated(d.lastUpdated);
+        setDamagedPackagingData(d.damagedPackagingData || []);
+        setIncomingPackagingData(d.incomingPackagingData || []);
+        setCustomerBreakdown(d.customerBreakdown || {});
+        setLastUpdated(d.lastUpdated || '');
         setIsCustomData(true);
       }
     } catch (err) {
