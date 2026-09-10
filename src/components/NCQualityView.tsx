@@ -175,6 +175,14 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
       .map((d) => d.gudang);
   }, [ncWarehouseData]);
 
+  // Top 3 largest warehouses by Grade C tonnage (for warning indicator)
+  const top3GradeCGudangs = useMemo(() => {
+    return [...ncWarehouseData]
+      .sort((a, b) => b.gradeC - a.gradeC)
+      .slice(0, 3)
+      .map((d) => d.gudang);
+  }, [ncWarehouseData]);
+
   const isEmpty = ncWarehouseData.length === 0 && ncItems.length === 0;
 
   // Chart data (Distribution per Warehouse: PRIME vs Grade C vs Grade E)
@@ -566,6 +574,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               const warehouseTotal = item.prime + item.gradeE + item.gradeC;
               const pctGradeE = warehouseTotal > 0 ? (item.gradeE / warehouseTotal) * 100 : 0;
               const isTop3 = top3GradeEGudangs.includes(item.gudang);
+              const isTop3C = top3GradeCGudangs.includes(item.gudang);
               const barWidthE = Math.min((item.gradeE / maxGradeE) * 100, 100);
               const barWidthC = Math.min((item.gradeC / maxGradeC) * 100, 100);
 
@@ -590,7 +599,13 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                       {isTop3 && (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
                           <AlertTriangle className="h-2.5 w-2.5 text-rose-600 shrink-0" />
-                          Warning
+                          Grd E
+                        </span>
+                      )}
+                      {isTop3C && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+                          <AlertTriangle className="h-2.5 w-2.5 text-amber-600 shrink-0" />
+                          Grd C
                         </span>
                       )}
                     </div>
@@ -611,10 +626,12 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   </td>
                   <td className="py-2.5 px-3 text-right relative">
                     <div
-                      className="absolute inset-y-1.5 right-1 bg-amber-100/60 rounded-xs pointer-events-none"
+                      className={`absolute inset-y-1.5 right-1 rounded-xs pointer-events-none ${
+                        isTop3C ? 'bg-amber-200/80' : 'bg-amber-100/60'
+                      }`}
                       style={{ width: `${barWidthC * 0.7}%` }}
                     />
-                    <span className="relative z-1 font-medium text-amber-900">
+                    <span className={`relative z-1 ${isTop3C ? 'font-black text-amber-800' : 'font-medium text-amber-900'}`}>
                       {formatTon(item.gradeC)}
                     </span>
                   </td>
