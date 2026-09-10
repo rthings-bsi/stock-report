@@ -665,13 +665,16 @@ export function parseExcelFiles(
     const rawUnfifo = String(getRowValue(row, ['UNFIFO', 'Unfifo', 'STATUS UNFIFO', 'Status UNFIFO']) || '').toUpperCase().trim();
     const isUnfifoPipe = Boolean(rawUnfifo) || isSlow;
 
-    const endsWithC = upperBatch.endsWith('C') || upperBatch.endsWith('0C') || upperBatch.endsWith('L0C');
-    const endsWithE = upperBatch.endsWith('E') || upperBatch.endsWith('0E') || upperBatch.endsWith('L0E');
+    // Suffix A / 0A / F0A = Prime (bukan NC), harus dicek SEBELUM grade C/E
+    const endsWithPrime = upperBatch.endsWith('A') || upperBatch.endsWith('0A') || upperBatch.endsWith('F0A');
+
+    const endsWithC = !endsWithPrime && (upperBatch.endsWith('C') || upperBatch.endsWith('0C') || upperBatch.endsWith('L0C'));
+    const endsWithE = !endsWithPrime && (upperBatch.endsWith('E') || upperBatch.endsWith('0E') || upperBatch.endsWith('L0E'));
 
     const isGradeC = endsWithC || upperCust.includes('GRADE C') || pasg.includes('GRADE C') || pasg.includes('MUTU C') || pasg.includes('GRD C') || upperCust.includes('REPAIR');
     const isGradeE = endsWithE || upperCust.includes('GRADE E') || pasg.includes('GRADE E') || pasg.includes('MUTU E') || pasg.includes('GRD E') || upperCust.includes('HOLD');
 
-    const isNC =
+    const isNC = !endsWithPrime && (
       isGradeC ||
       isGradeE ||
       pasg.includes('NON') ||
@@ -687,7 +690,8 @@ export function parseExcelFiles(
       upperCust.includes('KD') ||
       upperCust.includes('KLD') ||
       Boolean(finalNoNC) ||
-      (rawCustRemark !== '' && rawCustRemark !== '-' && rawCustRemark !== '0' && rawCustRemark !== 'PRIME' && !rawCustRemark.startsWith('OK'));
+      (rawCustRemark !== '' && rawCustRemark !== '-' && rawCustRemark !== '0' && rawCustRemark !== 'PRIME' && !rawCustRemark.startsWith('OK'))
+    );
 
     const target = gudangMap[g] || gudangMap['Gd.01'];
 
@@ -734,11 +738,14 @@ export function parseExcelFiles(
     }
 
     if (isNC) {
-      const assignedGrade: 'Grade C' | 'Grade E' = isGradeC ? 'Grade C' : 'Grade E';
+      const assignedGrade: 'Grade C' | 'Grade E' = isGradeC ? 'Grade C' : isGradeE ? 'Grade E' : (endsWithPrime ? 'Grade C' : 'Grade E');
       if (isGradeC) {
         target.gradeCTon += tonase;
-      } else {
+      } else if (isGradeE) {
         target.gradeETon += tonase;
+      } else {
+        // NC tanpa grade eksplisit (dari cust remark catch-all) — default Grade C (less severe)
+        target.gradeCTon += tonase;
       }
 
       const custName = customer || 'General Stock';
