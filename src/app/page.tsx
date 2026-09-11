@@ -310,11 +310,11 @@ export default function Home() {
           if (d.looSTData?.length > 0) setLooSTData(d.looSTData);
           if (d.looLTData?.length > 0) setLooLTData(d.looLTData);
           if (d.unfifoData?.length > 0) setUnfifoData(d.unfifoData);
-          setUnfifoCoilData(d.unfifoCoilData || []);
-          setUnfifoPipeData(d.unfifoPipeData || []);
+          if (d.unfifoCoilData?.length > 0) setUnfifoCoilData(d.unfifoCoilData);
+          if (d.unfifoPipeData?.length > 0) setUnfifoPipeData(d.unfifoPipeData);
           if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
           if (d.incomingPackagingData?.length > 0) setIncomingPackagingData(d.incomingPackagingData);
-          if (d.customerBreakdown) setCustomerBreakdown(d.customerBreakdown);
+          if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
           if (d.lastUpdated) setLastUpdated(d.lastUpdated);
           setIsCustomData(true);
         }
@@ -342,10 +342,10 @@ export default function Home() {
               if (d.looSTData?.length > 0) setLooSTData(d.looSTData);
               if (d.looLTData?.length > 0) setLooLTData(d.looLTData);
               if (d.unfifoData?.length > 0) setUnfifoData(d.unfifoData);
-              setUnfifoCoilData(d.unfifoCoilData || []);
-              setUnfifoPipeData(d.unfifoPipeData || []);
+              if (d.unfifoCoilData?.length > 0) setUnfifoCoilData(d.unfifoCoilData);
+              if (d.unfifoPipeData?.length > 0) setUnfifoPipeData(d.unfifoPipeData);
               if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
-              if (d.customerBreakdown) setCustomerBreakdown(d.customerBreakdown);
+              if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
               if (d.lastUpdated) setLastUpdated(d.lastUpdated);
               setIsCustomData(true);
             }
@@ -413,41 +413,109 @@ export default function Home() {
 
   // Handle new parsed data from Excel and auto-save
   const handleDataParsed = async (newState: ParsedWarehouseState) => {
-    if (newState.pipeCapacities.length > 0) setPipeCapacities(newState.pipeCapacities);
-    if (newState.fastSlowData.length > 0) setFastSlowData(newState.fastSlowData);
-    if (newState.coilStripData.length > 0) setCoilStripData(newState.coilStripData);
-    if (newState.ncWarehouseData.length > 0) setNcWarehouseData(newState.ncWarehouseData);
-    if (newState.ncItems.length > 0) setNcItems(newState.ncItems);
-    if (newState.looSTData.length > 0) setLooSTData(newState.looSTData);
-    if (newState.looLTData.length > 0) setLooLTData(newState.looLTData);
-    if (newState.unfifoData.length > 0) setUnfifoData(newState.unfifoData);
-    
-    setUnfifoCoilData(newState.unfifoCoilData || []);
-    setUnfifoPipeData(newState.unfifoPipeData || []);
-    if (newState.customerBreakdown) setCustomerBreakdown(newState.customerBreakdown);
+    let currentSaved: Partial<ParsedWarehouseState> = {};
+    try {
+      const localSaved = localStorage.getItem('spindo_warehouse_saved_state');
+      if (localSaved) {
+        currentSaved = JSON.parse(localSaved);
+      }
+    } catch (e) {
+      console.error('Failed to read localStorage:', e);
+    }
 
-    setLastUpdated(newState.lastUpdated);
-    if (newState.damagedPackagingData && newState.damagedPackagingData.length > 0) {
-      setDamagedPackagingData(newState.damagedPackagingData);
+    const hasPipe = Boolean(newState.pipeCapacities && newState.pipeCapacities.length > 0);
+    const hasCoil = Boolean(newState.coilStripData && newState.coilStripData.length > 0);
+    const hasLoo = Boolean((newState.looSTData && newState.looSTData.length > 0) || (newState.looLTData && newState.looLTData.length > 0));
+    const hasDamagedPkg = Boolean(newState.damagedPackagingData && newState.damagedPackagingData.length > 0);
+    const hasIncomingPkg = Boolean(newState.incomingPackagingData && newState.incomingPackagingData.length > 0);
+
+    const nextPipeCapacities = hasPipe ? newState.pipeCapacities! : (pipeCapacities.length > 0 ? pipeCapacities : (currentSaved.pipeCapacities || []));
+    const nextFastSlowData = hasPipe && newState.fastSlowData ? newState.fastSlowData : (fastSlowData.length > 0 ? fastSlowData : (currentSaved.fastSlowData || []));
+    const nextNcWarehouseData = hasPipe && newState.ncWarehouseData ? newState.ncWarehouseData : (ncWarehouseData.length > 0 ? ncWarehouseData : (currentSaved.ncWarehouseData || []));
+    const nextNcItems = hasPipe && newState.ncItems ? newState.ncItems : (ncItems.length > 0 ? ncItems : (currentSaved.ncItems || []));
+    const nextUnfifoPipeData = hasPipe && newState.unfifoPipeData ? newState.unfifoPipeData : (unfifoPipeData.length > 0 ? unfifoPipeData : (currentSaved.unfifoPipeData || []));
+    const nextCustomerBreakdown = hasPipe && newState.customerBreakdown ? newState.customerBreakdown : (Object.keys(customerBreakdown).length > 0 ? customerBreakdown : (currentSaved.customerBreakdown || {}));
+    const nextUnfifoData = (hasPipe || hasCoil) && newState.unfifoData ? newState.unfifoData : (unfifoData.length > 0 ? unfifoData : (currentSaved.unfifoData || []));
+
+    const nextCoilStripData = hasCoil ? newState.coilStripData! : (coilStripData.length > 0 ? coilStripData : (currentSaved.coilStripData || []));
+    const nextUnfifoCoilData = hasCoil && newState.unfifoCoilData ? newState.unfifoCoilData : (unfifoCoilData.length > 0 ? unfifoCoilData : (currentSaved.unfifoCoilData || []));
+
+    const nextLooSTData = hasLoo && newState.looSTData ? newState.looSTData : (looSTData.length > 0 ? looSTData : (currentSaved.looSTData || []));
+    const nextLooLTData = hasLoo && newState.looLTData ? newState.looLTData : (looLTData.length > 0 ? looLTData : (currentSaved.looLTData || []));
+
+    const nextDamagedPackagingData = hasDamagedPkg ? newState.damagedPackagingData! : (damagedPackagingData.length > 0 ? damagedPackagingData : (currentSaved.damagedPackagingData || []));
+    const nextIncomingPackagingData = hasIncomingPkg ? newState.incomingPackagingData! : (incomingPackagingData.length > 0 ? incomingPackagingData : (currentSaved.incomingPackagingData || []));
+
+    const nowStr = newState.lastUpdated || new Date().toLocaleString('id-ID');
+
+    if (hasPipe) {
+      setPipeCapacities(nextPipeCapacities);
+      setFastSlowData(nextFastSlowData);
+      setNcWarehouseData(nextNcWarehouseData);
+      setNcItems(nextNcItems);
+      setUnfifoPipeData(nextUnfifoPipeData);
+      setCustomerBreakdown(nextCustomerBreakdown);
     }
-    if (newState.incomingPackagingData && newState.incomingPackagingData.length > 0) {
-      setIncomingPackagingData(newState.incomingPackagingData);
+    if (hasCoil) {
+      setCoilStripData(nextCoilStripData);
+      setUnfifoCoilData(nextUnfifoCoilData);
     }
+    if (hasLoo || hasPipe) {
+      setLooSTData(nextLooSTData);
+      setLooLTData(nextLooLTData);
+    }
+    if (hasPipe || hasCoil) {
+      setUnfifoData(nextUnfifoData);
+    }
+    if (hasDamagedPkg) {
+      setDamagedPackagingData(nextDamagedPackagingData);
+    }
+    if (hasIncomingPkg) {
+      setIncomingPackagingData(nextIncomingPackagingData);
+    }
+
+    setLastUpdated(nowStr);
     setIsCustomData(true);
     setIsUploadOpen(false);
 
-    // Auto-save ganda (LocalStorage + SQLite)
+    const mergedFullState: ParsedWarehouseState = {
+      pipeCapacities: nextPipeCapacities,
+      fastSlowData: nextFastSlowData,
+      coilStripData: nextCoilStripData,
+      ncWarehouseData: nextNcWarehouseData,
+      ncItems: nextNcItems,
+      looSTData: nextLooSTData,
+      looLTData: nextLooLTData,
+      unfifoData: nextUnfifoData,
+      unfifoCoilData: nextUnfifoCoilData,
+      unfifoPipeData: nextUnfifoPipeData,
+      damagedPackagingData: nextDamagedPackagingData,
+      incomingPackagingData: nextIncomingPackagingData,
+      customerBreakdown: nextCustomerBreakdown,
+      lastUpdated: nowStr,
+    };
+
+    // Auto-save ganda (LocalStorage + Server API)
     try {
-      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(newState));
+      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(mergedFullState));
       await fetch('/api/warehouse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newState),
+        body: JSON.stringify(mergedFullState),
       });
+
+      if (hasIncomingPkg && newState.incomingPackagingData) {
+        await fetch('/api/incoming-packaging', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newState.incomingPackagingData),
+        });
+      }
+
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
-      console.error('Failed to sync uploaded data to SQLite:', err);
+      console.error('Failed to sync uploaded data to server:', err);
     }
   };
 

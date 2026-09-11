@@ -14,20 +14,21 @@ import {
 } from '../types/warehouse';
 
 export interface ParsedWarehouseState {
-  pipeCapacities: WarehousePipeCapacity[];
-  fastSlowData: FastSlowPipe[];
-  coilStripData: CoilStripArea[];
-  ncWarehouseData: PipeNCWarehouse[];
-  ncItems: PipeNCItem[];
-  looSTData: LooComparisonItem[];
-  looLTData: LooComparisonItem[];
-  unfifoData: UnfifoItem[];
+  pipeCapacities?: WarehousePipeCapacity[];
+  fastSlowData?: FastSlowPipe[];
+  coilStripData?: CoilStripArea[];
+  ncWarehouseData?: PipeNCWarehouse[];
+  ncItems?: PipeNCItem[];
+  looSTData?: LooComparisonItem[];
+  looLTData?: LooComparisonItem[];
+  unfifoData?: UnfifoItem[];
   unfifoCoilData?: UnfifoCoilItem[];
   unfifoPipeData?: UnfifoPipeItem[];
   damagedPackagingData?: DamagedPackagingItem[];
   incomingPackagingData?: IncomingPackagingItem[];
   customerBreakdown?: Record<string, Array<{ customer: string; qty: number; tonase: number }>>;
   lastUpdated: string;
+  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg')[];
 }
 
 const PIPE_CAPACITY_MAP: Record<string, number> = {
@@ -1306,20 +1307,38 @@ export function parseExcelFiles(
       .sort((a, b) => b.tonase - a.tonase);
   });
 
-  return {
-    pipeCapacities,
-    fastSlowData,
-    coilStripData,
-    ncWarehouseData,
-    ncItems: parsedNCItems,
-    looSTData,
-    looLTData,
-    unfifoData: unfifoData.slice(0, 10),
-    unfifoCoilData: unfifoCoilList,
-    unfifoPipeData: unfifoPipeList,
-    customerBreakdown: finalCustomerBreakdown,
+  const result: ParsedWarehouseState = {
     lastUpdated: new Date().toLocaleString('id-ID'),
   };
+
+  const hasPipe = Boolean(pipeRows && pipeRows.length > 0);
+  const hasCoil = Boolean(coilRows && coilRows.length > 0);
+  const hasLoo = Boolean(looRows && looRows.length > 0);
+
+  if (hasPipe) {
+    result.pipeCapacities = pipeCapacities;
+    result.fastSlowData = fastSlowData;
+    result.ncWarehouseData = ncWarehouseData;
+    result.ncItems = parsedNCItems;
+    result.unfifoPipeData = unfifoPipeList;
+    result.customerBreakdown = finalCustomerBreakdown;
+  }
+
+  if (hasCoil) {
+    result.coilStripData = coilStripData;
+    result.unfifoCoilData = unfifoCoilList;
+  }
+
+  if (hasLoo || hasPipe) {
+    result.looSTData = looSTData;
+    result.looLTData = looLTData;
+  }
+
+  if (hasPipe || hasCoil) {
+    result.unfifoData = unfifoData.slice(0, 10);
+  }
+
+  return result;
 }
 
 export async function readExcelFile(file: File): Promise<Record<string, unknown>[]> {

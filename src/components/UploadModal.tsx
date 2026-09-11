@@ -67,12 +67,19 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       if (incomingFile && canUploadIncomingPkg) incomingRows = await readExcelFile(incomingFile);
 
       const parsedResult = parseExcelFiles(pipeRows, coilRows, looRows);
+      const uploadedCategories: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg')[] = [];
+      if (pipeFile && pipeRows.length > 0) uploadedCategories.push('pipe');
+      if (coilFile && coilRows.length > 0) uploadedCategories.push('coil');
+      if (looFile && looRows.length > 0) uploadedCategories.push('loo');
       if (packagingFile && canUploadDamagedPkg && packagingRows.length > 0) {
         parsedResult.damagedPackagingData = parseDamagedPackagingFile(packagingRows);
+        uploadedCategories.push('damaged_pkg');
       }
       if (incomingFile && canUploadIncomingPkg && incomingRows.length > 0) {
         parsedResult.incomingPackagingData = parseIncomingPackagingFile(incomingRows);
+        uploadedCategories.push('incoming_pkg');
       }
+      parsedResult.uploadedCategories = uploadedCategories;
       onDataParsed(parsedResult);
       onClose();
     } catch (err: unknown) {
