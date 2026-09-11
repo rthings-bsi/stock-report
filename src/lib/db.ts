@@ -122,24 +122,27 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
           const adminPerms = JSON.stringify({
             viewCapacity: true, viewFastSlow: true, viewCoilStrip: true, viewNC: true,
             viewUnfifo: true, viewLoo: true, viewDamagedPkg: true, viewIncomingPkg: true,
-            viewUserManagement: true, canUploadSAP: true, canEditIncomingPkg: true,
-            canEditDamagedPkg: true, canExportExcel: true, canCustomizeLayout: true,
+            viewUserManagement: true, canUploadSAP: true,
+            canUploadPipe: true, canUploadCoil: true, canUploadLoo: true, canUploadDamagedPkg: true, canUploadIncomingPkg: true,
+            canEditIncomingPkg: true, canEditDamagedPkg: true, canExportExcel: true, canCustomizeLayout: true,
             canManageUsers: true, canSaveSnapshot: true
           });
 
           const staffPerms = JSON.stringify({
             viewCapacity: true, viewFastSlow: true, viewCoilStrip: true, viewNC: true,
             viewUnfifo: true, viewLoo: true, viewDamagedPkg: true, viewIncomingPkg: true,
-            viewUserManagement: false, canUploadSAP: false, canEditIncomingPkg: true,
-            canEditDamagedPkg: false, canExportExcel: true, canCustomizeLayout: false,
+            viewUserManagement: false, canUploadSAP: false,
+            canUploadPipe: false, canUploadCoil: false, canUploadLoo: false, canUploadDamagedPkg: false, canUploadIncomingPkg: false,
+            canEditIncomingPkg: true, canEditDamagedPkg: false, canExportExcel: true, canCustomizeLayout: false,
             canManageUsers: false, canSaveSnapshot: false
           });
 
           const viewerPerms = JSON.stringify({
             viewCapacity: true, viewFastSlow: true, viewCoilStrip: true, viewNC: true,
             viewUnfifo: true, viewLoo: true, viewDamagedPkg: true, viewIncomingPkg: true,
-            viewUserManagement: false, canUploadSAP: false, canEditIncomingPkg: false,
-            canEditDamagedPkg: false, canExportExcel: true, canCustomizeLayout: false,
+            viewUserManagement: false, canUploadSAP: false,
+            canUploadPipe: false, canUploadCoil: false, canUploadLoo: false, canUploadDamagedPkg: false, canUploadIncomingPkg: false,
+            canEditIncomingPkg: false, canEditDamagedPkg: false, canExportExcel: true, canCustomizeLayout: false,
             canManageUsers: false, canSaveSnapshot: false
           });
 

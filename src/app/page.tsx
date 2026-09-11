@@ -550,7 +550,16 @@ export default function Home() {
   }, [currentUser, systemRoles]);
 
   const canManageUsers = currentUser?.role === 'admin' || Boolean(userPermissions.canManageUsers);
-  const canUploadSAP = currentUser?.role === 'admin' || Boolean(userPermissions.canUploadSAP);
+  const canUploadSAP =
+    currentUser?.role === 'admin' ||
+    Boolean(
+      userPermissions.canUploadPipe ||
+      userPermissions.canUploadCoil ||
+      userPermissions.canUploadLoo ||
+      userPermissions.canUploadDamagedPkg ||
+      userPermissions.canUploadIncomingPkg ||
+      userPermissions.canUploadSAP
+    );
   const canCustomizeLayout = currentUser?.role === 'admin' || Boolean(userPermissions.canCustomizeLayout);
   const canEditIncomingPkg = currentUser?.role === 'admin' || Boolean(userPermissions.canEditIncomingPkg);
   const canEditDamagedPkg = currentUser?.role === 'admin' || Boolean(userPermissions.canEditDamagedPkg);
@@ -1311,6 +1320,8 @@ export default function Home() {
         isOpen={canUploadSAP && isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onDataParsed={handleDataParsed}
+        userPermissions={userPermissions}
+        isAdmin={currentUser?.role === 'admin'}
       />
     </div>
   );

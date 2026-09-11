@@ -296,13 +296,23 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
 
   const handleOpenEditRole = (role: CustomRole) => {
     setEditingRole(role);
+    const p = role.permissions || ({} as RolePermissions);
+    const legacyUpload = Boolean(p.canUploadSAP);
     setRoleFormData({
       id: role.id,
       key: role.key,
       name: role.name,
       description: role.description || '',
       color: role.color || 'slate',
-      permissions: { ...role.permissions }
+      permissions: {
+        ...DEFAULT_STAFF_PERMISSIONS,
+        ...p,
+        canUploadPipe: p.canUploadPipe !== undefined ? p.canUploadPipe : legacyUpload,
+        canUploadCoil: p.canUploadCoil !== undefined ? p.canUploadCoil : legacyUpload,
+        canUploadLoo: p.canUploadLoo !== undefined ? p.canUploadLoo : legacyUpload,
+        canUploadDamagedPkg: p.canUploadDamagedPkg !== undefined ? p.canUploadDamagedPkg : legacyUpload,
+        canUploadIncomingPkg: p.canUploadIncomingPkg !== undefined ? p.canUploadIncomingPkg : legacyUpload
+      }
     });
     setRoleFormError('');
     setIsRoleModalOpen(true);
@@ -875,8 +885,15 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                 { key: 'viewUserManagement', label: 'Kelola User' }
               ] as const;
 
+              const uploadPermsList = [
+                { key: 'canUploadPipe', label: 'Stock Pipa' },
+                { key: 'canUploadCoil', label: 'Coil/Strip' },
+                { key: 'canUploadLoo', label: 'Data LOO' },
+                { key: 'canUploadDamagedPkg', label: 'Pkg Rusak' },
+                { key: 'canUploadIncomingPkg', label: 'Incoming RTP' }
+              ] as const;
+
               const actionPermsList = [
-                { key: 'canUploadSAP', label: 'Upload SAP' },
                 { key: 'canEditIncomingPkg', label: 'Input RTP' },
                 { key: 'canEditDamagedPkg', label: 'Edit Packaging' },
                 { key: 'canExportExcel', label: 'Export Excel' },
@@ -886,8 +903,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
               ] as const;
 
               const activeViewCount = viewPermsList.filter((p) => perms[p.key as keyof RolePermissions]).length;
+              const activeUploadCount = uploadPermsList.filter((p) => perms[p.key as keyof RolePermissions] ?? perms.canUploadSAP).length;
               const activeActionCount = actionPermsList.filter((p) => perms[p.key as keyof RolePermissions]).length;
-
               return (
                 <div
                   key={role.key}
@@ -936,6 +953,29 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                               className={`text-[9.5px] px-1.5 py-0.5 rounded border ${
                                 isGranted
                                   ? 'bg-emerald-50 text-emerald-900 border-emerald-200 font-bold'
+                                  : 'bg-slate-100 text-slate-400 border-slate-200 line-through opacity-60'
+                              }`}
+                            >
+                              {p.label}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {/* Upload Permissions */}
+                    <div className="pt-2 border-t border-slate-200">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        <span>Izin Upload Raw ({activeUploadCount}/{uploadPermsList.length})</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {uploadPermsList.map((p) => {
+                          const isGranted = perms[p.key as keyof RolePermissions] ?? perms.canUploadSAP;
+                          return (
+                            <span
+                              key={p.key}
+                              className={`text-[9.5px] px-1.5 py-0.5 rounded border ${
+                                isGranted
+                                  ? 'bg-amber-50 text-amber-950 border-amber-200 font-bold'
                                   : 'bg-slate-100 text-slate-400 border-slate-200 line-through opacity-60'
                               }`}
                             >
@@ -1359,18 +1399,62 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                 </div>
               </div>
 
-              {/* SECTION B: IZIN HAK AKSI & OPERASIONAL */}
+              {/* SECTION B: IZIN UPLOAD RAW DATA SAP & PACKAGING */}
               <div className="space-y-2 pt-2 border-t border-slate-200 font-sans">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                    <Settings className="h-3.5 w-3.5 text-sky-700" />
-                    <span>B. Izin Tindakan &amp; Operasional Modifikasi</span>
+                    <Upload className="h-3.5 w-3.5 text-amber-700" />
+                    <span>B. Izin Upload Raw Data SAP &amp; Packaging</span>
                   </h4>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   {[
-                    { key: 'canUploadSAP', label: 'Upload Raw Data SAP (Excel)', desc: 'Mengunggah file export SAP' },
+                    { key: 'canUploadPipe', label: 'Upload Raw Stock Pipa', desc: 'File zppshstock / MB52 export SAP' },
+                    { key: 'canUploadCoil', label: 'Upload Raw Stock Coil & Strip', desc: 'File master stock bahan baku SAP' },
+                    { key: 'canUploadLoo', label: 'Upload Raw Order LOO', desc: 'File open order delivery LOO SAP' },
+                    { key: 'canUploadDamagedPkg', label: 'Upload Raw Packaging Rusak', desc: 'File spreadsheet temuan packaging rusak (NG)' },
+                    { key: 'canUploadIncomingPkg', label: 'Upload Raw Incoming RTP', desc: 'File audit harian mutasi incoming packaging' }
+                  ].map((item) => {
+                    const isChecked = Boolean(roleFormData.permissions[item.key as keyof RolePermissions]);
+                    return (
+                      <div
+                        key={item.key}
+                        onClick={() => handleTogglePermission(item.key as keyof RolePermissions)}
+                        className={`p-2.5 rounded-md border cursor-pointer flex items-start gap-2.5 transition-all select-none ${
+                          isChecked
+                            ? 'border-amber-600 bg-amber-50/60 text-slate-900 ring-1 ring-amber-600/30 shadow-2xs'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="mt-0.5 shrink-0">
+                          {isChecked ? (
+                            <CheckSquare className="h-4 w-4 text-amber-700" />
+                          ) : (
+                            <Square className="h-4 w-4 text-slate-300" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-xs leading-tight">{item.label}</div>
+                          <div className="text-[10.5px] text-slate-500">{item.desc}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SECTION C: IZIN HAK AKSI & OPERASIONAL */}
+              <div className="space-y-2 pt-2 border-t border-slate-200 font-sans">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                    <Settings className="h-3.5 w-3.5 text-sky-700" />
+                    <span>C. Izin Tindakan &amp; Operasional Modifikasi</span>
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {[
                     { key: 'canEditIncomingPkg', label: 'Tambah & Edit Data RTP', desc: 'Input / ubah data mutasi packaging' },
                     { key: 'canEditDamagedPkg', label: 'Ubah Status Repack Packaging', desc: 'Update status perbaikan fisik' },
                     { key: 'canExportExcel', label: 'Export Data Spreadsheet Excel', desc: 'Download laporan ke Excel (.xlsx)' },

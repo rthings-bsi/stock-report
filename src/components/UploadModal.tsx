@@ -5,17 +5,22 @@ import { Upload, FileSpreadsheet, X, CheckCircle2, AlertCircle, Loader2 } from '
 import { readExcelFile, parseExcelFiles, ParsedWarehouseState } from '../lib/parser';
 import { parseDamagedPackagingFile } from '../lib/parseDamagedPackaging';
 import { parseIncomingPackagingFile } from '../lib/parseIncomingPackaging';
+import { RolePermissions } from '../types/auth';
 
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDataParsed: (newState: ParsedWarehouseState) => void;
+  userPermissions?: RolePermissions;
+  isAdmin?: boolean;
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({
   isOpen,
   onClose,
   onDataParsed,
+  userPermissions,
+  isAdmin = false
 }) => {
   const [pipeFile, setPipeFile] = useState<File | null>(null);
   const [coilFile, setCoilFile] = useState<File | null>(null);
@@ -25,6 +30,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const canUploadPipe = isAdmin || Boolean(userPermissions?.canUploadPipe ?? userPermissions?.canUploadSAP ?? true);
+  const canUploadCoil = isAdmin || Boolean(userPermissions?.canUploadCoil ?? userPermissions?.canUploadSAP ?? true);
+  const canUploadLoo = isAdmin || Boolean(userPermissions?.canUploadLoo ?? userPermissions?.canUploadSAP ?? true);
+  const canUploadDamagedPkg = isAdmin || Boolean(userPermissions?.canUploadDamagedPkg ?? userPermissions?.canUploadSAP ?? true);
+  const canUploadIncomingPkg = isAdmin || Boolean(userPermissions?.canUploadIncomingPkg ?? userPermissions?.canUploadSAP ?? true);
+  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg;
+
   const pipeInputRef = useRef<HTMLInputElement>(null);
   const coilInputRef = useRef<HTMLInputElement>(null);
   const looInputRef = useRef<HTMLInputElement>(null);
@@ -32,7 +44,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const incomingInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
-
   const handleProcessFiles = async () => {
     if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile) {
       setErrorMsg('Silakan pilih minimal satu file spreadsheet export SAP (.xlsx / .xls).');
@@ -49,17 +60,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       let packagingRows: Record<string, unknown>[] = [];
       let incomingRows: Record<string, unknown>[] = [];
 
-      if (pipeFile) pipeRows = await readExcelFile(pipeFile);
-      if (coilFile) coilRows = await readExcelFile(coilFile);
-      if (looFile) looRows = await readExcelFile(looFile);
-      if (packagingFile) packagingRows = await readExcelFile(packagingFile);
-      if (incomingFile) incomingRows = await readExcelFile(incomingFile);
+      if (pipeFile && canUploadPipe) pipeRows = await readExcelFile(pipeFile);
+      if (coilFile && canUploadCoil) coilRows = await readExcelFile(coilFile);
+      if (looFile && canUploadLoo) looRows = await readExcelFile(looFile);
+      if (packagingFile && canUploadDamagedPkg) packagingRows = await readExcelFile(packagingFile);
+      if (incomingFile && canUploadIncomingPkg) incomingRows = await readExcelFile(incomingFile);
 
       const parsedResult = parseExcelFiles(pipeRows, coilRows, looRows);
-      if (packagingFile && packagingRows.length > 0) {
+      if (packagingFile && canUploadDamagedPkg && packagingRows.length > 0) {
         parsedResult.damagedPackagingData = parseDamagedPackagingFile(packagingRows);
       }
-      if (incomingFile && incomingRows.length > 0) {
+      if (incomingFile && canUploadIncomingPkg && incomingRows.length > 0) {
         parsedResult.incomingPackagingData = parseIncomingPackagingFile(incomingRows);
       }
       onDataParsed(parsedResult);
@@ -103,175 +114,197 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             </div>
           )}
 
-          {/* 1. Raw Stock Pipa */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800">
-                  <FileSpreadsheet className="h-5 w-5" />
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-slate-900">Data Stock Pipa (zppshstock)</span>
-                </div>
-              </div>
-              <input
-                ref={pipeInputRef}
-                type="file"
-                accept=".xlsx, .xls"
-                className="hidden"
-                onChange={(e) => setPipeFile(e.target.files?.[0] || null)}
-              />
-              <button
-                type="button"
-                onClick={() => pipeInputRef.current?.click()}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                {pipeFile ? 'Ganti File' : 'Pilih File'}
-              </button>
+          {!hasAnyUploadPermission && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500 font-medium text-center justify-center">
+              <AlertCircle className="h-4 w-4 shrink-0 text-slate-400" />
+              <span>Role Anda saat ini tidak memiliki izin untuk mengunggah file raw data manapun.</span>
             </div>
-            {pipeFile && (
-              <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-emerald-800">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <span className="truncate">{pipeFile.name} ({(pipeFile.size / 1024).toFixed(0)} KB)</span>
+          )}
+
+          {/* 1. Raw Stock Pipa */}
+          {canUploadPipe && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900">Data Stock Pipa (zppshstock)</span>
+                    <p className="text-[10px] text-slate-500 font-mono">Export SAP MB52 / ZPPSHSTOCK</p>
+                  </div>
+                </div>
+                <input
+                  ref={pipeInputRef}
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={(e) => setPipeFile(e.target.files?.[0] || null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => pipeInputRef.current?.click()}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  {pipeFile ? 'Ganti File' : 'Pilih File'}
+                </button>
               </div>
-            )}
-          </div>
+              {pipeFile && (
+                <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span className="truncate">{pipeFile.name} ({(pipeFile.size / 1024).toFixed(0)} KB)</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 2. Raw Stock Coil & Strip */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800">
-                  <FileSpreadsheet className="h-5 w-5" />
+          {canUploadCoil && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900">Data Stock Coil &amp; Strip (Bahan Baku)</span>
+                    <p className="text-[10px] text-slate-500 font-mono">Export SAP Stock Bahan Baku Induk</p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-xs font-bold text-slate-900">Data Stock Coil &amp; Strip (Bahan Baku)</span>
-                </div>
+                <input
+                  ref={coilInputRef}
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={(e) => setCoilFile(e.target.files?.[0] || null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => coilInputRef.current?.click()}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  {coilFile ? 'Ganti File' : 'Pilih File'}
+                </button>
               </div>
-              <input
-                ref={coilInputRef}
-                type="file"
-                accept=".xlsx, .xls"
-                className="hidden"
-                onChange={(e) => setCoilFile(e.target.files?.[0] || null)}
-              />
-              <button
-                type="button"
-                onClick={() => coilInputRef.current?.click()}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                {coilFile ? 'Ganti File' : 'Pilih File'}
-              </button>
+              {coilFile && (
+                <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span className="truncate">{coilFile.name} ({(coilFile.size / 1024).toFixed(0)} KB)</span>
+                </div>
+              )}
             </div>
-            {coilFile && (
-              <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-emerald-800">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <span className="truncate">{coilFile.name} ({(coilFile.size / 1024).toFixed(0)} KB)</span>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* 3. Raw LOO Outstanding */}
-          <div className="rounded-md border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded bg-emerald-100 text-emerald-800">
-                  <FileSpreadsheet className="h-5 w-5" />
+          {canUploadLoo && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900">Data LOO (Delivery Order)</span>
+                    <p className="text-[10px] text-slate-500 font-mono">Export SAP Open Order Delivery</p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-xs font-bold text-slate-900">Data LOO (Delivery Order)</span>
-                </div>
+                <input
+                  ref={looInputRef}
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={(e) => setLooFile(e.target.files?.[0] || null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => looInputRef.current?.click()}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  {looFile ? 'Ganti File' : 'Pilih File'}
+                </button>
               </div>
-              <input
-                ref={looInputRef}
-                type="file"
-                accept=".xlsx, .xls"
-                className="hidden"
-                onChange={(e) => setLooFile(e.target.files?.[0] || null)}
-              />
-              <button
-                type="button"
-                onClick={() => looInputRef.current?.click()}
-                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                {looFile ? 'Ganti File' : 'Pilih File'}
-              </button>
+              {looFile && (
+                <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span className="truncate">{looFile.name} ({(looFile.size / 1024).toFixed(0)} KB)</span>
+                </div>
+              )}
             </div>
-            {looFile && (
-              <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-emerald-800">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <span className="truncate">{looFile.name} ({(looFile.size / 1024).toFixed(0)} KB)</span>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* 4. Data Packaging Rusak (NG) */}
-          <div className="rounded-md border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded bg-amber-100 text-amber-900">
-                  <FileSpreadsheet className="h-5 w-5" />
+          {canUploadDamagedPkg && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-amber-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-100 text-amber-900">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900">Data Packaging Rusak (RTP NG)</span>
+                    <p className="text-[10px] text-slate-500 font-mono">File spreadsheet / CSV temuan RTP rusak</p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-xs font-bold text-slate-900">Data Packaging Rusak (RTP NG)</span>
-                </div>
+                <input
+                  ref={packagingInputRef}
+                  type="file"
+                  accept=".xlsx, .xls, .csv, .txt, .tsv"
+                  className="hidden"
+                  onChange={(e) => setPackagingFile(e.target.files?.[0] || null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => packagingInputRef.current?.click()}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  {packagingFile ? 'Ganti File' : 'Pilih File'}
+                </button>
               </div>
-              <input
-                ref={packagingInputRef}
-                type="file"
-                accept=".xlsx, .xls, .csv, .txt, .tsv"
-                className="hidden"
-                onChange={(e) => setPackagingFile(e.target.files?.[0] || null)}
-              />
-              <button
-                type="button"
-                onClick={() => packagingInputRef.current?.click()}
-                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                {packagingFile ? 'Ganti File' : 'Pilih File'}
-              </button>
+              {packagingFile && (
+                <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-amber-900">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span className="truncate">{packagingFile.name} ({(packagingFile.size / 1024).toFixed(0)} KB)</span>
+                </div>
+              )}
             </div>
-            {packagingFile && (
-              <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-amber-900">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <span className="truncate">{packagingFile.name} ({(packagingFile.size / 1024).toFixed(0)} KB)</span>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* 5. Data Incoming & Mutasi Packaging (RTP) */}
-          <div className="rounded-md border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded bg-emerald-100 text-emerald-800">
-                  <FileSpreadsheet className="h-5 w-5" />
+          {canUploadIncomingPkg && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900">Data Incoming &amp; Mutasi Packaging (RTP)</span>
+                    <p className="text-[10px] text-slate-500 font-mono">File audit harian &amp; mutasi penerimaan packaging</p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-xs font-bold text-slate-900">Data Incoming &amp; Mutasi Packaging (RTP)</span>
-                </div>
+                <input
+                  ref={incomingInputRef}
+                  type="file"
+                  accept=".xlsx, .xls, .csv, .txt, .tsv"
+                  className="hidden"
+                  onChange={(e) => setIncomingFile(e.target.files?.[0] || null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => incomingInputRef.current?.click()}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  {incomingFile ? 'Ganti File' : 'Pilih File'}
+                </button>
               </div>
-              <input
-                ref={incomingInputRef}
-                type="file"
-                accept=".xlsx, .xls, .csv, .txt, .tsv"
-                className="hidden"
-                onChange={(e) => setIncomingFile(e.target.files?.[0] || null)}
-              />
-              <button
-                type="button"
-                onClick={() => incomingInputRef.current?.click()}
-                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                {incomingFile ? 'Ganti File' : 'Pilih File'}
-              </button>
+              {incomingFile && (
+                <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span className="truncate">{incomingFile.name} ({(incomingFile.size / 1024).toFixed(0)} KB)</span>
+                </div>
+              )}
             </div>
-            {incomingFile && (
-              <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-emerald-800">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <span className="truncate">{incomingFile.name} ({(incomingFile.size / 1024).toFixed(0)} KB)</span>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Modal Footer */}

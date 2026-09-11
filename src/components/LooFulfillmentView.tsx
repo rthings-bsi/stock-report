@@ -19,7 +19,10 @@ import {
   ArrowUp,
   ArrowDown,
   Warehouse,
-  BarChart3
+  BarChart3,
+  Users,
+  Search,
+  X
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
@@ -67,6 +70,8 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
   isCustomizing = false
 }) => {
   const [selectedGudang, setSelectedGudang] = useState<string>('ALL');
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [chartSortMetric, setChartSortMetric] = useState<'stock' | 'loo'>('stock');
   const [chartTopCount, setChartTopCount] = useState<number>(15);
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
@@ -215,6 +220,23 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
     return ['ALL', ...warehouseRecaps.map((w) => w.gudang)];
   }, [warehouseRecaps]);
 
+  // List of available customers for filter dropdown (based on selected warehouse)
+  const availableCustomers = useMemo(() => {
+    const custSet = new Set<string>();
+    [...stData, ...ltData].forEach((item) => {
+      if (selectedGudang !== 'ALL') {
+        const breakdown = item.gudangBreakdown?.[selectedGudang];
+        const inGudangs = item.gudangs && item.gudangs.includes(selectedGudang);
+        const inGudangStr = item.gudang && item.gudang.includes(selectedGudang);
+        if (!breakdown && !inGudangs && !inGudangStr) return;
+      }
+      if (item.customer && item.customer.trim()) {
+        custSet.add(item.customer.trim());
+      }
+    });
+    return ['ALL', ...Array.from(custSet).sort((a, b) => a.localeCompare(b))];
+  }, [stData, ltData, selectedGudang]);
+
   // 2. Material-level items for Stock vs LOO table and Top 15 Chart
   const stockLooItems = useMemo<LooTableItem[]>(() => {
     const allItems = [...stData, ...ltData];
@@ -279,6 +301,25 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
 
     return result;
   }, [stData, ltData, selectedGudang]);
+
+  // Filtered items specifically for the detail table
+  const tableFilteredItems = useMemo(() => {
+    return stockLooItems.filter((item) => {
+      if (selectedCustomer !== 'ALL' && item.customer !== selectedCustomer) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchCust = item.customer?.toLowerCase().includes(q);
+        const matchUkuran = item.ukuran?.toLowerCase().includes(q);
+        const matchKode = item.kodeMaterial?.toLowerCase().includes(q);
+        if (!matchCust && !matchUkuran && !matchKode) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [stockLooItems, selectedCustomer, searchQuery]);
 
   // 3. Top Customer + Ukuran items for the chart (matching user's Excel chart)
   const top15ChartItems = useMemo(() => {
@@ -479,31 +520,153 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
       );
     };
 
-    const sorted = sortItems(stockLooItems, tableSortField, tableSortDir).map((item, idx) => ({
+    const sorted = sortItems(tableFilteredItems, tableSortField, tableSortDir).map((item, idx) => ({
       ...item,
       no: idx + 1
     }));
 
-    const sumFgQty = stockLooItems.reduce((acc, r) => acc + (r.fgQty || 0), 0);
-    const sumFgTon = stockLooItems.reduce((acc, r) => acc + (r.fgTon || 0), 0);
-    const sumWipQty = stockLooItems.reduce((acc, r) => acc + (r.wipQty || 0), 0);
-    const sumWipTon = stockLooItems.reduce((acc, r) => acc + (r.wipTon || 0), 0);
-    const sumTotalQty = stockLooItems.reduce((acc, r) => acc + (r.totalQty || 0), 0);
-    const sumTotalTon = stockLooItems.reduce((acc, r) => acc + (r.totalStockTon || 0), 0);
-    const sumLooQty = stockLooItems.reduce((acc, r) => acc + (r.looQty || 0), 0);
-    const sumLooTon = stockLooItems.reduce((acc, r) => acc + (r.looTon || 0), 0);
+    const sumFgQty = tableFilteredItems.reduce((acc, r) => acc + (r.fgQty || 0), 0);
+    const sumFgTon = tableFilteredItems.reduce((acc, r) => acc + (r.fgTon || 0), 0);
+    const sumWipQty = tableFilteredItems.reduce((acc, r) => acc + (r.wipQty || 0), 0);
+    const sumWipTon = tableFilteredItems.reduce((acc, r) => acc + (r.wipTon || 0), 0);
+    const sumTotalQty = tableFilteredItems.reduce((acc, r) => acc + (r.totalQty || 0), 0);
+    const sumTotalTon = tableFilteredItems.reduce((acc, r) => acc + (r.totalStockTon || 0), 0);
+    const sumLooQty = tableFilteredItems.reduce((acc, r) => acc + (r.looQty || 0), 0);
+    const sumLooTon = tableFilteredItems.reduce((acc, r) => acc + (r.looTon || 0), 0);
     const overallAvgFulfill = sumLooTon > 0 ? (sumTotalTon / sumLooTon) * 100 : 0;
 
     if (sorted.length === 0) {
       return (
-        <div className="py-10 text-center text-slate-500 text-xs font-mono">
-          Tidak ada data Stock vs LOO untuk {selectedGudang !== 'ALL' ? `gudang ${selectedGudang}` : 'seluruh gudang'}.
+        <div className="flex flex-col space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-md font-mono text-xs">
+            <div className="flex items-center gap-2 flex-1 max-w-sm">
+              <div className="relative w-full">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Cari Customer, Ukuran, Kode Material..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-7 py-1.5 text-xs font-mono bg-white border border-slate-300 rounded focus:outline-hidden focus:ring-1 focus:ring-emerald-700 placeholder:text-slate-400 shadow-2xs"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-emerald-800 shrink-0" />
+                <span className="text-slate-600 font-bold uppercase text-[10px]">Filter Customer:</span>
+                <select
+                  value={selectedCustomer}
+                  onChange={(e) => setSelectedCustomer(e.target.value)}
+                  className="px-2 py-1 rounded border border-slate-300 text-xs font-bold text-slate-800 bg-white cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-emerald-700 max-w-[200px] truncate shadow-2xs"
+                >
+                  <option value="ALL">Semua Customer ({availableCustomers.length - 1})</option>
+                  {availableCustomers.filter((c) => c !== 'ALL').map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(selectedCustomer !== 'ALL' || searchQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomer('ALL');
+                    setSearchQuery('');
+                  }}
+                  className="px-2.5 py-1 text-[10px] font-bold font-mono bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <X className="h-3 w-3" />
+                  Reset Filter
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="py-10 text-center text-slate-500 text-xs font-mono border border-dashed border-slate-300 rounded-md bg-white">
+            Tidak ada data Stock vs LOO yang sesuai kriteria filter
+            {selectedGudang !== 'ALL' ? ` • Gudang: ${selectedGudang}` : ''}
+            {selectedCustomer !== 'ALL' ? ` • Customer: ${selectedCustomer}` : ''}
+            {searchQuery ? ` • Kata kunci: "${searchQuery}"` : ''}.
+          </div>
         </div>
       );
     }
 
     return (
-      <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
+      <div className="flex flex-col space-y-3">
+        {/* Table Filter & Search Controls */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-md font-mono text-xs">
+          <div className="flex items-center gap-2 flex-1 max-w-sm">
+            <div className="relative w-full">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Cari Customer, Ukuran, Kode Material..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-7 py-1.5 text-xs font-mono bg-white border border-slate-300 rounded focus:outline-hidden focus:ring-1 focus:ring-emerald-700 placeholder:text-slate-400 shadow-2xs"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5 text-emerald-800 shrink-0" />
+              <span className="text-slate-600 font-bold uppercase text-[10px]">Filter Customer:</span>
+              <select
+                value={selectedCustomer}
+                onChange={(e) => setSelectedCustomer(e.target.value)}
+                className="px-2 py-1 rounded border border-slate-300 text-xs font-bold text-slate-800 bg-white cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-emerald-700 max-w-[200px] truncate shadow-2xs"
+              >
+                <option value="ALL">Semua Customer ({availableCustomers.length - 1})</option>
+                {availableCustomers.filter((c) => c !== 'ALL').map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {(selectedCustomer !== 'ALL' || searchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCustomer('ALL');
+                  setSearchQuery('');
+                }}
+                className="px-2.5 py-1 text-[10px] font-bold font-mono bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <X className="h-3 w-3" />
+                Reset Filter
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Table View */}
+        <div className="overflow-x-auto max-h-[560px] overflow-y-auto border border-slate-200 rounded-md">
         <table className="w-full text-left text-xs font-mono border-collapse">
           <thead className="sticky top-0 z-10 border-b border-slate-300 bg-slate-100 text-[10px] shadow-2xs">
             {/* Header Tier 1: Group Categories */}
@@ -687,7 +850,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
           <tfoot className="sticky bottom-0 border-t-2 border-slate-300 bg-slate-100/95 backdrop-blur-xs font-bold text-[11px] text-slate-900">
             <tr>
               <td colSpan={4} className="py-2.5 px-3 text-left uppercase tracking-wider text-slate-700 text-[10px]">
-                TOTAL ({stockLooItems.length} ITEM{selectedGudang !== 'ALL' ? ` • ${selectedGudang}` : ''})
+                TOTAL ({sorted.length} ITEM{selectedGudang !== 'ALL' ? ` • ${selectedGudang}` : ''}{selectedCustomer !== 'ALL' ? ` • ${selectedCustomer}` : ''})
               </td>
               <td className="py-2 px-2 text-right text-emerald-950 font-bold">
                 {formatQty(sumFgQty, { zeroAsDash: true })}
@@ -725,6 +888,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
     );
   };
@@ -871,8 +1035,8 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                 <CustomizableCard
                   key={card.id}
                   id={card.id}
-                  title={`Tabel Stock Pipa vs LOO ${selectedGudang !== 'ALL' ? `• ${selectedGudang}` : ''}`}
-                  subtitle={`Rincian perbandingan kuantitas dan tonase stock pipa (FG & WIP) terhadap target open LOO customer ${selectedGudang !== 'ALL' ? `di ${selectedGudang}` : 'seluruh gudang'}`}
+                  title={`Tabel Stock Pipa vs LOO ${selectedGudang !== 'ALL' ? `• ${selectedGudang}` : ''}${selectedCustomer !== 'ALL' ? ` • ${selectedCustomer}` : ''}`}
+                  subtitle={`Rincian perbandingan kuantitas dan tonase stock pipa (FG & WIP) terhadap target open LOO customer ${selectedCustomer !== 'ALL' ? `[${selectedCustomer}]` : ''} ${selectedGudang !== 'ALL' ? `di ${selectedGudang}` : 'seluruh gudang'}`}
                   icon={Table2}
                   width={card.width}
                   isCustomizing={isCustomizing}
@@ -883,7 +1047,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                   onWidthChange={(w) => handleWidthChange(card.id, w)}
                   badge={
                     <span className="text-[10px] font-mono text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      {stockLooItems.length} Item
+                      {tableFilteredItems.length} Item
                     </span>
                   }
                 >

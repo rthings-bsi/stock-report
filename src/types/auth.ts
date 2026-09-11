@@ -12,16 +12,22 @@ export interface RolePermissions {
   viewIncomingPkg: boolean;    // Input & Kelola Incoming Packaging (RTP)
   viewUserManagement: boolean; // Kelola Pengguna & Roles
 
-  // Action Permissions
-  canUploadSAP: boolean;       // Upload Raw SAP Excel
+  // Upload Raw Data Permissions (Pecahan Upload Data Raw SAP & Packaging)
+  canUploadSAP?: boolean;         // Master flag / fallback compatibility
+  canUploadPipe: boolean;        // Upload Raw Stock Pipa (zppshstock)
+  canUploadCoil: boolean;        // Upload Raw Stock Coil & Strip (Bahan Baku)
+  canUploadLoo: boolean;         // Upload Raw Data LOO (Delivery Order)
+  canUploadDamagedPkg: boolean;  // Upload Raw Packaging Rusak (RTP NG)
+  canUploadIncomingPkg: boolean; // Upload Raw Mutasi & Incoming Packaging (RTP)
+
+  // Action & Operational Permissions
   canEditIncomingPkg: boolean; // Tambah/Edit/Hapus Data RTP
   canEditDamagedPkg: boolean;  // Edit Status Repack Packaging Rusak
   canExportExcel: boolean;     // Download spreadsheet Excel
   canCustomizeLayout: boolean; // Ubah tata letak/sembunyikan card
   canManageUsers: boolean;     // Tambah/Edit/Hapus User & Role
   canSaveSnapshot: boolean;    // Simpan snapshot ke database
-}
-
+};
 export interface CustomRole {
   id?: number;
   key: string;         // 'admin' | 'staff' | 'supervisor' | etc.
@@ -66,6 +72,11 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   viewIncomingPkg: true,
   viewUserManagement: true,
   canUploadSAP: true,
+  canUploadPipe: true,
+  canUploadCoil: true,
+  canUploadLoo: true,
+  canUploadDamagedPkg: true,
+  canUploadIncomingPkg: true,
   canEditIncomingPkg: true,
   canEditDamagedPkg: true,
   canExportExcel: true,
@@ -85,6 +96,11 @@ export const DEFAULT_STAFF_PERMISSIONS: RolePermissions = {
   viewIncomingPkg: true,
   viewUserManagement: false,
   canUploadSAP: false,
+  canUploadPipe: false,
+  canUploadCoil: false,
+  canUploadLoo: false,
+  canUploadDamagedPkg: false,
+  canUploadIncomingPkg: false,
   canEditIncomingPkg: true,
   canEditDamagedPkg: false,
   canExportExcel: true,
@@ -104,6 +120,11 @@ export const DEFAULT_VIEWER_PERMISSIONS: RolePermissions = {
   viewIncomingPkg: true,
   viewUserManagement: false,
   canUploadSAP: false,
+  canUploadPipe: false,
+  canUploadCoil: false,
+  canUploadLoo: false,
+  canUploadDamagedPkg: false,
+  canUploadIncomingPkg: false,
   canEditIncomingPkg: false,
   canEditDamagedPkg: false,
   canExportExcel: true,

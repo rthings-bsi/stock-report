@@ -1066,6 +1066,7 @@ export function parseExcelFiles(
 
   const looAggMap: Record<string, {
     customer: string;
+    customerList: Set<string>;
     ukuran: string;
     kodeMaterial: string;
     looTon: number;
@@ -1130,13 +1131,17 @@ export function parseExcelFiles(
 
     const custName = String(
       getRowValue(row, [
-        'Pelanggan                    .',
         'Pelanggan',
+        'Nama Pelanggan',
+        'Pelanggan                    .',
         'Customers Gabungan',
         'Customer',
         'Nama Customer',
-        'CUSTOMER'
-      ]) || 'General Customer'
+        'CUSTOMER',
+        'Sold to party',
+        'Sold-to party',
+        'Name 1'
+      ]) || ''
     ).trim();
 
     const baseLooMat = getMaterialBaseKey(rawKodeMat);
@@ -1145,13 +1150,17 @@ export function parseExcelFiles(
 
     if (!looAggMap[baseLooMat]) {
       looAggMap[baseLooMat] = {
-        customer: custName,
+        customer: custName || 'General Customer',
+        customerList: new Set<string>(),
         ukuran: looCleanDim,
         kodeMaterial: baseLooMat,
         looTon: 0,
         looQty: 0,
         type
       };
+    }
+    if (custName && custName !== '0' && custName !== '-' && !custName.toUpperCase().includes('GENERAL')) {
+      looAggMap[baseLooMat].customerList.add(custName);
     }
     looAggMap[baseLooMat].looTon += looTon;
     looAggMap[baseLooMat].looQty += looQty;
@@ -1171,9 +1180,11 @@ export function parseExcelFiles(
       return;
     }
 
-    const customer = stock?.customer && stock.customer !== 'General Stock'
-      ? stock.customer
-      : (loo?.customer || 'General Customer');
+    const looCustStr = loo?.customerList && loo.customerList.size > 0
+      ? Array.from(loo.customerList).join(', ')
+      : (loo?.customer && loo.customer !== 'General Customer' ? loo.customer : '');
+
+    const customer = looCustStr || (stock?.customer && stock.customer !== 'General Stock' ? stock.customer : (loo?.customer || 'General Customer'));
 
     const ukuran = stock?.ukuran || loo?.ukuran || k;
     const type: 'LT' | 'ST' = stock?.type || loo?.type || 'LT';
