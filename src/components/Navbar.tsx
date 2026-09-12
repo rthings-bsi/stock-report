@@ -78,7 +78,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Mini Calendar View Month & Year
-  const [currentViewDate, setCurrentViewDate] = useState<Date>(new Date(2026, 8, 1)); // Default Sep 2026
+  const [currentViewDate, setCurrentViewDate] = useState<Date>(() => new Date());
 
   const fetchSnapshots = async () => {
     try {

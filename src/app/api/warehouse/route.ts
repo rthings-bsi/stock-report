@@ -76,9 +76,8 @@ export async function GET(request: Request) {
         const { data, error } = await supabase
           .from('warehouse_snapshots')
           .select('snapshot_key, last_updated, created_at')
-          .neq('snapshot_key', 'app_settings')
-          .neq('snapshot_key', 'audit_incoming_packaging')
-          .order('created_at', { ascending: false });
+          .like('snapshot_key', 'snap_%')
+          .order('snapshot_key', { ascending: false });
 
         if (error) throw error;
         return NextResponse.json({ success: true, snapshots: data || [] });
@@ -87,10 +86,9 @@ export async function GET(request: Request) {
       let query = supabase
         .from('warehouse_snapshots')
         .select('*')
-        .neq('snapshot_key', 'app_settings')
-        .neq('snapshot_key', 'audit_incoming_packaging');
+        .like('snapshot_key', 'snap_%');
       if (key === 'latest') {
-        query = query.order('created_at', { ascending: false }).limit(1);
+        query = query.order('snapshot_key', { ascending: false }).limit(1);
       } else {
         query = query.eq('snapshot_key', key).limit(1);
       }
@@ -136,7 +134,8 @@ export async function GET(request: Request) {
       const listStmt = db.prepare(`
         SELECT snapshot_key, last_updated, created_at
         FROM warehouse_snapshots
-        ORDER BY created_at DESC
+        WHERE snapshot_key LIKE 'snap_%'
+        ORDER BY snapshot_key DESC
       `);
       const rows = listStmt.all();
       return NextResponse.json({ success: true, snapshots: rows });
@@ -146,7 +145,8 @@ export async function GET(request: Request) {
     if (key === 'latest') {
       const stmt = db.prepare(`
         SELECT * FROM warehouse_snapshots
-        ORDER BY created_at DESC
+        WHERE snapshot_key LIKE 'snap_%'
+        ORDER BY snapshot_key DESC
         LIMIT 1
       `);
       row = stmt.get();

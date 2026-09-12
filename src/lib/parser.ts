@@ -1,3 +1,4 @@
+import { normalizeNCRNumber } from './parseNCProgress';
 import * as XLSX from 'xlsx';
 import {
   WarehousePipeCapacity,
@@ -30,6 +31,8 @@ export interface ParsedWarehouseState {
   ncProgressData?: NCProgressTransaction[];
   customerBreakdown?: Record<string, Array<{ customer: string; qty: number; tonase: number }>>;
   lastUpdated: string;
+  snapshotKey?: string;
+  targetDate?: string;
   uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc')[];
 }
 
@@ -657,10 +660,11 @@ export function parseExcelFiles(
       ]) || ''
     ).trim();
 
-    // Ekstrak pola nomor dokumen NC jika tertulis di dalam CUST.REMARK (contoh: 18/NCR-SKF/1X/2026 atau 117/IV/2026)
+    // Ekstrak dan standardisasi pola nomor dokumen NC jika tertulis di dalam CUST.REMARK atau kolom NO NC
     const ncRegex = /(\d+\/(?:NCR-[A-Za-z0-9\-_]+\/|)[IVXLCDM0-9a-z\-_]+\/(?:\d{4}|\d{2})|\d+\/[IVXLCDM0-9a-z\-_]+\/\d{4})/i;
     const matchedNC = rawCustRemark.match(ncRegex);
-    const finalNoNC = rawNoNC || (matchedNC ? matchedNC[0] : '');
+    const extractedNoNC = rawNoNC || (matchedNC ? matchedNC[0] : '');
+    const finalNoNC = extractedNoNC ? normalizeNCRNumber(extractedNoNC) : '';
 
     const upperCust = rawCustRemark.toUpperCase();
 
@@ -1349,16 +1353,123 @@ export async function readExcelFile(file: File): Promise<Record<string, unknown>
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
-        resolve(json);
+        let workbook: XLSX.WorkBook;
+        try {
+          workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: false });
+        } catch {
+          workbook = XLSX.read(data, { type: 'array' });
+        }
+
+        if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+          throw new Error('Workbook tidak memiliki lembar kerja (sheet).');
+        }
+
+        // Cari sheet pertama yang memiliki data
+        let worksheet: XLSX.WorkSheet | null = null;
+        for (const sName of workbook.SheetNames) {
+          const ws = workbook.Sheets[sName];
+          if (ws && ws['!ref']) {
+            worksheet = ws;
+            break;
+          }
+        }
+
+        if (!worksheet) {
+          worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        }
+
+        if (!worksheet) {
+          throw new Error('Sheet kosong atau tidak ditemukan.');
+        }
+
+        // Ambil data dalam format 2D Array untuk deteksi baris header secara dinamis
+        const rawMatrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '' });
+        if (!rawMatrix || rawMatrix.length === 0) {
+          resolve([]);
+          return;
+        }
+
+        // Kata kunci penanda kolom header SAP (case-insensitive)
+        const headerKeywords = [
+          'material', 'sloc', 'storage location', 'batch', 'unrestricted', 'unrestricted use',
+          'sum of tonase', 'ttl stock', 'ttl stok', 'berat', 'weight', 'tonase', 'mvt',
+          'movement type', 'posting date', 'entry date', 'time of entry', 'order', 'package',
+          'serial', 'customer', 'name 2', 'bwart', 'deskripsi', 'description', 'kondisi',
+          'slot', 'dinding', 'segel', 'tgl', 'date', 'plant', 'werk', 'unfifo', 'fast', 'slow',
+          'ukuran', 'dimension', 'qty', 'kuantitas', 'alasan nc', 'problem', 'text'
+        ];
+
+        // Deteksi baris header dalam 30 baris pertama
+        let bestHeaderIdx = -1;
+        let maxScore = 0;
+
+        const scanLimit = Math.min(rawMatrix.length, 30);
+        for (let i = 0; i < scanLimit; i++) {
+          const rowArr = rawMatrix[i];
+          if (!Array.isArray(rowArr) || rowArr.length === 0) continue;
+
+          let score = 0;
+          let filledCols = 0;
+
+          rowArr.forEach((cell) => {
+            const strVal = String(cell || '').trim().toLowerCase();
+            if (strVal.length > 0) {
+              filledCols++;
+              if (headerKeywords.some((kw) => strVal.includes(kw) || kw.includes(strVal))) {
+                score += 3;
+              }
+            }
+          });
+
+          if (filledCols >= 2 && score > maxScore) {
+            maxScore = score;
+            bestHeaderIdx = i;
+          }
+        }
+
+        // Jika ditemukan baris header spesifik
+        if (bestHeaderIdx !== -1 && maxScore >= 3) {
+          const headerRow = rawMatrix[bestHeaderIdx] as unknown[];
+          const headers = headerRow.map((h, colIdx) => {
+            const cleanH = String(h || '').trim();
+            return cleanH || `__EMPTY_${colIdx}`;
+          });
+
+          const parsedRows: Record<string, unknown>[] = [];
+          for (let r = bestHeaderIdx + 1; r < rawMatrix.length; r++) {
+            const rowArr = rawMatrix[r] as unknown[];
+            if (!Array.isArray(rowArr)) continue;
+
+            const isAllEmpty = rowArr.every((c) => c === undefined || c === null || String(c).trim() === '');
+            if (isAllEmpty) continue;
+
+            const rowObj: Record<string, unknown> = {};
+            let hasAnyVal = false;
+            headers.forEach((hdr, colIdx) => {
+              const val = rowArr[colIdx];
+              if (val !== undefined && val !== null && String(val).trim() !== '') {
+                hasAnyVal = true;
+              }
+              rowObj[hdr] = val ?? '';
+            });
+
+            if (hasAnyVal) {
+              parsedRows.push(rowObj);
+            }
+          }
+
+          resolve(parsedRows);
+          return;
+        }
+
+        // Fallback ke standar sheet_to_json jika tidak ada header khusus terdeteksi
+        const standardJson = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+        resolve(standardJson);
       } catch (err) {
         reject(err);
       }
     };
-    reader.onerror = (err) => reject(err);
+    reader.onerror = (err) => reject(new Error(`Gagal membaca berkas: ${err}`));
     reader.readAsArrayBuffer(file);
   });
 }

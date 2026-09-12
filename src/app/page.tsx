@@ -458,6 +458,7 @@ export default function Home() {
     const nextIncomingPackagingData = hasIncomingPkg ? newState.incomingPackagingData! : (incomingPackagingData.length > 0 ? incomingPackagingData : (currentSaved.incomingPackagingData || []));
     const nextNcProgressData = hasProgressNC ? newState.ncProgressData! : (ncProgressData.length > 0 ? ncProgressData : (currentSaved.ncProgressData || []));
 
+    const snapshotKey = newState.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
     const nowStr = newState.lastUpdated || new Date().toLocaleString('id-ID');
 
     if (hasPipe) {
@@ -491,6 +492,7 @@ export default function Home() {
 
     setLastUpdated(nowStr);
     setIsCustomData(true);
+    setSelectedSnapshotKey(snapshotKey);
     setIsUploadOpen(false);
 
     const mergedFullState: ParsedWarehouseState = {
@@ -509,6 +511,8 @@ export default function Home() {
       ncProgressData: nextNcProgressData,
       customerBreakdown: nextCustomerBreakdown,
       lastUpdated: nowStr,
+      snapshotKey: snapshotKey,
+      targetDate: newState.targetDate,
     };
 
     // Auto-save ganda (LocalStorage + Server API)
