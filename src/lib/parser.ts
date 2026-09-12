@@ -330,6 +330,22 @@ function getRowValue(row: Record<string, unknown>, keys: string[]): unknown {
 export function isCoilOrStripMaterial(desc: string | undefined | null, matNum: string = ''): boolean {
   const d = String(desc || '').toUpperCase();
   const m = String(matNum || '').toUpperCase();
+
+  // Pipa / Tubing / Hollow jangan dikategorikan sebagai coil/strip
+  if (
+    d.includes('PIPA') ||
+    d.includes('PIPE') ||
+    d.includes('TUB') ||
+    d.includes('HOLLOW') ||
+    d.includes('SCH') ||
+    d.includes('SCH40') ||
+    d.includes('BLACK') ||
+    d.includes('GALV') ||
+    d.includes('BENTUK')
+  ) {
+    return false;
+  }
+
   if (
     d.includes('STRIP') ||
     d.includes('COIL') ||
@@ -1082,30 +1098,49 @@ export function parseExcelFiles(
   }> = {};
 
   looRows.forEach(row => {
-    const rawKodeMat = String(
+    let rawKodeMat = String(
       getRowValue(row, [
         'Material',
+        'Material Number',
         'Material Code',
-        'MATERIAL',
-        'MATERIAL NUMBER',
-        'Kode Material',
-        'Kode material',
+        'Material No',
+        'Mat. No',
+        'Mat. Number',
         'Item Code',
+        'Item',
+        'Item No',
+        'Kode Material',
+        'Kode Barang',
+        'Kode',
+        'Matnr',
+        'Part Number',
+        'Part No',
+        'Materialnummer',
+        'Material / Ukuran',
         'Ukuran'
       ]) || ''
     ).trim();
 
-    if (!rawKodeMat) return;
-
     const desc = String(
       getRowValue(row, [
         'Description',
+        'Material Description',
+        'Item Description',
         'DESCRIPTION',
         'Deskripsi',
+        'Deskripsi Material',
+        'Nama Barang',
+        'Nama Material',
         'Ukuran',
-        'Spec'
+        'Spec',
+        'Specification',
+        'Dimensi',
+        'Dimension'
       ]) || rawKodeMat
     ).trim();
+
+    if (!rawKodeMat && !desc) return;
+    if (!rawKodeMat) rawKodeMat = desc;
 
     if (isCoilOrStripMaterial(desc, rawKodeMat)) {
       return;
@@ -1115,15 +1150,55 @@ export function parseExcelFiles(
       getRowValue(row, [
         'Kurang (KG)',
         'Berat Kurang (KG)',
+        'Berat Kurang',
         'Order (KG)',
-        'Qty.Kurang',
         'Berat Order (KG)',
+        'Berat Order',
+        'Qty.Kurang',
+        'Qty Kurang',
+        'Qty Kurang (KG)',
+        'Open Qty (KG)',
+        'Open Quantity (KG)',
+        'Open Weight (KG)',
+        'Open Weight',
+        'Open KG',
+        'Open Ton',
+        'Outs (KG)',
+        'Outs Qty (KG)',
+        'Outs Qty',
+        'Outs Weight',
+        'Outstanding (KG)',
+        'Outstanding',
+        'Sisa (KG)',
+        'Sisa Order (KG)',
+        'Sisa Order',
+        'Sisa Qty',
+        'Total Kurang',
+        'Total Kurang (KG)',
+        'Total Order (KG)',
+        'Total Order',
         'KURANG (KG)',
-        'ORDER (KG)'
+        'ORDER (KG)',
+        'Weight',
+        'Tonase',
+        'Berat',
+        'Net Weight',
+        'Total Weight',
+        'Quantity',
+        'Kuantitas',
+        'Qty',
+        'Jumlah'
       ]) || 0
     );
 
-    const looTon = rawBeratKurang / 1000;
+    let looTon = rawBeratKurang / 1000;
+    // Jika kolom langsung satuan Ton
+    if (rawBeratKurang > 0 && rawBeratKurang < 100) {
+      const tonHeader = getRowValue(row, ['Tonase', 'Open Ton', 'LOO Ton', 'Order (Ton)', 'Kurang (Ton)']);
+      if (tonHeader) {
+        looTon = rawBeratKurang;
+      }
+    }
 
     const looQty = parseNumber(
       getRowValue(row, [
@@ -1131,8 +1206,23 @@ export function parseExcelFiles(
         'Qty Kurang',
         'Qty. Order',
         'Qty Order',
+        'Qty Btg',
+        'Qty Pcs',
+        'Outs Btg',
+        'Outs Pcs',
+        'Sisa Btg',
+        'Sisa Pcs',
+        'Open Btg',
+        'Open Pcs',
+        'Btg',
+        'Pcs',
+        'Batang',
         'QTY.KURANG',
-        'QTY ORDER'
+        'QTY ORDER',
+        'Quantity',
+        'Qty',
+        'Kuantitas',
+        'Jumlah'
       ]) || 0
     );
 
@@ -1143,11 +1233,25 @@ export function parseExcelFiles(
         'Pelanggan                    .',
         'Customers Gabungan',
         'Customer',
+        'Customer Name',
         'Nama Customer',
+        'Nama Pemesan',
+        'Pemesan',
         'CUSTOMER',
         'Sold to party',
         'Sold-to party',
-        'Name 1'
+        'Ship to party',
+        'Ship-to party',
+        'Sold To',
+        'Ship To',
+        'Name 1',
+        'Name 2',
+        'Nama 1',
+        'Nama 2',
+        'Cust Name',
+        'Cust',
+        'Client',
+        'Buyer'
       ]) || ''
     ).trim();
 

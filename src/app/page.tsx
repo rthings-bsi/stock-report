@@ -518,11 +518,16 @@ export default function Home() {
     // Auto-save ganda (LocalStorage + Server API)
     try {
       localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(mergedFullState));
-      await fetch('/api/warehouse', {
+      const res = await fetch('/api/warehouse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(mergedFullState),
       });
+
+      const resJson = await res.json().catch(() => null);
+      if (!res.ok || !resJson?.success) {
+        console.error('Server save error:', resJson);
+      }
 
       if (hasIncomingPkg && newState.incomingPackagingData) {
         await fetch('/api/incoming-packaging', {

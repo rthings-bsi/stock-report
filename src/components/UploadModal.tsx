@@ -149,9 +149,30 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       }
 
       const uploadedCategories: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc')[] = [];
-      if (pipeFile && pipeRows.length > 0) uploadedCategories.push('pipe');
-      if (coilFile && coilRows.length > 0) uploadedCategories.push('coil');
-      if (looFile && looRows.length > 0) uploadedCategories.push('loo');
+
+      if (pipeFile && pipeRows.length > 0) {
+        const pipeStockTotal = (parsedResult.pipeCapacities || []).reduce((acc, c) => acc + (c.stock || 0), 0);
+        if (pipeStockTotal === 0 && (!parsedResult.ncWarehouseData || parsedResult.ncWarehouseData.length === 0)) {
+          throw new Error(`File Stock Pipa (${pipeFile.name}) terbaca ${pipeRows.length} baris, namun tidak ada nilai tonase yang terdeteksi. Periksa kolom SLOC, Material, dan Berat.`);
+        }
+        uploadedCategories.push('pipe');
+      }
+
+      if (coilFile && coilRows.length > 0) {
+        const coilTotal = (parsedResult.coilStripData || []).reduce((acc, c) => acc + (c.totalTon || 0), 0);
+        if (coilTotal === 0) {
+          throw new Error(`File Coil/Strip (${coilFile.name}) terbaca ${coilRows.length} baris, namun tidak ada tonase bahan baku yang terdeteksi.`);
+        }
+        uploadedCategories.push('coil');
+      }
+
+      if (looFile && looRows.length > 0) {
+        const looCount = (parsedResult.looSTData?.length || 0) + (parsedResult.looLTData?.length || 0);
+        if (looCount === 0) {
+          throw new Error(`File LOO (${looFile.name}) terbaca ${looRows.length} baris, namun tidak ditemukan kolom order/material yang cocok. Pastikan file memuat kolom Material/Ukuran dan Kurang(KG)/Order.`);
+        }
+        uploadedCategories.push('loo');
+      }
 
       if (packagingFile && canUploadDamagedPkg && packagingRows.length > 0) {
         try {
