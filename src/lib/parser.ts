@@ -1352,15 +1352,56 @@ export async function readExcelFile(file: File): Promise<Record<string, unknown>
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        let workbook: XLSX.WorkBook;
+        const arrayBuf = e.target?.result as ArrayBuffer;
+        const data = new Uint8Array(arrayBuf);
+        let workbook: XLSX.WorkBook | null = null;
+        let lastError: unknown = null;
+
+        // Strategi 1: Array buffer standard
         try {
           workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: false });
-        } catch {
-          workbook = XLSX.read(data, { type: 'array' });
+        } catch (err1) {
+          lastError = err1;
         }
 
-        if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+        // Strategi 2: Array buffer raw tanpa date parsing
+        if (!workbook) {
+          try {
+            workbook = XLSX.read(data, { type: 'array', raw: true });
+          } catch (err2) {
+            lastError = err2;
+          }
+        }
+
+        // Strategi 3: Text decode (jika SAP export menghasilkan HTML / XML Spreadsheet / TSV / CSV dengan ekstensi .xlsx/.xls)
+        if (!workbook) {
+          try {
+            const textUtf8 = new TextDecoder('utf-8').decode(data);
+            workbook = XLSX.read(textUtf8, { type: 'string' });
+          } catch (err3) {
+            lastError = err3;
+          }
+        }
+
+        // Strategi 4: Windows-1252 / ANSI decode (format standar export lama SAP GUI)
+        if (!workbook) {
+          try {
+            const textAnsi = new TextDecoder('windows-1252').decode(data);
+            workbook = XLSX.read(textAnsi, { type: 'string' });
+          } catch (err4) {
+            lastError = err4;
+          }
+        }
+
+        if (!workbook) {
+          const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
+          if (errMsg.includes('Bad compressed size') || errMsg.includes('corrupted') || errMsg.includes('end of central directory')) {
+            throw new Error(`File korup atau belum selesai diexport dari SAP (ukuran byte tidak utuh). Silakan buka file di Excel lalu klik "Save As" (.xlsx), atau export ulang dari SAP.`);
+          }
+          throw new Error(`Gagal membuka file Excel: ${errMsg}`);
+        }
+
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
           throw new Error('Workbook tidak memiliki lembar kerja (sheet).');
         }
 
