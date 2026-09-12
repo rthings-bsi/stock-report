@@ -43,13 +43,15 @@ const WIDTH_OPTIONS: { label: string; value: CardWidth; short: string }[] = [
   { label: 'Kompak (33%)', value: 'col-span-4', short: '33%' },
 ];
 
-const COL_SPAN_MAP: Record<CardWidth, string> = {
-  'col-span-12': 'col-span-12 lg:col-span-12',
-  'col-span-8': 'col-span-12 lg:col-span-8',
-  'col-span-7': 'col-span-12 lg:col-span-7',
-  'col-span-6': 'col-span-12 lg:col-span-6',
-  'col-span-5': 'col-span-12 lg:col-span-5',
-  'col-span-4': 'col-span-12 lg:col-span-4',
+const COL_SPAN_MAP: Record<string, string> = {
+  'col-span-12': 'col-span-12 md:col-span-12 lg:col-span-12',
+  'col-span-8': 'col-span-12 md:col-span-7 lg:col-span-8',
+  'col-span-7': 'col-span-12 md:col-span-7 lg:col-span-7',
+  'col-span-6': 'col-span-12 md:col-span-6 lg:col-span-6',
+  'col-span-5': 'col-span-12 md:col-span-5 lg:col-span-5',
+  'col-span-4': 'col-span-12 md:col-span-5 lg:col-span-4',
+  'col-span-12 lg:col-span-8': 'col-span-12 md:col-span-7 lg:col-span-8',
+  'col-span-12 lg:col-span-4': 'col-span-12 md:col-span-5 lg:col-span-4',
 };
 
 export const CustomizableCard: React.FC<CustomizableCardProps> = ({
@@ -107,21 +109,25 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
 
   return (
     <div
-      className={`border transition-all duration-150 bg-white shadow-2xs flex flex-col justify-between overflow-hidden theme-card-rounded min-w-0 ${
+      className={`border transition-all duration-200 bg-white shadow-xs hover:shadow-sm flex flex-col justify-between overflow-hidden rounded-xl min-w-0 ${
         isCustomizing
-          ? 'border-emerald-600 ring-1 ring-emerald-600/30'
-          : 'border-slate-200 hover:border-slate-300'
+          ? 'border-emerald-600 ring-2 ring-emerald-600/20'
+          : 'border-slate-200/90 hover:border-slate-300'
       } ${COL_SPAN_MAP[width] || 'col-span-12'}`}
     >
       {/* Header Card */}
-      <div className="border-b border-slate-100 p-3 bg-slate-50/50 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="border-b border-slate-200/70 px-4 py-2.5 bg-slate-50 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
           {isCustomizing && (
             <div className="text-emerald-700 cursor-grab active:cursor-grabbing p-0.5">
-              <GripVertical className="h-3.5 w-3.5" />
+              <GripVertical className="h-4 w-4" />
             </div>
           )}
-          {Icon && <Icon className="h-3.5 w-3.5 text-slate-400 shrink-0" />}
+          {Icon && (
+            <div className="p-1.5 rounded-lg bg-white text-slate-700 border border-slate-200 shadow-2xs shrink-0">
+              <Icon className="h-3.5 w-3.5" />
+            </div>
+          )}
           <div className="min-w-0">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 truncate">
               {title}
@@ -180,7 +186,7 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
             type="button"
             onClick={() => setIsExpanded(true)}
             title="Tampilkan layar penuh"
-            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
           >
             <Maximize2 className="h-3.5 w-3.5" />
           </button>
@@ -188,7 +194,7 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
       </div>
 
       {/* Card Content Body */}
-      <div className="p-3.5 flex-1 flex flex-col justify-between">
+      <div className="p-4 flex-1 flex flex-col justify-between">
         {typeof children === 'function' ? children(false) : children}
       </div>
     </div>

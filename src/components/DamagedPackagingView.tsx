@@ -18,7 +18,11 @@ import {
   Layers,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  ChevronDown,
+  X,
+  Filter,
+  RotateCcw
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
@@ -36,11 +40,20 @@ interface CardState {
 }
 
 const DEFAULT_CARDS: CardState[] = [
-  { id: 'chart-defect-bar', width: 'col-span-8' },
+  { id: 'chart-customer-bar', width: 'col-span-8' },
   { id: 'chart-defect-donut', width: 'col-span-4' },
-  { id: 'chart-customer-bar', width: 'col-span-12' },
   { id: 'table-damaged-pkg', width: 'col-span-12' }
 ];
+
+const DEFECT_COLOR_MAP: Record<string, string> = {
+  'Slot': '#d97706',       // Amber 600
+  'Dinding': '#dc2626',    // Red 600
+  'Rangka': '#059669',     // Emerald 600
+  'Kaki': '#0284c7',       // Sky 600
+  'Pengait': '#4f46e5',    // Indigo 600
+  'Label Item': '#8b5cf6', // Violet 500
+  'Limbah': '#64748b'      // Slate 500
+};
 
 export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
   data = [],
@@ -60,15 +73,26 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
   useEffect(() => {
     setIsMounted(true);
     try {
-      const saved = localStorage.getItem('spindo_layout_damaged_pkg');
-      if (saved) setCards(JSON.parse(saved));
+      const saved = localStorage.getItem('spindo_layout_damaged_pkg_v5');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (
+          Array.isArray(parsed) &&
+          parsed.length === DEFAULT_CARDS.length &&
+          parsed.some((c: CardState) => c.id === 'chart-customer-bar' && c.width !== 'col-span-12')
+        ) {
+          setCards(parsed);
+          return;
+        }
+      }
     } catch {}
+    setCards(DEFAULT_CARDS);
   }, []);
 
   useEffect(() => {
     if (!isMounted) return;
     try {
-      localStorage.setItem('spindo_layout_damaged_pkg', JSON.stringify(cards));
+      localStorage.setItem('spindo_layout_damaged_pkg_v5', JSON.stringify(cards));
     } catch {}
   }, [cards, isMounted]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -256,15 +280,23 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
 
   // Chart 2: Donut Chart Proporsi Defect
   const nonZeroDefects = Object.entries(defectCounts).filter(([_, count]) => count > 0);
+  const totalDefects = useMemo(() => {
+    return nonZeroDefects.reduce((acc, [_, count]) => acc + count, 0);
+  }, [nonZeroDefects]);
+
   const donutChartData = {
     labels: nonZeroDefects.map(([k]) => k),
     datasets: [
       {
         data: nonZeroDefects.map(([_, count]) => count),
-        backgroundColor: ['#d97706', '#b91c1c', '#047857', '#0284c7', '#64748b'],
+        backgroundColor: nonZeroDefects.map(([k]) => DEFECT_COLOR_MAP[k] || '#64748b'),
+        hoverBackgroundColor: nonZeroDefects.map(([k]) => DEFECT_COLOR_MAP[k] || '#64748b'),
         borderWidth: 2,
         borderColor: '#ffffff',
-        cutout: '70%',
+        hoverBorderColor: '#ffffff',
+        spacing: 2,
+        borderRadius: 4,
+        cutout: '72%',
       },
     ],
   };
@@ -274,21 +306,20 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'bottom' as const,
-        labels: {
-          font: { family: 'monospace', size: 10, weight: 'bold' as const },
-          color: '#475569',
-          boxWidth: 10,
-          boxHeight: 10,
-          padding: 12,
-        },
+        display: false,
       },
       tooltip: {
-        backgroundColor: '#0f172a',
+        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+        titleColor: '#f8fafc',
+        bodyColor: '#f1f5f9',
         titleFont: { family: 'monospace', size: 11, weight: 'bold' as const },
         bodyFont: { family: 'monospace', size: 11 },
-        padding: 8,
-        cornerRadius: 4,
+        padding: { top: 8, bottom: 8, left: 12, right: 12 },
+        cornerRadius: 8,
+        boxPadding: 4,
+        usePointStyle: true,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
         callbacks: {
           label: (context: any) => {
             const total = nonZeroDefects.reduce((a, b) => a + b[1], 0);
@@ -310,28 +341,32 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
         data: customerDefectSummary.map((c) => c.slot),
         backgroundColor: '#d97706',
         hoverBackgroundColor: '#b45309',
-        borderRadius: 2,
+        borderRadius: 4,
+        borderSkipped: false,
       },
       {
         label: 'Dinding Pecah / Retak',
         data: customerDefectSummary.map((c) => c.dinding),
-        backgroundColor: '#b91c1c',
-        hoverBackgroundColor: '#991b1b',
-        borderRadius: 2,
+        backgroundColor: '#dc2626',
+        hoverBackgroundColor: '#b91c1c',
+        borderRadius: 4,
+        borderSkipped: false,
       },
       {
         label: 'Rangka Tidak Utuh',
         data: customerDefectSummary.map((c) => c.rangka),
-        backgroundColor: '#047857',
-        hoverBackgroundColor: '#065f46',
-        borderRadius: 2,
+        backgroundColor: '#059669',
+        hoverBackgroundColor: '#047857',
+        borderRadius: 4,
+        borderSkipped: false,
       },
       {
         label: 'Lainnya',
         data: customerDefectSummary.map((c) => c.other),
         backgroundColor: '#64748b',
         hoverBackgroundColor: '#475569',
-        borderRadius: 2,
+        borderRadius: 4,
+        borderSkipped: false,
       },
     ],
   };
@@ -339,25 +374,33 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
   const customerBarChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    categoryPercentage: 0.82,
+    barPercentage: 0.72,
     plugins: {
       legend: {
         position: 'bottom' as const,
         labels: {
           font: { family: 'monospace', size: 10, weight: 'bold' as const },
           color: '#334155',
-          boxWidth: 10,
-          boxHeight: 10,
+          boxWidth: 8,
+          boxHeight: 8,
           usePointStyle: true,
-          pointStyle: 'rectRounded',
+          pointStyle: 'circle' as const,
           padding: 14,
         },
       },
       tooltip: {
-        backgroundColor: '#0f172a',
+        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+        titleColor: '#f8fafc',
+        bodyColor: '#f1f5f9',
         titleFont: { family: 'monospace', size: 11, weight: 'bold' as const },
         bodyFont: { family: 'monospace', size: 11 },
-        padding: 8,
-        cornerRadius: 4,
+        padding: { top: 8, bottom: 8, left: 12, right: 12 },
+        cornerRadius: 8,
+        boxPadding: 4,
+        usePointStyle: true,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
         callbacks: {
           label: (context: any) => ` ${context.dataset.label}: ${context.raw} Unit`,
         },
@@ -366,13 +409,19 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
     scales: {
       x: {
         grid: { display: false },
-        ticks: { font: { family: 'monospace', size: 9, weight: 'bold' as const }, color: '#334155' },
-        border: { color: '#cbd5e1' },
+        ticks: {
+          font: { family: 'monospace', size: 9, weight: 'bold' as const },
+          color: '#475569',
+          maxRotation: 40,
+          minRotation: 20,
+          autoSkip: false,
+        },
+        border: { color: '#e2e8f0' },
       },
       y: {
-        grid: { color: '#f1f5f9' },
-        ticks: { font: { family: 'monospace', size: 9 }, color: '#64748b', stepSize: 1 },
-        border: { dash: [4, 4], color: '#cbd5e1' },
+        grid: { color: '#f8fafc' },
+        ticks: { font: { family: 'monospace', size: 9 }, color: '#64748b', stepSize: 2 },
+        border: { dash: [4, 4], color: '#e2e8f0' },
       },
     },
   };
@@ -407,109 +456,116 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* SECTION BANNER TOP */}
-      <div className="rounded-md border border-black/20 theme-banner text-white p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-wider">
-              Data Temuan Packaging Rusak (NG)
-            </h2>
-            <span className="text-[10px] font-mono bg-amber-950/60 text-amber-200 px-2 py-0.5 rounded border border-amber-800">
-              Returnable Transport Packaging (RTP)
-            </span>
+      {/* Top Banner & Header */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            <PackageX className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
-          <p className="text-[11px] text-emerald-200 font-medium font-mono">
-            Monitoring scan in packaging rusak: Slot, Kaki, Rangka, Pengait, Dinding, Label Item &amp; Limbah
-          </p>
+          <h1 className="text-base font-bold text-white font-sans tracking-tight">
+            Data Temuan Packaging Rusak (NG)
+          </h1>
         </div>
       </div>
 
       {/* FILTER & SEARCH CONTROLS */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-md border border-slate-200 shadow-2xs font-mono text-xs">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3 sm:px-4 sm:py-3 rounded-xl border border-slate-200/90 shadow-2xs text-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* Search Input */}
-          <div className="relative min-w-[240px]">
-            <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <div className="relative min-w-[240px] sm:w-72">
+            <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Cari package, serial, customer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-emerald-600"
+              className="w-full pl-9 pr-8 py-2 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-slate-50 hover:border-slate-300 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-all shadow-2xs"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+                title="Hapus pencarian"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
 
           {/* Filter Customer */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Customer:</span>
-            <select
-              value={selectedCustomer}
-              onChange={(e) => setSelectedCustomer(e.target.value)}
-              className="px-2 py-1.5 rounded border border-slate-300 text-xs font-bold text-slate-700 bg-slate-50 cursor-pointer focus:outline-hidden max-w-[200px] truncate"
-            >
-              <option value="ALL">Semua Customer</option>
-              {customerList.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Customer:</span>
+            <div className="relative inline-flex items-center">
+              <select
+                value={selectedCustomer}
+                onChange={(e) => setSelectedCustomer(e.target.value)}
+                className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-slate-50 hover:border-slate-300 text-xs font-semibold text-slate-800 cursor-pointer focus:bg-white focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-all appearance-none max-w-[210px] truncate shadow-2xs"
+              >
+                <option value="ALL">Semua Customer</option>
+                {customerList.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <ChevronDown className="h-3.5 w-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
+            </div>
           </div>
 
           {/* Filter Defect Category */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Defect:</span>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-2 py-1.5 rounded border border-slate-300 text-xs font-bold text-slate-700 bg-slate-50 cursor-pointer focus:outline-hidden"
-            >
-              <option value="ALL">Semua Defect</option>
-              <option value="Slot">Slot</option>
-              <option value="Dinding">Dinding</option>
-              <option value="Rangka">Rangka</option>
-              <option value="Kaki">Kaki</option>
-              <option value="Pengait">Pengait</option>
-              <option value="Label Item">Label Item</option>
-              <option value="Limbah">Limbah</option>
-            </select>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Defect:</span>
+            <div className="relative inline-flex items-center">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-slate-50 hover:border-slate-300 text-xs font-semibold text-slate-800 cursor-pointer focus:bg-white focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-all appearance-none shadow-2xs"
+              >
+                <option value="ALL">Semua Defect</option>
+                <option value="Slot">Slot</option>
+                <option value="Dinding">Dinding</option>
+                <option value="Rangka">Rangka</option>
+                <option value="Kaki">Kaki</option>
+                <option value="Pengait">Pengait</option>
+                <option value="Label Item">Label Item</option>
+                <option value="Limbah">Limbah</option>
+              </select>
+              <ChevronDown className="h-3.5 w-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
+            </div>
           </div>
+
+          {/* Reset Filters button */}
+          {(selectedCustomer !== 'ALL' || selectedCategory !== 'ALL' || searchQuery !== '') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCustomer('ALL');
+                setSelectedCategory('ALL');
+                setSearchQuery('');
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all cursor-pointer"
+              title="Reset semua filter"
+            >
+              <RotateCcw className="h-3 w-3" />
+              <span>Reset</span>
+            </button>
+          )}
         </div>
 
-        <div className="text-[11px] text-slate-500 text-right">
-          Total terfilter: <span className="font-bold text-slate-900">{filteredData.length}</span> unit
+        {/* Filtered Counter Badge */}
+        <div className="flex items-center self-end lg:self-center">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200/90 text-xs text-slate-600">
+            <span className="text-slate-500">Total terfilter:</span>
+            <span className="font-bold font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+              {filteredData.length}
+            </span>
+            <span className="text-slate-500">unit</span>
+          </div>
         </div>
       </div>
 
       {/* CHARTS & DETAIL TABLE GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-12 lg:grid-cols-12 gap-5">
         {cards.map((card, index) => {
-          if (card.id === 'chart-defect-bar') {
-            return (
-              <CustomizableCard
-                key={card.id}
-                id={card.id}
-                title="Distribusi Kerusakan Berdasarkan Komponen Packaging"
-                subtitle="Jumlah unit kemasan NG per bagian komponen"
-                icon={BarChart3}
-                width={card.width}
-                isCustomizing={isCustomizing}
-                canMoveLeft={index > 0}
-                canMoveRight={index < cards.length - 1}
-                onMoveLeft={() => handleMove(index, 'left')}
-                onMoveRight={() => handleMove(index, 'right')}
-                onWidthChange={(w) => handleWidthChange(card.id, w)}
-                badge={
-                  <span className="text-[10px] font-mono text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    Defect Breakdown
-                  </span>
-                }
-              >
-                <div className="h-64 w-full">
-                  <Bar data={defectBarChartData} options={defectBarChartOptions} />
-                </div>
-              </CustomizableCard>
-            );
-          }
-
           if (card.id === 'chart-defect-donut') {
             return (
               <CustomizableCard
@@ -526,13 +582,47 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <span className="text-[10px] font-mono text-slate-700 font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
-                    Share (%)
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
+                    {totalDefects} Qty
                   </span>
                 }
               >
-                <div className="h-64 w-full flex items-center justify-center">
-                  <Doughnut data={donutChartData} options={donutChartOptions} />
+                <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
+                  {/* Doughnut ring with centered QTY */}
+                  <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto min-w-0">
+                    <Doughnut data={donutChartData} options={donutChartOptions} />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                        {totalDefects}
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                        TOTAL QTY
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Clean Legend Pill Grid */}
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
+                    {nonZeroDefects.map(([name, count]) => {
+                      const total = nonZeroDefects.reduce((a, b) => a + b[1], 0);
+                      const pct = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
+                      const color = DEFECT_COLOR_MAP[name] || '#64748b';
+                      return (
+                        <div
+                          key={name}
+                          className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                            <span className="text-[11px] font-medium text-slate-600 truncate">{name}</span>
+                          </div>
+                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                            {count} <span className="text-[10px] text-slate-400 font-normal">({pct}%)</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </CustomizableCard>
             );
@@ -559,7 +649,7 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
                   </span>
                 }
               >
-                <div className="h-72 w-full">
+                <div className="h-72 w-full p-2.5">
                   <Bar data={customerBarChartData} options={customerBarChartOptions} />
                 </div>
               </CustomizableCard>

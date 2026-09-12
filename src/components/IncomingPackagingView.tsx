@@ -560,20 +560,15 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
   return (
     <div className="space-y-3 sm:space-y-5 font-sans pb-16 sm:pb-0">
-      {/* SECTION HEADER BANNER TOP */}
-      <div className="rounded-md border border-black/20 theme-banner text-white p-2.5 sm:p-3.5 shadow-2xs flex items-center justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider">
-              Audit Harian Packaging (RTP)
-            </h2>
-            <span className="text-[9px] sm:text-[10px] font-mono bg-emerald-950/80 text-emerald-200 border border-emerald-700/80 px-1.5 py-0.5 rounded font-bold">
-              Hari Ini: {todayItemCount} Box
-            </span>
+      {/* Top Banner & Header */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            <PackagePlus className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
-          <p className="hidden sm:block text-[11px] text-emerald-200 font-medium font-mono mt-0.5">
-            Audit fisik harian & mutasi stock packaging customer: Stock Awal, OUT, IN, dan Temuan NG
-          </p>
+          <h1 className="text-base font-bold text-white font-sans tracking-tight">
+            Audit Harian Packaging (RTP)
+          </h1>
         </div>
 
         {/* Action Toolbar (Desktop only for Header Buttons) */}
@@ -581,7 +576,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
           <button
             type="button"
             onClick={handleOpenCreate}
-            className="px-3 py-1.5 rounded-md bg-white hover:bg-emerald-50 text-emerald-950 font-bold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+            className="px-3 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-emerald-950 font-bold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
             title="Tambah Data Audit Baru"
           >
             <Plus className="h-3.5 w-3.5 text-emerald-800" strokeWidth={2.5} />
@@ -601,7 +596,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-2.5 py-1.5 rounded-md border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+                className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
                 title="Import File Excel / CSV"
               >
                 <Upload className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
@@ -611,7 +606,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               <button
                 type="button"
                 onClick={handleExportExcel}
-                className="px-2.5 py-1.5 rounded-md border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+                className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
                 title="Download Spreadsheet Excel"
               >
                 <Download className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
@@ -621,7 +616,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsResetModalOpen(true)}
-                className="px-2.5 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+                className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
                 title="Reset Semua Data Input"
               >
                 <RotateCcw className="h-3.5 w-3.5 text-rose-100" />

@@ -284,15 +284,17 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     datasets: [
       {
         data: [
-          Number(donutPrime.toFixed(1)),
-          Number(donutGradeE.toFixed(1)),
-          Number(donutGradeC.toFixed(1)),
+          Number(donutPrime.toFixed(2)),
+          Number(donutGradeE.toFixed(2)),
+          Number(donutGradeC.toFixed(2)),
         ],
-        backgroundColor: ['#059669', '#dc2626', '#f59e0b'],
-        hoverBackgroundColor: ['#047857', '#b91c1c', '#d97706'],
+        backgroundColor: ['#10b981', '#f43f5e', '#f59e0b'],
+        hoverBackgroundColor: ['#059669', '#e11d48', '#d97706'],
         borderWidth: 2,
         borderColor: '#ffffff',
-        cutout: '68%',
+        spacing: 2,
+        borderRadius: 4,
+        hoverOffset: 6,
       },
     ],
   };
@@ -300,6 +302,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
   const donutOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    cutout: '72%',
     onClick: (_event: any, elements: any[]) => {
       if (elements && elements.length > 0) {
         const index = elements[0].index;
@@ -323,19 +326,19 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
         display: false,
       },
       tooltip: {
-        backgroundColor: '#0f172a',
-        titleFont: { family: 'monospace', size: 10, weight: 'bold' as const },
-        bodyFont: { family: 'monospace', size: 10 },
-        padding: 8,
-        cornerRadius: 4,
-        displayColors: false,
+        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+        titleColor: '#f8fafc',
+        bodyColor: '#f1f5f9',
+        titleFont: { size: 12, weight: 'bold' as const },
+        bodyFont: { size: 11 },
+        padding: { top: 8, bottom: 8, left: 12, right: 12 },
+        cornerRadius: 8,
+        boxPadding: 4,
+        usePointStyle: true,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
         callbacks: {
-          title: () => '',
-          label: function (context: any) {
-            const val = context.raw || 0;
-            const pct = donutTotal > 0 ? (val / donutTotal) * 100 : 0;
-            return ` ${context.label}: ${val.toLocaleString('id-ID', { minimumFractionDigits: 1 })} Ton (${pct.toFixed(1)}%)`;
-          },
+          label: (ctx: any) => ` ${ctx.label}: ${(ctx.parsed || 0).toFixed(2)} Ton`,
         },
       },
     },
@@ -970,31 +973,21 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* BANNER HEADER & CONTROL TOOLBAR */}
-      <div className="rounded-md border border-black/20 theme-banner text-white p-3.5 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-sm font-bold uppercase tracking-wider">
-              Stock Pipa Non Conformity (NC)
-            </h2>
-            <span className="text-[10px] font-mono bg-emerald-950/60 text-emerald-200 px-2 py-0.5 rounded border border-emerald-800">
-              Top 10 Terbesar Per Grade
-            </span>
-            {selectedGudang !== 'ALL' && (
-              <span className="text-[10px] font-mono bg-amber-400 text-amber-950 px-2 py-0.5 rounded font-bold">
-                Gudang: {selectedGudang}
-              </span>
-            )}
+      {/* Top Banner & Header */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            <ShieldAlert className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
-          <p className="text-[11px] text-emerald-200 font-medium font-mono">
-            Monitoring mutu pipa Hold (Grade E) dan Repair (Grade C) per gudang
-          </p>
+          <h1 className="text-base font-bold text-white font-sans tracking-tight">
+            Stock Pipa Non Conformity (NC)
+          </h1>
         </div>
 
         {/* FILTERS */}
         <div className="flex items-center gap-2.5 flex-wrap font-mono text-xs">
           {/* GUDANG SELECTOR */}
-          <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded border border-emerald-800">
+          <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-700/80">
             <Warehouse className="h-3.5 w-3.5 text-amber-300 shrink-0" />
             <span className="text-emerald-300 text-[10px] uppercase font-bold">Gudang:</span>
             <select
@@ -1015,7 +1008,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
             <button
               type="button"
               onClick={() => setSelectedGudang('ALL')}
-              className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-900 text-[11px] font-bold rounded shadow-2xs transition-all cursor-pointer"
+              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
             >
               Reset Filter
             </button>
@@ -1117,43 +1110,41 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   onMoveRight={() => handleMove(index, 'right')}
                   onWidthChange={(w) => handleWidthChange(card.id, w)}
                   badge={
-                    <span className="text-[10px] font-mono bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded border border-slate-300">
-                      Komposisi
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
+                      {formatTon(donutTotal, { decimals: 2 })} Ton
                     </span>
                   }
                 >
                   {(expanded) => (
-                    <div className="flex flex-col sm:flex-row items-center justify-around py-1 gap-4 h-full">
-                      <div className={`relative ${expanded ? 'h-80 w-80' : 'h-52 w-52'} flex items-center justify-center shrink-0`}>
+                    <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
+                      <div className={`relative ${expanded ? 'h-72 w-full' : 'h-40 sm:h-44 w-full'} flex items-center justify-center min-w-0 my-auto`}>
                         <Doughnut data={donutData} options={donutOptions} />
-                        <div className="absolute flex flex-col items-center pointer-events-none">
-                          <span className="text-xl font-bold font-mono text-slate-900">
-                            {donutPrimePct.toFixed(0)}%
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                            {formatTon(donutTotal, { decimals: 2 })}
                           </span>
-                          <span className="text-[10px] font-bold text-emerald-700 uppercase font-mono">
-                            PRIME
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                            TOTAL TON
                           </span>
                         </div>
                       </div>
 
-                      <div className="space-y-2.5 font-mono w-full sm:w-auto">
+                      {/* Breakdown Pills List */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-3 border-t border-slate-100 mt-2">
                         <div
                           onClick={() => {
                             setSelectedNCModalGrade('ALL');
                             setModalGudangFilter(selectedGudang);
                           }}
-                          className="flex items-center justify-between gap-4 p-2.5 rounded-md bg-emerald-50/70 border border-emerald-200 hover:border-emerald-400 hover:bg-emerald-100/60 transition-all cursor-pointer shadow-2xs group"
+                          className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-emerald-50/80 transition-colors"
                           title="Klik untuk melihat data stock"
                         >
-                          <div className="flex items-center gap-2">
-                            <div className="h-2.5 w-2.5 rounded-xs bg-emerald-600 shrink-0 group-hover:scale-125 transition-transform" />
-                            <div>
-                              <div className="text-[10px] font-bold uppercase text-emerald-950">PRIME</div>
-                              <div className="text-xs font-bold text-slate-900">{formatTon(donutPrime, { showUnit: true })}</div>
-                            </div>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                            <span className="text-[11px] font-medium text-slate-600 truncate">PRIME ({formatPercent(donutPrimePct)})</span>
                           </div>
-                          <span className="text-[11px] font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
-                            {formatPercent(donutPrimePct)}
+                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                            {formatTon(donutPrime, { decimals: 2 })}
                           </span>
                         </div>
 
@@ -1162,20 +1153,15 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                             setSelectedNCModalGrade('Grade E');
                             setModalGudangFilter(selectedGudang);
                           }}
-                          className="flex items-center justify-between gap-4 p-2.5 rounded-md bg-red-50/70 border border-red-200 hover:border-red-400 hover:bg-red-100/60 transition-all cursor-pointer shadow-2xs group"
+                          className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-rose-50/80 transition-colors"
                           title="Klik untuk melihat daftar stock Grade E & Remark No NC"
                         >
-                          <div className="flex items-center gap-2">
-                            <div className="h-2.5 w-2.5 rounded-xs bg-red-600 shrink-0 group-hover:scale-125 transition-transform" />
-                            <div>
-                              <div className="text-[10px] font-bold uppercase text-red-950">
-                                Grade E (Hold)
-                              </div>
-                              <div className="text-xs font-bold text-slate-900">{formatTon(donutGradeE, { showUnit: true })}</div>
-                            </div>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                            <span className="text-[11px] font-medium text-slate-600 truncate">Grade E ({formatPercent(donutGradeEPct)})</span>
                           </div>
-                          <span className="text-[11px] font-bold text-red-900 bg-red-100 px-2 py-0.5 rounded border border-red-300">
-                            {formatPercent(donutGradeEPct)}
+                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                            {formatTon(donutGradeE, { decimals: 2 })}
                           </span>
                         </div>
 
@@ -1184,35 +1170,30 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                             setSelectedNCModalGrade('Grade C');
                             setModalGudangFilter(selectedGudang);
                           }}
-                          className="flex items-center justify-between gap-4 p-2.5 rounded-md bg-amber-50/70 border border-amber-200 hover:border-amber-400 hover:bg-amber-100/60 transition-all cursor-pointer shadow-2xs group"
+                          className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-amber-50/80 transition-colors"
                           title="Klik untuk melihat daftar stock Grade C & Remark No NC"
                         >
-                          <div className="flex items-center gap-2">
-                            <div className="h-2.5 w-2.5 rounded-xs bg-amber-500 shrink-0 group-hover:scale-125 transition-transform" />
-                            <div>
-                              <div className="text-[10px] font-bold uppercase text-amber-950">
-                                Grade C (Repair)
-                              </div>
-                              <div className="text-xs font-bold text-slate-900">{formatTon(donutGradeC, { showUnit: true })}</div>
-                            </div>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                            <span className="text-[11px] font-medium text-slate-600 truncate">Grade C ({formatPercent(donutGradeCPct)})</span>
                           </div>
-                          <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
-                            {formatPercent(donutGradeCPct)}
+                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                            {formatTon(donutGradeC, { decimals: 2 })}
                           </span>
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedNCModalGrade('ALL');
-                            setModalGudangFilter(selectedGudang);
-                          }}
-                          className="w-full mt-1.5 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-slate-100 hover:bg-emerald-50 hover:text-emerald-950 text-slate-700 text-xs font-bold border border-slate-300 hover:border-emerald-400 transition-all cursor-pointer shadow-2xs font-mono"
-                        >
-                          <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
-                          <span>Lihat Detail Stock NC &amp; No NC ({filteredItems.length} Item)</span>
-                        </button>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedNCModalGrade('ALL');
+                          setModalGudangFilter(selectedGudang);
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-slate-100 hover:bg-emerald-50 hover:text-emerald-950 text-slate-700 text-xs font-bold border border-slate-300 hover:border-emerald-400 transition-all cursor-pointer shadow-2xs font-mono"
+                      >
+                        <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                        <span>Lihat Detail Stock NC &amp; No NC ({filteredItems.length} Item)</span>
+                      </button>
                     </div>
                   )}
                 </CustomizableCard>

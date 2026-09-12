@@ -12,6 +12,8 @@ import {
   Disc,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  RotateCcw,
   Table2,
   Info,
   Pencil,
@@ -423,10 +425,12 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
       {
         label: 'Tonase (Ton)',
         data: pipeCausesSummary.map((c) => Number(c.totalTon.toFixed(2))),
-        backgroundColor: ['#dc2626', '#ea580c', '#d97706', '#0284c7', '#8b5cf6', '#475569', '#047857'],
-        hoverBackgroundColor: ['#b91c1c', '#c2410c', '#b45309', '#0369a1', '#7c3aed', '#334155', '#065f46'],
+        backgroundColor: ['#e11d48', '#ea580c', '#d97706', '#0284c7', '#8b5cf6', '#64748b', '#059669'],
+        hoverBackgroundColor: ['#be123c', '#c2410c', '#b45309', '#0369a1', '#7c3aed', '#475569', '#047857'],
         borderRadius: 4,
-        barPercentage: 0.55,
+        borderSkipped: false,
+        barPercentage: 0.58,
+        categoryPercentage: 0.8,
       },
     ],
   };
@@ -438,6 +442,10 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
       legend: { display: false },
       tooltip: {
         backgroundColor: '#0f172a',
+        padding: 10,
+        cornerRadius: 8,
+        titleFont: { family: 'sans-serif', size: 11, weight: 'bold' as const },
+        bodyFont: { family: 'monospace', size: 11 },
         callbacks: {
           title: function (contexts: any[]) {
             const index = contexts[0]?.dataIndex;
@@ -461,6 +469,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
           maxRotation: 20,
           minRotation: 0,
         },
+        border: { color: '#cbd5e1' },
       },
       y: {
         grid: { color: '#f1f5f9' },
@@ -469,6 +478,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
           color: '#64748b',
           callback: (val: any) => `${val} T`,
         },
+        border: { dash: [4, 4], color: '#cbd5e1' },
       },
     },
   };
@@ -503,10 +513,12 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
       {
         label: 'Tonase (Ton)',
         data: coilCausesSummary.map((c) => Number(c.totalTon.toFixed(2))),
-        backgroundColor: ['#047857', '#0284c7', '#d97706', '#dc2626', '#8b5cf6'],
-        hoverBackgroundColor: ['#065f46', '#0369a1', '#b45309', '#b91c1c', '#7c3aed'],
+        backgroundColor: ['#059669', '#0284c7', '#d97706', '#e11d48', '#8b5cf6'],
+        hoverBackgroundColor: ['#047857', '#0369a1', '#b45309', '#be123c', '#7c3aed'],
         borderRadius: 4,
-        barPercentage: 0.55,
+        borderSkipped: false,
+        barPercentage: 0.58,
+        categoryPercentage: 0.8,
       },
     ],
   };
@@ -518,6 +530,10 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
       legend: { display: false },
       tooltip: {
         backgroundColor: '#0f172a',
+        padding: 10,
+        cornerRadius: 8,
+        titleFont: { family: 'sans-serif', size: 11, weight: 'bold' as const },
+        bodyFont: { family: 'monospace', size: 11 },
         callbacks: {
           title: function (contexts: any[]) {
             const index = contexts[0]?.dataIndex;
@@ -541,6 +557,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
           maxRotation: 20,
           minRotation: 0,
         },
+        border: { color: '#cbd5e1' },
       },
       y: {
         grid: { color: '#f1f5f9' },
@@ -549,50 +566,70 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
           color: '#64748b',
           callback: (val: any) => `${val} T`,
         },
+        border: { dash: [4, 4], color: '#cbd5e1' },
       },
     },
   };
 
-  const pipeSummaryDonutData = useMemo(() => {
+  const PIPE_DONUT_COLORS = ['#f43f5e', '#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6', '#64748b'];
+  const PIPE_DONUT_HOVER_COLORS = ['#e11d48', '#d97706', '#059669', '#0284c7', '#7c3aed', '#475569'];
+
+  const pipeDonutBreakdown = useMemo(() => {
     const topGudangs = pipeUnfifoGudangSummary.slice(0, 5);
     const otherTon = pipeUnfifoGudangSummary.slice(5).reduce((sum, g) => sum + g.totalTon, 0);
-    const labels = topGudangs.map((g) => g.gudang);
-    const data = topGudangs.map((g) => Number(g.totalTon.toFixed(2)));
+    const items = topGudangs.map((g, i) => ({
+      label: g.gudang,
+      value: g.totalTon,
+      color: PIPE_DONUT_COLORS[i % PIPE_DONUT_COLORS.length],
+    }));
     if (otherTon > 0) {
-      labels.push('Lainnya');
-      data.push(Number(otherTon.toFixed(2)));
+      items.push({
+        label: 'Lainnya',
+        value: otherTon,
+        color: PIPE_DONUT_COLORS[items.length % PIPE_DONUT_COLORS.length],
+      });
     }
+    return items;
+  }, [pipeUnfifoGudangSummary]);
+
+  const pipeSummaryDonutData = useMemo(() => {
     return {
-      labels,
+      labels: pipeDonutBreakdown.map((i) => i.label),
       datasets: [
         {
-          data,
-          backgroundColor: ['#047857', '#0284c7', '#d97706', '#dc2626', '#8b5cf6', '#64748b'],
-          hoverBackgroundColor: ['#065f46', '#0369a1', '#b45309', '#b91c1c', '#7c3aed', '#475569'],
+          data: pipeDonutBreakdown.map((i) => Number(i.value.toFixed(2))),
+          backgroundColor: pipeDonutBreakdown.map((i) => i.color),
+          hoverBackgroundColor: PIPE_DONUT_HOVER_COLORS.slice(0, pipeDonutBreakdown.length),
           borderWidth: 2,
           borderColor: '#ffffff',
+          spacing: 2,
+          borderRadius: 4,
+          hoverOffset: 6,
         },
       ],
     };
-  }, [pipeUnfifoGudangSummary]);
+  }, [pipeDonutBreakdown]);
 
   const pipeSummaryDonutOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '68%',
+    cutout: '72%',
     plugins: {
       legend: {
-        position: 'bottom' as const,
-        labels: {
-          font: { family: 'monospace', size: 9, weight: 'bold' as const },
-          color: '#334155',
-          boxWidth: 8,
-          boxHeight: 8,
-          padding: 8,
-        },
+        display: false,
       },
       tooltip: {
-        backgroundColor: '#0f172a',
+        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+        titleColor: '#f8fafc',
+        bodyColor: '#f1f5f9',
+        titleFont: { size: 12, weight: 'bold' as const },
+        bodyFont: { size: 11 },
+        padding: { top: 8, bottom: 8, left: 12, right: 12 },
+        cornerRadius: 8,
+        boxPadding: 4,
+        usePointStyle: true,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
         callbacks: {
           label: function (context: any) {
             const val = context.raw || 0;
@@ -626,10 +663,13 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
       datasets: [
         {
           data: [Number(totalCoilOnlyTon.toFixed(2)), Number(totalStripOnlyTon.toFixed(2))],
-          backgroundColor: ['#047857', '#d97706'],
-          hoverBackgroundColor: ['#065f46', '#b45309'],
+          backgroundColor: ['#10b981', '#f59e0b'],
+          hoverBackgroundColor: ['#059669', '#d97706'],
           borderWidth: 2,
           borderColor: '#ffffff',
+          spacing: 2,
+          borderRadius: 4,
+          hoverOffset: 6,
         },
       ],
     };
@@ -638,20 +678,23 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
   const coilSummaryDonutOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '68%',
+    cutout: '72%',
     plugins: {
       legend: {
-        position: 'bottom' as const,
-        labels: {
-          font: { family: 'monospace', size: 10, weight: 'bold' as const },
-          color: '#334155',
-          boxWidth: 10,
-          boxHeight: 10,
-          padding: 8,
-        },
+        display: false,
       },
       tooltip: {
-        backgroundColor: '#0f172a',
+        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+        titleColor: '#f8fafc',
+        bodyColor: '#f1f5f9',
+        titleFont: { size: 12, weight: 'bold' as const },
+        bodyFont: { size: 11 },
+        padding: { top: 8, bottom: 8, left: 12, right: 12 },
+        cornerRadius: 8,
+        boxPadding: 4,
+        usePointStyle: true,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
         callbacks: {
           label: function (context: any) {
             const val = context.raw || 0;
@@ -671,13 +714,15 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
         label: 'Tonase Pipa UNFIFO (Ton)',
         data: pipeUnfifoGudangSummary.map((d) => Number(d.totalTon.toFixed(2))),
         backgroundColor: pipeUnfifoGudangSummary.map((d) =>
-          selectedPipeGudang === d.gudang ? '#065f46' : '#d97706'
+          selectedPipeGudang === d.gudang ? '#047857' : '#d97706'
         ),
         hoverBackgroundColor: pipeUnfifoGudangSummary.map((d) =>
-          selectedPipeGudang === d.gudang ? '#047857' : '#b45309'
+          selectedPipeGudang === d.gudang ? '#065f46' : '#b45309'
         ),
-        borderRadius: 2,
-        barPercentage: 0.6,
+        borderRadius: 4,
+        borderSkipped: false,
+        barPercentage: 0.62,
+        categoryPercentage: 0.8,
       },
     ],
   };
@@ -702,6 +747,9 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
           color: '#334155',
           boxWidth: 10,
           boxHeight: 10,
+          usePointStyle: true,
+          pointStyle: 'rectRounded' as const,
+          padding: 12,
         },
       },
       tooltip: {
@@ -722,10 +770,12 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
       x: {
         grid: { display: false },
         ticks: { font: { family: 'monospace', size: 10, weight: 'bold' as const }, color: '#334155' },
+        border: { color: '#cbd5e1' },
       },
       y: {
         grid: { color: '#f1f5f9' },
-        ticks: { font: { family: 'monospace', size: 9 }, color: '#94a3b8', stepSize: 15 },
+        ticks: { font: { family: 'monospace', size: 9 }, color: '#64748b', stepSize: 15 },
+        border: { dash: [4, 4], color: '#cbd5e1' },
       },
     },
   };
@@ -736,10 +786,11 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
       {
         label: 'Coil (Ton)',
         data: coilUnfifoGudangSummary.map((d) => Number(d.coilTon.toFixed(2))),
-        backgroundColor: '#047857',
-        hoverBackgroundColor: '#065f46',
-        borderRadius: 3,
-        barPercentage: 0.6,
+        backgroundColor: '#059669',
+        hoverBackgroundColor: '#047857',
+        borderRadius: 4,
+        borderSkipped: false,
+        barPercentage: 0.62,
         categoryPercentage: 0.8,
       },
       {
@@ -747,8 +798,9 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
         data: coilUnfifoGudangSummary.map((d) => Number(d.stripTon.toFixed(2))),
         backgroundColor: '#d97706',
         hoverBackgroundColor: '#b45309',
-        borderRadius: 3,
-        barPercentage: 0.6,
+        borderRadius: 4,
+        borderSkipped: false,
+        barPercentage: 0.62,
         categoryPercentage: 0.8,
       },
     ],
@@ -775,9 +827,16 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
           boxWidth: 10,
           boxHeight: 10,
           usePointStyle: true,
-          pointStyle: 'rectRounded',
+          pointStyle: 'rectRounded' as const,
           padding: 16,
         },
+      },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        titleFont: { family: 'monospace', size: 11, weight: 'bold' as const },
+        bodyFont: { family: 'monospace', size: 11 },
+        padding: 10,
+        cornerRadius: 8,
       },
     },
     scales: {
@@ -933,52 +992,48 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* SECTION BANNER TOP */}
-      <div className="rounded-md border border-black/20 theme-banner text-white p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-wider">
-              Deviasi Alur Pengeluaran (UNFIFO)
-            </h2>
-            {(activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang) !== 'ALL' && (
-              <span className="text-[10px] font-mono bg-amber-400 text-slate-900 px-2 py-0.5 rounded font-bold">
-                Filter: {activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang}
-              </span>
-            )}
+      {/* Top Banner & Header */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200 shadow-2xs">
+            <Clock className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
-          <p className="text-[11px] text-emerald-200 font-medium font-mono">
-            Monitoring deviasi urutan pengeluaran dan prioritas delivery per gudang
-          </p>
+          <h1 className="text-base font-bold text-white font-sans tracking-tight">
+            Deviasi Alur Pengeluaran (UNFIFO)
+          </h1>
         </div>
 
         {/* FILTERS */}
         <div className="flex items-center gap-2.5 flex-wrap font-mono text-xs">
           {/* GUDANG SELECTOR */}
-          <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded border border-emerald-800">
+          <div className="relative flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-700/80 shadow-2xs">
             <Warehouse className="h-3.5 w-3.5 text-amber-300 shrink-0" />
             <span className="text-emerald-300 text-[10px] uppercase font-bold">Gudang:</span>
-            <select
-              value={activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang}
-              onChange={(e) => {
-                if (activeTab === 'pipe') {
-                  handleGudangChange(e.target.value);
-                } else {
-                  handleCoilGudangChange(e.target.value);
-                }
-              }}
-              className="bg-emerald-900 border border-emerald-700 text-white text-xs font-bold rounded px-1.5 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer"
-            >
-              <option value="ALL">
-                Semua Gudang ({activeTab === 'pipe' ? availablePipeGudangs.length - 1 : availableCoilGudangs.length - 1})
-              </option>
-              {(activeTab === 'pipe' ? availablePipeGudangs : availableCoilGudangs)
-                .filter((g) => g !== 'ALL')
-                .map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-            </select>
+            <div className="relative inline-flex items-center">
+              <select
+                value={activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang}
+                onChange={(e) => {
+                  if (activeTab === 'pipe') {
+                    handleGudangChange(e.target.value);
+                  } else {
+                    handleCoilGudangChange(e.target.value);
+                  }
+                }}
+                className="appearance-none bg-emerald-900/90 border border-emerald-700/90 text-white text-xs font-bold rounded-md pl-2 pr-6 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer"
+              >
+                <option value="ALL">
+                  Semua Gudang ({activeTab === 'pipe' ? availablePipeGudangs.length - 1 : availableCoilGudangs.length - 1})
+                </option>
+                {(activeTab === 'pipe' ? availablePipeGudangs : availableCoilGudangs)
+                  .filter((g) => g !== 'ALL')
+                  .map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+              </select>
+              <ChevronDown className="absolute right-1.5 h-3 w-3 text-emerald-300 pointer-events-none" />
+            </div>
           </div>
 
           {(activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang) !== 'ALL' && (
@@ -991,65 +1046,43 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   handleCoilGudangChange('ALL');
                 }
               }}
-              className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-900 text-[11px] font-bold rounded shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
             >
-              Reset Filter
+              <RotateCcw className="h-3 w-3" />
+              <span>Reset Filter</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* TOP SUMMARY CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="rounded-md border border-amber-300 bg-amber-50/70 p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between text-amber-900">
-            <span className="text-xs font-bold uppercase tracking-wider">Produk Pipa UNFIFO</span>
-            <Layers className="h-4 w-4 text-amber-700" />
-          </div>
-          <p className="mt-1 text-2xl font-black font-mono text-amber-950">
-            {formatTon(totalPipeUnfifoTon, { showUnit: true, decimals: 2 })}
-          </p>
-          <div className="mt-2 text-xs text-amber-800 font-mono font-medium">
-            {formatQty(totalPipeUnfifoQty, { unit: 'Btg' })} ({filteredPipeData.length} item) perlu prioritas delivery
-          </div>
-        </div>
-
-        <div className="rounded-md border border-slate-200 bg-white p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-700">
-            <span className="text-xs font-bold uppercase tracking-wider">Bahan Baku Coil &amp; Strip UNFIFO</span>
-            <Disc className="h-4 w-4 text-slate-500" />
-          </div>
-          <p className="mt-1 text-2xl font-black font-mono text-slate-900">
-            {formatTon(totalCoilUnfifoTon, { showUnit: true, decimals: 2 })}
-          </p>
-          <div className="mt-2 text-xs text-slate-500 font-mono font-medium">
-            {formatQty(totalCoilUnfifoQty, { unit: 'Roll' })} ({filteredCoilData.length} item) berstatus UNFIFO / SLOW
-          </div>
-        </div>
-      </div>
-
       {/* 2 TAB NAVIGATION FOR TABLES */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 font-mono">
-        <button
-          onClick={() => setActiveTab('pipe')}
-          className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'pipe'
-              ? 'bg-emerald-800 text-white shadow-2xs'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          Data Pipa UNFIFO ({pipeData.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('coil')}
-          className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'coil'
-              ? 'bg-emerald-800 text-white shadow-2xs'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          Data Coil &amp; Strip UNFIFO ({coilData.length})
-        </button>
+      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+        <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 shadow-2xs font-mono">
+          <button
+            type="button"
+            onClick={() => setActiveTab('pipe')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'pipe'
+                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5 text-emerald-700" />
+            <span>Data Pipa UNFIFO ({pipeData.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('coil')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'coil'
+                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            <Disc className="h-3.5 w-3.5 text-amber-700" />
+            <span>Data Coil &amp; Strip UNFIFO ({coilData.length})</span>
+          </button>
+        </div>
       </div>
 
       {/* TAB 1: PIPA UNFIFO CARDS */}
@@ -1094,26 +1127,41 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveLeft={() => handleMovePipe(index, 'left')}
                   onMoveRight={() => handleMovePipe(index, 'right')}
                   onWidthChange={(w) => handleWidthChangePipe(card.id, w)}
+                  badge={
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
+                      {formatTon(totalPipeUnfifoTon, { decimals: 2 })} Ton
+                    </span>
+                  }
                 >
                   <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
-                    <div className="h-48 sm:h-56 w-full relative flex items-center justify-center min-w-0">
+                    <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto min-w-0">
                       <Doughnut data={pipeSummaryDonutData} options={pipeSummaryDonutOptions} />
-                      <div className="absolute flex flex-col items-center justify-center pointer-events-none pb-5">
-                        <span className="text-[9px] text-slate-400 font-bold uppercase">Total Pipa</span>
-                        <span className="text-xs font-black text-slate-900">{formatTon(totalPipeUnfifoTon, { showUnit: true })}</span>
-                        <span className="text-[9px] text-emerald-800 font-bold">{formatQty(totalPipeUnfifoQty, { unit: 'Btg' })}</span>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                          {formatTon(totalPipeUnfifoTon, { decimals: 2 })}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                          TOTAL TON
+                        </span>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-100 text-[11px]">
-                      <div className="p-2 rounded bg-slate-50 border border-slate-200">
-                        <span className="text-[9px] text-slate-500 font-sans block">Alokasi Gudang</span>
-                        <strong className="text-slate-900 text-xs">{availablePipeGudangs.length - 1} Gudang</strong>
-                      </div>
-                      <div className="p-2 rounded bg-slate-50 border border-slate-200">
-                        <span className="text-[9px] text-slate-500 font-sans block">Customer</span>
-                        <strong className="text-slate-900 text-xs">{Array.from(new Set(filteredPipeData.map((d) => d.customer))).length} Cust</strong>
-                      </div>
+                    {/* Breakdown Pills List */}
+                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
+                      {pipeDonutBreakdown.map((item) => (
+                        <div
+                          key={item.label}
+                          className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                            <span className="text-[11px] font-medium text-slate-600 truncate">{item.label}</span>
+                          </div>
+                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                            {formatTon(item.value, { decimals: 2 })}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </CustomizableCard>
@@ -1160,29 +1208,45 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                       </div>
 
                       {/* Breakdown Ranking Table */}
-                      <div className="lg:col-span-5 xl:col-span-5 space-y-2 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-6 pt-3 lg:pt-0">
+                      <div className="lg:col-span-5 xl:col-span-5 space-y-2.5 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-6 pt-4 lg:pt-0">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                           Peringkat Dominasi Penyebab:
                         </span>
-                        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                           {pipeCausesSummary.map((item, rIdx) => {
                             const pct = totalPipeUnfifoTon > 0 ? ((item.totalTon / totalPipeUnfifoTon) * 100).toFixed(1) : 0;
                             return (
                               <div
                                 key={item.cause}
-                                className="p-2 rounded bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-2 hover:bg-slate-100/80 transition-colors"
+                                className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 hover:bg-slate-100/90 transition-all space-y-1.5"
                               >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="h-5 w-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                                    {rIdx + 1}
-                                  </span>
-                                  <span className="text-[11px] font-sans font-semibold text-slate-800 truncate" title={item.cause}>
-                                    {item.cause}
-                                  </span>
+                                <div className="flex items-center justify-between gap-2 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className={`h-5 w-5 rounded-md text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                      rIdx === 0
+                                        ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                                        : rIdx === 1
+                                        ? 'bg-slate-700 text-white shadow-2xs'
+                                        : 'bg-slate-200 text-slate-700'
+                                    }`}>
+                                      {rIdx + 1}
+                                    </span>
+                                    <span className="text-xs font-semibold text-slate-800 truncate" title={item.cause}>
+                                      {item.cause}
+                                    </span>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <strong className="text-slate-900 tabular-nums">{formatTon(item.totalTon, { showUnit: true })}</strong>
+                                  </div>
                                 </div>
-                                <div className="text-right shrink-0 text-[11px]">
-                                  <strong className="text-slate-900">{formatTon(item.totalTon, { showUnit: true })}</strong>
-                                  <span className="text-[10px] text-slate-500 block">({pct}% &bull; {item.count} item)</span>
+                                <div className="flex items-center justify-between text-[10px] text-slate-500 gap-2">
+                                  <div className="flex-1 bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full bg-amber-500"
+                                      style={{ width: `${Math.min(100, Math.max(3, Number(pct)))}%` }}
+                                    />
+                                  </div>
+                                  <span className="shrink-0 tabular-nums">({pct}% &bull; {item.count} item)</span>
                                 </div>
                               </div>
                             );
@@ -1211,11 +1275,11 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onWidthChange={(w) => handleWidthChangePipe(card.id, w)}
                   headerAction={
                     <div className="flex items-center gap-2.5 font-mono text-xs flex-wrap">
-                      <div className="inline-flex p-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px]">
+                      <div className="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[10px]">
                         <button
                           type="button"
                           onClick={() => { setPipeIssueFilter('ALL'); setCurrentPage(1); }}
-                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
                             pipeIssueFilter === 'ALL'
                               ? 'bg-white text-slate-900 shadow-2xs'
                               : 'text-slate-600 hover:text-slate-900'
@@ -1226,7 +1290,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                         <button
                           type="button"
                           onClick={() => { setPipeIssueFilter('WITH_ISSUE'); setCurrentPage(1); }}
-                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
                             pipeIssueFilter === 'WITH_ISSUE'
                               ? 'bg-amber-500 text-slate-950 shadow-2xs'
                               : 'text-amber-800 hover:bg-amber-100/50'
@@ -1237,9 +1301,9 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                         <button
                           type="button"
                           onClick={() => { setPipeIssueFilter('NO_ISSUE'); setCurrentPage(1); }}
-                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
                             pipeIssueFilter === 'NO_ISSUE'
-                              ? 'bg-slate-700 text-white shadow-2xs'
+                              ? 'bg-slate-800 text-white shadow-2xs'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
@@ -1252,17 +1316,17 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   <div className="flex flex-col justify-between h-full">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
-                        <thead className="border-b border-emerald-100 bg-emerald-50/50 text-slate-700">
+                        <thead className="border-b border-slate-200 bg-slate-50 text-slate-700 uppercase tracking-wider text-[11px]">
                           <tr>
-                            <th className="py-2.5 px-3 font-bold">Gudang</th>
-                            <th className="py-2.5 px-3 font-bold">Kode Material</th>
-                            <th className="py-2.5 px-3 font-bold">Ukuran (D x T x P)</th>
-                            <th className="py-2.5 px-3 font-bold">Customer</th>
-                            <th className="py-2.5 px-3 font-bold text-amber-900">Batch</th>
-                            <th className="py-2.5 px-3 font-bold text-slate-600">Tgl Masuk</th>
-                            <th className="py-2.5 px-3 text-right font-bold text-slate-900">Qty (Btg)</th>
-                            <th className="py-2.5 px-3.5 text-right font-bold text-amber-900">Tonase (Ton)</th>
-                            <th className="py-2.5 px-3 font-bold text-slate-900">Penyebab / Issue UNFIFO</th>
+                            <th className="py-3 px-3 font-bold">Gudang</th>
+                            <th className="py-3 px-3 font-bold">Kode Material</th>
+                            <th className="py-3 px-3 font-bold">Ukuran (D x T x P)</th>
+                            <th className="py-3 px-3 font-bold">Customer</th>
+                            <th className="py-3 px-3 font-bold text-amber-900">Batch</th>
+                            <th className="py-3 px-3 font-bold text-slate-600">Tgl Masuk</th>
+                            <th className="py-3 px-3 text-right font-bold text-slate-900">Qty (Btg)</th>
+                            <th className="py-3 px-3.5 text-right font-bold text-amber-900">Tonase (Ton)</th>
+                            <th className="py-3 px-3 font-bold text-slate-900">Penyebab / Issue UNFIFO</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -1287,8 +1351,8 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                                   <td className="py-2.5 px-3 text-slate-600 max-w-[160px] truncate" title={row.customer}>{row.customer || '-'}</td>
                                   <td className="py-2.5 px-3 text-amber-900 font-bold whitespace-nowrap">{row.batch}</td>
                                   <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{row.incDate}</td>
-                                  <td className="py-2.5 px-3 text-right font-bold text-slate-900 whitespace-nowrap">{formatQty(row.qtyBtg)}</td>
-                                  <td className="py-2.5 px-3.5 text-right font-bold text-amber-900 whitespace-nowrap">{formatTon(row.tonase)}</td>
+                                  <td className="py-2.5 px-3 text-right font-bold text-slate-900 whitespace-nowrap tabular-nums">{formatQty(row.qtyBtg)}</td>
+                                  <td className="py-2.5 px-3.5 text-right font-bold text-amber-900 whitespace-nowrap tabular-nums">{formatTon(row.tonase)}</td>
                                   <td className="py-2 px-3">
                                     {issueText ? (
                                       <div
@@ -1305,7 +1369,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                                           unit: 'Btg',
                                           incDate: row.incDate
                                         })}
-                                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-50 border border-amber-300 text-[11px] text-amber-950 font-medium hover:bg-amber-100 transition-colors cursor-pointer max-w-[280px]"
+                                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-300 text-[11px] text-amber-950 font-medium hover:bg-amber-100 transition-colors cursor-pointer max-w-[280px]"
                                         title="Klik untuk mengubah catatan issue"
                                       >
                                         <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
@@ -1328,7 +1392,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                                           unit: 'Btg',
                                           incDate: row.incDate
                                         })}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-dashed border-slate-300 text-[10px] text-slate-400 hover:text-emerald-800 hover:border-emerald-400 hover:bg-emerald-50 transition-all cursor-pointer"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-slate-300 text-[11px] text-slate-500 hover:text-emerald-800 hover:border-emerald-400 hover:bg-emerald-50 transition-all cursor-pointer"
                                       >
                                         <Plus className="h-2.5 w-2.5" />
                                         <span>Catat Alasan</span>
@@ -1340,12 +1404,12 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                             })
                           )}
                         </tbody>
-                        <tfoot className="border-t-2 border-slate-300 bg-slate-100 font-bold text-slate-900">
+                        <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-bold text-slate-900 tabular-nums">
                           <tr>
-                            <td className="py-2.5 px-3" colSpan={6}>TOTAL PIPA UNFIFO ({selectedPipeGudang})</td>
-                            <td className="py-2.5 px-3 text-right">{formatQty(totalPipeUnfifoQty)}</td>
-                            <td className="py-2.5 px-3.5 text-right text-amber-900">{formatTon(totalPipeUnfifoTon)}</td>
-                            <td className="py-2.5 px-3 text-[10px] text-slate-500 font-normal">
+                            <td className="py-3 px-3" colSpan={6}>TOTAL PIPA UNFIFO ({selectedPipeGudang})</td>
+                            <td className="py-3 px-3 text-right">{formatQty(totalPipeUnfifoQty)}</td>
+                            <td className="py-3 px-3.5 text-right text-amber-900">{formatTon(totalPipeUnfifoTon)}</td>
+                            <td className="py-3 px-3 text-[10px] text-slate-500 font-normal">
                               {pipeWithIssueCount} dari {gudangFilteredPipeData.length} item tercatat issue
                             </td>
                           </tr>
@@ -1355,24 +1419,24 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
 
                     {/* Pagination */}
                     {totalPipePages > 1 && (
-                      <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2 text-xs font-mono mt-2">
+                      <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2.5 text-xs font-mono mt-2">
                         <span className="text-slate-500">
                           Halaman {currentPage} dari {totalPipePages} ({finalFilteredPipeData.length} item)
                         </span>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
-                            className="p-1 rounded border border-slate-300 bg-white text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-50"
+                            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-100 hover:text-slate-900 shadow-2xs transition-colors"
                           >
-                            <ChevronLeft className="h-4 w-4" />
+                            <ChevronLeft className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={() => setCurrentPage((p) => Math.min(totalPipePages, p + 1))}
                             disabled={currentPage === totalPipePages}
-                            className="p-1 rounded border border-slate-300 bg-white text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-50"
+                            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-100 hover:text-slate-900 shadow-2xs transition-colors"
                           >
-                            <ChevronRight className="h-4 w-4" />
+                            <ChevronRight className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </div>
@@ -1429,27 +1493,45 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveLeft={() => handleMoveCoil(index, 'left')}
                   onMoveRight={() => handleMoveCoil(index, 'right')}
                   onWidthChange={(w) => handleWidthChangeCoil(card.id, w)}
+                  badge={
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
+                      {formatTon(totalCoilUnfifoTon, { decimals: 2 })} Ton
+                    </span>
+                  }
                 >
                   <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
-                    <div className="h-48 sm:h-56 w-full relative flex items-center justify-center min-w-0">
+                    <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto min-w-0">
                       <Doughnut data={coilSummaryDonutData} options={coilSummaryDonutOptions} />
-                      <div className="absolute flex flex-col items-center justify-center pointer-events-none pb-5">
-                        <span className="text-[9px] text-slate-400 font-bold uppercase">Total Bahan</span>
-                        <span className="text-xs font-black text-slate-900">{formatTon(totalCoilUnfifoTon, { showUnit: true })}</span>
-                        <span className="text-[9px] text-amber-800 font-bold">{formatQty(totalCoilUnfifoQty, { unit: 'Roll' })}</span>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                          {formatTon(totalCoilUnfifoTon, { decimals: 2 })}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                          TOTAL TON
+                        </span>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-100 text-[11px]">
-                      <div className="p-2 rounded bg-emerald-50/60 border border-emerald-200">
-                        <span className="text-[9px] text-emerald-800 font-sans block font-bold uppercase">Coil</span>
-                        <strong className="text-emerald-950 text-xs">{formatTon(totalCoilOnlyTon, { showUnit: true })}</strong>
-                        <span className="text-[9px] text-emerald-700 block">{formatQty(totalCoilOnlyQty, { unit: 'Roll' })}</span>
+                    {/* Breakdown Pills List */}
+                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
+                      <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="text-[11px] font-medium text-slate-600 truncate">Coil ({totalCoilOnlyQty} Roll)</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                          {formatTon(totalCoilOnlyTon, { decimals: 2 })}
+                        </span>
                       </div>
-                      <div className="p-2 rounded bg-amber-50/60 border border-amber-200">
-                        <span className="text-[9px] text-amber-800 font-sans block font-bold uppercase">Strip</span>
-                        <strong className="text-amber-950 text-xs">{formatTon(totalStripOnlyTon, { showUnit: true })}</strong>
-                        <span className="text-[9px] text-amber-700 block">{formatQty(totalStripOnlyQty, { unit: 'Roll' })}</span>
+
+                      <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                          <span className="text-[11px] font-medium text-slate-600 truncate">Strip ({totalStripOnlyQty} Roll)</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                          {formatTon(totalStripOnlyTon, { decimals: 2 })}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1497,29 +1579,45 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                       </div>
 
                       {/* Breakdown Ranking Table */}
-                      <div className="lg:col-span-5 xl:col-span-5 space-y-2 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-6 pt-3 lg:pt-0">
+                      <div className="lg:col-span-5 xl:col-span-5 space-y-2.5 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-6 pt-4 lg:pt-0">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                           Peringkat Dominasi Kendala:
                         </span>
-                        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                           {coilCausesSummary.map((item, rIdx) => {
                             const pct = totalCoilUnfifoTon > 0 ? ((item.totalTon / totalCoilUnfifoTon) * 100).toFixed(1) : 0;
                             return (
                               <div
                                 key={item.cause}
-                                className="p-2 rounded bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-2 hover:bg-slate-100/80 transition-colors"
+                                className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 hover:bg-slate-100/90 transition-all space-y-1.5"
                               >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="h-5 w-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                                    {rIdx + 1}
-                                  </span>
-                                  <span className="text-[11px] font-sans font-semibold text-slate-800 truncate" title={item.cause}>
-                                    {item.cause}
-                                  </span>
+                                <div className="flex items-center justify-between gap-2 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className={`h-5 w-5 rounded-md text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                      rIdx === 0
+                                        ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                                        : rIdx === 1
+                                        ? 'bg-slate-700 text-white shadow-2xs'
+                                        : 'bg-slate-200 text-slate-700'
+                                    }`}>
+                                      {rIdx + 1}
+                                    </span>
+                                    <span className="text-xs font-semibold text-slate-800 truncate" title={item.cause}>
+                                      {item.cause}
+                                    </span>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <strong className="text-slate-900 tabular-nums">{formatTon(item.totalTon, { showUnit: true })}</strong>
+                                  </div>
                                 </div>
-                                <div className="text-right shrink-0 text-[11px]">
-                                  <strong className="text-slate-900">{formatTon(item.totalTon, { showUnit: true })}</strong>
-                                  <span className="text-[10px] text-slate-500 block">({pct}% &bull; {item.count} roll)</span>
+                                <div className="flex items-center justify-between text-[10px] text-slate-500 gap-2">
+                                  <div className="flex-1 bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full bg-emerald-600"
+                                      style={{ width: `${Math.min(100, Math.max(3, Number(pct)))}%` }}
+                                    />
+                                  </div>
+                                  <span className="shrink-0 tabular-nums">({pct}% &bull; {item.count} roll)</span>
                                 </div>
                               </div>
                             );
@@ -1548,11 +1646,11 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onWidthChange={(w) => handleWidthChangeCoil(card.id, w)}
                   headerAction={
                     <div className="flex items-center gap-2.5 font-mono text-xs flex-wrap">
-                      <div className="inline-flex p-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px]">
+                      <div className="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[10px]">
                         <button
                           type="button"
                           onClick={() => { setCoilIssueFilter('ALL'); setCurrentCoilPage(1); }}
-                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
                             coilIssueFilter === 'ALL'
                               ? 'bg-white text-slate-900 shadow-2xs'
                               : 'text-slate-600 hover:text-slate-900'
@@ -1563,7 +1661,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                         <button
                           type="button"
                           onClick={() => { setCoilIssueFilter('WITH_ISSUE'); setCurrentCoilPage(1); }}
-                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
                             coilIssueFilter === 'WITH_ISSUE'
                               ? 'bg-amber-500 text-slate-950 shadow-2xs'
                               : 'text-amber-800 hover:bg-amber-100/50'
@@ -1574,9 +1672,9 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                         <button
                           type="button"
                           onClick={() => { setCoilIssueFilter('NO_ISSUE'); setCurrentCoilPage(1); }}
-                          className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
                             coilIssueFilter === 'NO_ISSUE'
-                              ? 'bg-slate-700 text-white shadow-2xs'
+                              ? 'bg-slate-800 text-white shadow-2xs'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
@@ -1589,16 +1687,16 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   <div className="flex flex-col justify-between h-full">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
-                        <thead className="border-b border-emerald-100 bg-emerald-50/50 text-slate-700">
+                        <thead className="border-b border-slate-200 bg-slate-50 text-slate-700 uppercase tracking-wider text-[11px]">
                           <tr>
-                            <th className="py-2.5 px-3 font-bold">SLOC</th>
-                            <th className="py-2.5 px-3 font-bold">Kode Material</th>
-                            <th className="py-2.5 px-3 font-bold">Spesifikasi Material</th>
-                            <th className="py-2.5 px-3 font-bold text-amber-900">Batch</th>
-                            <th className="py-2.5 px-3 font-bold text-slate-600">Tgl Masuk</th>
-                            <th className="py-2.5 px-3 text-right font-bold text-slate-900">Qty (Roll)</th>
-                            <th className="py-2.5 px-3.5 text-right font-bold text-amber-900">Tonase (Ton)</th>
-                            <th className="py-2.5 px-3 font-bold text-slate-900">Penyebab / Issue UNFIFO</th>
+                            <th className="py-3 px-3 font-bold">SLOC</th>
+                            <th className="py-3 px-3 font-bold">Kode Material</th>
+                            <th className="py-3 px-3 font-bold">Spesifikasi Material</th>
+                            <th className="py-3 px-3 font-bold text-amber-900">Batch</th>
+                            <th className="py-3 px-3 font-bold text-slate-600">Tgl Masuk</th>
+                            <th className="py-3 px-3 text-right font-bold text-slate-900">Qty (Roll)</th>
+                            <th className="py-3 px-3.5 text-right font-bold text-amber-900">Tonase (Ton)</th>
+                            <th className="py-3 px-3 font-bold text-slate-900">Penyebab / Issue UNFIFO</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -1622,8 +1720,8 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                                   <td className="py-2.5 px-3 text-slate-800 font-bold whitespace-nowrap">{row.specification || `${row.tebal} x ${row.lebar}`}</td>
                                   <td className="py-2.5 px-3 text-amber-900 font-bold whitespace-nowrap">{row.batch}</td>
                                   <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{row.incDate}</td>
-                                  <td className="py-2.5 px-3 text-right font-bold text-slate-900 whitespace-nowrap">{formatQty(row.qtyRoll)}</td>
-                                  <td className="py-2.5 px-3.5 text-right font-bold text-amber-900 whitespace-nowrap">{formatTon(row.tonase)}</td>
+                                  <td className="py-2.5 px-3 text-right font-bold text-slate-900 whitespace-nowrap tabular-nums">{formatQty(row.qtyRoll)}</td>
+                                  <td className="py-2.5 px-3.5 text-right font-bold text-amber-900 whitespace-nowrap tabular-nums">{formatTon(row.tonase)}</td>
                                   <td className="py-2 px-3">
                                     {issueText ? (
                                       <div
@@ -1639,7 +1737,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                                           unit: 'Roll',
                                           incDate: row.incDate
                                         })}
-                                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-50 border border-amber-300 text-[11px] text-amber-950 font-medium hover:bg-amber-100 transition-colors cursor-pointer max-w-[280px]"
+                                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-300 text-[11px] text-amber-950 font-medium hover:bg-amber-100 transition-colors cursor-pointer max-w-[280px]"
                                         title="Klik untuk mengubah catatan issue"
                                       >
                                         <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
@@ -1661,7 +1759,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                                           unit: 'Roll',
                                           incDate: row.incDate
                                         })}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-dashed border-slate-300 text-[10px] text-slate-400 hover:text-emerald-800 hover:border-emerald-400 hover:bg-emerald-50 transition-all cursor-pointer"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-slate-300 text-[11px] text-slate-500 hover:text-emerald-800 hover:border-emerald-400 hover:bg-emerald-50 transition-all cursor-pointer"
                                       >
                                         <Plus className="h-2.5 w-2.5" />
                                         <span>Catat Alasan</span>
@@ -1673,12 +1771,12 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                             })
                           )}
                         </tbody>
-                        <tfoot className="border-t-2 border-slate-300 bg-slate-100 font-bold text-slate-900">
+                        <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-bold text-slate-900 tabular-nums">
                           <tr>
-                            <td className="py-2.5 px-3" colSpan={5}>TOTAL COIL &amp; STRIP UNFIFO ({selectedCoilGudang})</td>
-                            <td className="py-2.5 px-3 text-right">{formatQty(totalCoilUnfifoQty)}</td>
-                            <td className="py-2.5 px-3.5 text-right text-amber-900">{formatTon(totalCoilUnfifoTon)}</td>
-                            <td className="py-2.5 px-3 text-[10px] text-slate-500 font-normal">
+                            <td className="py-3 px-3" colSpan={5}>TOTAL COIL &amp; STRIP UNFIFO ({selectedCoilGudang})</td>
+                            <td className="py-3 px-3 text-right">{formatQty(totalCoilUnfifoQty)}</td>
+                            <td className="py-3 px-3.5 text-right text-amber-900">{formatTon(totalCoilUnfifoTon)}</td>
+                            <td className="py-3 px-3 text-[10px] text-slate-500 font-normal">
                               {coilWithIssueCount} dari {gudangFilteredCoilData.length} item tercatat issue
                             </td>
                           </tr>
@@ -1688,24 +1786,24 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
 
                     {/* Pagination */}
                     {totalCoilPages > 1 && (
-                      <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2 text-xs font-mono mt-2">
+                      <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2.5 text-xs font-mono mt-2">
                         <span className="text-slate-500">
                           Halaman {currentCoilPage} dari {totalCoilPages} ({finalFilteredCoilData.length} item)
                         </span>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => setCurrentCoilPage((p) => Math.max(1, p - 1))}
                             disabled={currentCoilPage === 1}
-                            className="p-1 rounded border border-slate-300 bg-white text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-50"
+                            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-100 hover:text-slate-900 shadow-2xs transition-colors"
                           >
-                            <ChevronLeft className="h-4 w-4" />
+                            <ChevronLeft className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={() => setCurrentCoilPage((p) => Math.min(totalCoilPages, p + 1))}
                             disabled={currentCoilPage === totalCoilPages}
-                            className="p-1 rounded border border-slate-300 bg-white text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-50"
+                            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-100 hover:text-slate-900 shadow-2xs transition-colors"
                           >
-                            <ChevronRight className="h-4 w-4" />
+                            <ChevronRight className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </div>

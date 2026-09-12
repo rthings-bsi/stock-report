@@ -22,7 +22,10 @@ import {
   BarChart3,
   Users,
   Search,
-  X
+  X,
+  ClipboardCheck,
+  ChevronDown,
+  RotateCcw
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
@@ -347,27 +350,30 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
         data: top15ChartItems.map((r) => r.looTon),
         backgroundColor: '#38bdf8', // Sky 400 (light blue)
         hoverBackgroundColor: '#0284c7',
-        borderRadius: 2,
-        barPercentage: 0.85,
-        categoryPercentage: 0.85,
+        borderRadius: 4,
+        borderSkipped: false,
+        barPercentage: 0.82,
+        categoryPercentage: 0.84,
       },
       {
         label: 'Stock WIP (Ton)',
         data: top15ChartItems.map((r) => r.wipTon),
         backgroundColor: '#d97706', // Amber 600 (WIP)
         hoverBackgroundColor: '#b45309',
-        borderRadius: 2,
-        barPercentage: 0.85,
-        categoryPercentage: 0.85,
+        borderRadius: 4,
+        borderSkipped: false,
+        barPercentage: 0.82,
+        categoryPercentage: 0.84,
       },
       {
         label: 'Stock FG (Ton)',
         data: top15ChartItems.map((r) => r.fgTon),
-        backgroundColor: '#047857', // Emerald 700 (FG)
-        hoverBackgroundColor: '#065f46',
-        borderRadius: 2,
-        barPercentage: 0.85,
-        categoryPercentage: 0.85,
+        backgroundColor: '#059669', // Emerald 600 (FG)
+        hoverBackgroundColor: '#047857',
+        borderRadius: 4,
+        borderSkipped: false,
+        barPercentage: 0.82,
+        categoryPercentage: 0.84,
       },
     ],
   };
@@ -387,11 +393,11 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
               ? val.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })
               : '-';
             ctx.save();
-            ctx.font = 'bold 8px monospace';
+            ctx.font = 'bold 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
             ctx.fillStyle = datasetIndex === 0 ? '#0284c7' : datasetIndex === 1 ? '#b45309' : '#047857';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
-            ctx.fillText(text, element.x, Math.max(element.y - 3, 10));
+            ctx.fillText(text, element.x, Math.max(element.y - 4, 10));
             ctx.restore();
           }
         });
@@ -404,8 +410,8 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
     maintainAspectRatio: false,
     layout: {
       padding: {
-        top: 20,
-        bottom: 6,
+        top: 24,
+        bottom: 8,
         left: 4,
         right: 4
       }
@@ -414,21 +420,23 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
       legend: {
         position: 'bottom' as const,
         labels: {
-          font: { family: 'monospace', size: 11, weight: 'bold' as const },
+          font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 11, weight: 'bold' as const },
           color: '#334155',
-          boxWidth: 12,
-          boxHeight: 12,
+          boxWidth: 10,
+          boxHeight: 10,
           usePointStyle: true,
           pointStyle: 'rectRounded',
-          padding: 18,
+          padding: 20,
         },
       },
       tooltip: {
         backgroundColor: '#0f172a',
-        titleFont: { family: 'monospace', size: 11, weight: 'bold' as const },
-        bodyFont: { family: 'monospace', size: 11 },
-        padding: 10,
-        cornerRadius: 4,
+        borderColor: '#334155',
+        borderWidth: 1,
+        titleFont: { family: 'ui-sans-serif, system-ui, sans-serif', size: 11, weight: 'bold' as const },
+        bodyFont: { family: 'ui-monospace, monospace', size: 11 },
+        padding: 12,
+        cornerRadius: 8,
         callbacks: {
           title: function (items: any[]) {
             if (items.length > 0) {
@@ -458,23 +466,25 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
         grid: { display: false },
         ticks: {
           autoSkip: false,
-          maxRotation: 45,
-          minRotation: 0,
-          font: { family: 'monospace', size: 9, weight: 'bold' as const },
-          color: '#334155'
+          maxRotation: 40,
+          minRotation: 20,
+          font: { family: 'ui-monospace, monospace', size: 9, weight: 'bold' as const },
+          color: '#475569',
+          padding: 6
         },
-        border: { color: '#cbd5e1' },
+        border: { color: '#e2e8f0' },
       },
       y: {
         grace: '15%',
         beginAtZero: true,
-        grid: { color: '#f1f5f9' },
+        grid: { color: '#f8fafc' },
         ticks: {
-          font: { family: 'monospace', size: 9 },
+          font: { family: 'ui-monospace, monospace', size: 9, weight: 'bold' as const },
           color: '#64748b',
-          callback: (val: any) => `${val} T`
+          callback: (val: any) => `${val} T`,
+          padding: 6
         },
-        border: { dash: [4, 4], color: '#cbd5e1' },
+        border: { dash: [3, 3], color: '#e2e8f0' },
       },
     },
   };
@@ -538,47 +548,55 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
     if (sorted.length === 0) {
       return (
         <div className="flex flex-col space-y-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-md font-mono text-xs">
-            <div className="flex items-center gap-2 flex-1 max-w-sm">
-              <div className="relative w-full">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          {/* Table Filter & Search Controls (Empty State) */}
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3 sm:px-4 sm:py-3 rounded-xl border border-slate-200/90 shadow-2xs text-xs">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Search Input */}
+              <div className="relative min-w-[240px] sm:w-72">
+                <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Cari Customer, Ukuran, Kode Material..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-7 py-1.5 text-xs font-mono bg-white border border-slate-300 rounded focus:outline-hidden focus:ring-1 focus:ring-emerald-700 placeholder:text-slate-400 shadow-2xs"
+                  className="w-full pl-9 pr-8 py-2 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-slate-50 hover:border-slate-300 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-all shadow-2xs font-sans"
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+                    title="Hapus pencarian"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
-            </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-emerald-800 shrink-0" />
-                <span className="text-slate-600 font-bold uppercase text-[10px]">Filter Customer:</span>
-                <select
-                  value={selectedCustomer}
-                  onChange={(e) => setSelectedCustomer(e.target.value)}
-                  className="px-2 py-1 rounded border border-slate-300 text-xs font-bold text-slate-800 bg-white cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-emerald-700 max-w-[200px] truncate shadow-2xs"
-                >
-                  <option value="ALL">Semua Customer ({availableCustomers.length - 1})</option>
-                  {availableCustomers.filter((c) => c !== 'ALL').map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+              {/* Filter Customer */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                  <Users className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span>Filter Customer:</span>
+                </div>
+                <div className="relative inline-flex items-center">
+                  <select
+                    value={selectedCustomer}
+                    onChange={(e) => setSelectedCustomer(e.target.value)}
+                    className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-slate-50 hover:border-slate-300 text-xs font-semibold text-slate-800 cursor-pointer focus:bg-white focus:outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-all appearance-none max-w-[210px] truncate shadow-2xs font-sans"
+                  >
+                    <option value="ALL">Semua Customer ({availableCustomers.length - 1})</option>
+                    {availableCustomers.filter((c) => c !== 'ALL').map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="h-3.5 w-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
+                </div>
               </div>
 
+              {/* Reset Filter Button */}
               {(selectedCustomer !== 'ALL' || searchQuery) && (
                 <button
                   type="button"
@@ -586,16 +604,28 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                     setSelectedCustomer('ALL');
                     setSearchQuery('');
                   }}
-                  className="px-2.5 py-1 text-[10px] font-bold font-mono bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all cursor-pointer"
+                  title="Reset semua filter"
                 >
-                  <X className="h-3 w-3" />
-                  Reset Filter
+                  <RotateCcw className="h-3 w-3" />
+                  <span>Reset Filter</span>
                 </button>
               )}
             </div>
+
+            {/* Filtered Counter Badge */}
+            <div className="flex items-center self-end lg:self-center">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200/90 text-xs text-slate-600">
+                <span className="text-slate-500">Total terfilter:</span>
+                <span className="font-bold font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+                  0
+                </span>
+                <span className="text-slate-500">item</span>
+              </div>
+            </div>
           </div>
 
-          <div className="py-10 text-center text-slate-500 text-xs font-mono border border-dashed border-slate-300 rounded-md bg-white">
+          <div className="py-12 text-center text-slate-500 text-xs font-mono border border-dashed border-slate-300 rounded-xl bg-slate-50/50">
             Tidak ada data Stock vs LOO yang sesuai kriteria filter
             {selectedGudang !== 'ALL' ? ` • Gudang: ${selectedGudang}` : ''}
             {selectedCustomer !== 'ALL' ? ` • Customer: ${selectedCustomer}` : ''}
@@ -608,47 +638,54 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
     return (
       <div className="flex flex-col space-y-3">
         {/* Table Filter & Search Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-md font-mono text-xs">
-          <div className="flex items-center gap-2 flex-1 max-w-sm">
-            <div className="relative w-full">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3 sm:px-4 sm:py-3 rounded-xl border border-slate-200/90 shadow-2xs text-xs">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Search Input */}
+            <div className="relative min-w-[240px] sm:w-72">
+              <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Cari Customer, Ukuran, Kode Material..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-7 py-1.5 text-xs font-mono bg-white border border-slate-300 rounded focus:outline-hidden focus:ring-1 focus:ring-emerald-700 placeholder:text-slate-400 shadow-2xs"
+                className="w-full pl-9 pr-8 py-2 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-slate-50 hover:border-slate-300 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-all shadow-2xs font-sans"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+                  title="Hapus pencarian"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
-          </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-emerald-800 shrink-0" />
-              <span className="text-slate-600 font-bold uppercase text-[10px]">Filter Customer:</span>
-              <select
-                value={selectedCustomer}
-                onChange={(e) => setSelectedCustomer(e.target.value)}
-                className="px-2 py-1 rounded border border-slate-300 text-xs font-bold text-slate-800 bg-white cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-emerald-700 max-w-[200px] truncate shadow-2xs"
-              >
-                <option value="ALL">Semua Customer ({availableCustomers.length - 1})</option>
-                {availableCustomers.filter((c) => c !== 'ALL').map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+            {/* Filter Customer */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                <Users className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                <span>Filter Customer:</span>
+              </div>
+              <div className="relative inline-flex items-center">
+                <select
+                  value={selectedCustomer}
+                  onChange={(e) => setSelectedCustomer(e.target.value)}
+                  className="pl-3 pr-8 py-2 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-slate-50 hover:border-slate-300 text-xs font-semibold text-slate-800 cursor-pointer focus:bg-white focus:outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-all appearance-none max-w-[210px] truncate shadow-2xs font-sans"
+                >
+                  <option value="ALL">Semua Customer ({availableCustomers.length - 1})</option>
+                  {availableCustomers.filter((c) => c !== 'ALL').map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
+              </div>
             </div>
 
+            {/* Reset Filter Button */}
             {(selectedCustomer !== 'ALL' || searchQuery) && (
               <button
                 type="button"
@@ -656,28 +693,40 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                   setSelectedCustomer('ALL');
                   setSearchQuery('');
                 }}
-                className="px-2.5 py-1 text-[10px] font-bold font-mono bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all cursor-pointer"
+                title="Reset semua filter"
               >
-                <X className="h-3 w-3" />
-                Reset Filter
+                <RotateCcw className="h-3 w-3" />
+                <span>Reset Filter</span>
               </button>
             )}
+          </div>
+
+          {/* Filtered Counter Badge */}
+          <div className="flex items-center self-end lg:self-center">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200/90 text-xs text-slate-600">
+              <span className="text-slate-500">Total terfilter:</span>
+              <span className="font-bold font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+                {tableFilteredItems.length}
+              </span>
+              <span className="text-slate-500">item</span>
+            </div>
           </div>
         </div>
 
         {/* Table View */}
-        <div className="overflow-x-auto max-h-[560px] overflow-y-auto border border-slate-200 rounded-md">
+        <div className="overflow-x-auto max-h-[560px] overflow-y-auto border border-slate-200/90 rounded-xl shadow-2xs bg-white">
         <table className="w-full text-left text-xs font-mono border-collapse">
-          <thead className="sticky top-0 z-10 border-b border-slate-300 bg-slate-100 text-[10px] shadow-2xs">
+          <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-[10px] shadow-2xs">
             {/* Header Tier 1: Group Categories */}
             <tr className="border-b border-slate-200 text-slate-800">
-              <th rowSpan={2} className="py-2 px-2 text-center font-bold text-slate-500 w-9 border-r border-slate-200">
+              <th rowSpan={2} className="py-2.5 px-2 text-center font-bold text-slate-500 w-10 border-r border-slate-200 bg-slate-100/80">
                 No.
               </th>
               <th
                 rowSpan={2}
                 onClick={() => handleSort('customer')}
-                className="py-2 px-2.5 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/80 transition-colors text-left text-slate-700 border-r border-slate-200"
+                className="py-2.5 px-3 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/70 transition-colors text-left text-slate-700 border-r border-slate-200 bg-slate-100/80"
               >
                 <div className="inline-flex items-center gap-1">
                   <span>Nama Customer</span>
@@ -687,7 +736,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
               <th
                 rowSpan={2}
                 onClick={() => handleSort('ukuran')}
-                className="py-2 px-2.5 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/80 transition-colors text-left text-slate-700 border-r border-slate-200"
+                className="py-2.5 px-3 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/70 transition-colors text-left text-slate-700 border-r border-slate-200 bg-slate-100/80"
               >
                 <div className="inline-flex items-center gap-1">
                   <span>Ukuran</span>
@@ -697,29 +746,29 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
               <th
                 rowSpan={2}
                 onClick={() => handleSort('kodeMaterial')}
-                className="py-2 px-2.5 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/80 transition-colors text-left text-slate-700 border-r border-slate-200"
+                className="py-2.5 px-3 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/70 transition-colors text-left text-slate-700 border-r border-slate-200 bg-slate-100/80"
               >
                 <div className="inline-flex items-center gap-1">
                   <span>Kode Material</span>
                   {renderSortIcon('kodeMaterial')}
                 </div>
               </th>
-              <th colSpan={2} className="py-1.5 px-2 text-center font-bold uppercase tracking-wider text-emerald-950 bg-emerald-100/60 border-r border-slate-200">
+              <th colSpan={2} className="py-2 px-3 text-center font-extrabold uppercase tracking-wider text-emerald-950 bg-emerald-100/70 border-r border-slate-200 border-b border-emerald-200/90">
                 Stock FG
               </th>
-              <th colSpan={2} className="py-1.5 px-2 text-center font-bold uppercase tracking-wider text-slate-800 bg-slate-200/60 border-r border-slate-200">
+              <th colSpan={2} className="py-2 px-3 text-center font-extrabold uppercase tracking-wider text-amber-950 bg-amber-100/60 border-r border-slate-200 border-b border-amber-200/90">
                 Stock WIP
               </th>
-              <th colSpan={2} className="py-1.5 px-2 text-center font-bold uppercase tracking-wider text-slate-900 bg-slate-200/80 border-r border-slate-200">
+              <th colSpan={2} className="py-2 px-3 text-center font-black uppercase tracking-wider text-slate-900 bg-slate-200/70 border-r border-slate-200 border-b border-slate-300">
                 Total Stock
               </th>
-              <th colSpan={2} className="py-1.5 px-2 text-center font-bold uppercase tracking-wider text-amber-950 bg-amber-100/60 border-r border-slate-200">
+              <th colSpan={2} className="py-2 px-3 text-center font-extrabold uppercase tracking-wider text-sky-950 bg-sky-100/60 border-r border-slate-200 border-b border-sky-200/90">
                 Target LOO
               </th>
               <th
                 rowSpan={2}
                 onClick={() => handleSort('persenFulfillment')}
-                className="py-2 px-2.5 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/80 transition-colors text-right text-slate-900"
+                className="py-2.5 px-3 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/70 transition-colors text-right text-slate-900 bg-slate-100/80"
               >
                 <div className="inline-flex items-center justify-end w-full gap-1">
                   <span>% Stock vs LOO</span>
@@ -728,52 +777,52 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
               </th>
             </tr>
             {/* Header Tier 2: Qty ( Pcs ) & Tonase */}
-            <tr className="border-b border-slate-300 text-[10px]">
+            <tr className="border-b border-slate-200 text-[10px]">
               <th
                 onClick={() => handleSort('fgQty')}
-                className="py-1 px-2 text-right font-bold text-emerald-950 bg-emerald-50/70 select-none cursor-pointer hover:bg-emerald-100/60"
+                className="py-1.5 px-2.5 text-right font-bold text-emerald-950 bg-emerald-50/80 select-none cursor-pointer hover:bg-emerald-100/70 transition-colors"
               >
                 Qty ( Pcs )
               </th>
               <th
                 onClick={() => handleSort('fgTon')}
-                className="py-1 px-2 text-right font-bold text-emerald-950 bg-emerald-50/70 border-r border-slate-200 select-none cursor-pointer hover:bg-emerald-100/60"
+                className="py-1.5 px-2.5 text-right font-bold text-emerald-950 bg-emerald-50/80 border-r border-slate-200 select-none cursor-pointer hover:bg-emerald-100/70 transition-colors"
               >
                 Tonase
               </th>
               <th
                 onClick={() => handleSort('wipQty')}
-                className="py-1 px-2 text-right font-bold text-slate-700 bg-slate-100 select-none cursor-pointer hover:bg-slate-200/60"
+                className="py-1.5 px-2.5 text-right font-bold text-amber-950 bg-amber-50/70 select-none cursor-pointer hover:bg-amber-100/60 transition-colors"
               >
                 Qty ( Pcs )
               </th>
               <th
                 onClick={() => handleSort('wipTon')}
-                className="py-1 px-2 text-right font-bold text-slate-700 bg-slate-100 border-r border-slate-200 select-none cursor-pointer hover:bg-slate-200/60"
+                className="py-1.5 px-2.5 text-right font-bold text-amber-950 bg-amber-50/70 border-r border-slate-200 select-none cursor-pointer hover:bg-amber-100/60 transition-colors"
               >
                 Tonase
               </th>
               <th
                 onClick={() => handleSort('totalQty')}
-                className="py-1 px-2 text-right font-bold text-slate-900 bg-slate-100 select-none cursor-pointer hover:bg-slate-200/60"
+                className="py-1.5 px-2.5 text-right font-bold text-slate-900 bg-slate-100 select-none cursor-pointer hover:bg-slate-200/60 transition-colors"
               >
                 Qty ( Pcs )
               </th>
               <th
                 onClick={() => handleSort('totalStockTon')}
-                className="py-1 px-2 text-right font-bold text-slate-900 bg-slate-100 border-r border-slate-200 select-none cursor-pointer hover:bg-slate-200/60"
+                className="py-1.5 px-2.5 text-right font-bold text-slate-900 bg-slate-100 border-r border-slate-200 select-none cursor-pointer hover:bg-slate-200/60 transition-colors"
               >
                 Tonase
               </th>
               <th
                 onClick={() => handleSort('looQty')}
-                className="py-1 px-2 text-right font-bold text-amber-950 bg-amber-50/70 select-none cursor-pointer hover:bg-amber-100/60"
+                className="py-1.5 px-2.5 text-right font-bold text-sky-950 bg-sky-50/80 select-none cursor-pointer hover:bg-sky-100/60 transition-colors"
               >
                 Qty ( Pcs )
               </th>
               <th
                 onClick={() => handleSort('looTon')}
-                className="py-1 px-2 text-right font-bold text-amber-950 bg-amber-50/70 border-r border-slate-200 select-none cursor-pointer hover:bg-amber-100/60"
+                className="py-1.5 px-2.5 text-right font-bold text-sky-950 bg-sky-50/80 border-r border-slate-200 select-none cursor-pointer hover:bg-sky-100/60 transition-colors"
               >
                 Tonase
               </th>
@@ -787,16 +836,16 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
 
               return (
                 <tr key={`${row.no}-${row.kodeMaterial}`} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-2 px-2 text-center text-slate-400 font-bold border-r border-slate-100">
+                  <td className="py-2.5 px-2 text-center text-slate-400 font-bold border-r border-slate-100">
                     {row.no}
                   </td>
-                  <td className="py-2 px-2.5 font-semibold text-slate-900 border-r border-slate-100 max-w-[220px] truncate" title={row.customer}>
+                  <td className="py-2.5 px-3 font-semibold text-slate-900 border-r border-slate-100 max-w-[220px] truncate" title={row.customer}>
                     {row.customer}
                   </td>
-                  <td className="py-2 px-2.5 font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">
+                  <td className="py-2.5 px-3 font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">
                     {row.ukuran}
                   </td>
-                  <td className="py-2 px-2.5 border-r border-slate-100 whitespace-nowrap">
+                  <td className="py-2.5 px-3 border-r border-slate-100 whitespace-nowrap">
                     <span className="font-mono text-[11px] font-bold text-slate-900 block">{row.kodeMaterial}</span>
                     {row.gudang && (
                       <span className="text-[9px] text-slate-400 font-mono block">
@@ -804,38 +853,38 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                       </span>
                     )}
                   </td>
-                  <td className="py-2 px-2 text-right text-emerald-950 font-medium">
+                  <td className="py-2.5 px-2.5 text-right text-emerald-950 font-medium">
                     {row.fgQty ? formatQty(row.fgQty, { zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2 px-2 text-right text-emerald-950 font-bold border-r border-slate-100">
+                  <td className="py-2.5 px-2.5 text-right text-emerald-950 font-bold border-r border-slate-100">
                     {row.fgTon ? formatTon(row.fgTon, { decimals: 2, zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2 px-2 text-right text-slate-600">
+                  <td className="py-2.5 px-2.5 text-right text-slate-600">
                     {row.wipQty ? formatQty(row.wipQty, { zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2 px-2 text-right text-slate-700 font-medium border-r border-slate-100">
+                  <td className="py-2.5 px-2.5 text-right text-slate-700 font-medium border-r border-slate-100">
                     {row.wipTon ? formatTon(row.wipTon, { decimals: 2, zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2 px-2 text-right font-bold text-slate-900">
+                  <td className="py-2.5 px-2.5 text-right font-bold text-slate-900">
                     {row.totalQty ? formatQty(row.totalQty, { zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2 px-2 text-right font-black text-slate-900 border-r border-slate-100">
+                  <td className="py-2.5 px-2.5 text-right font-black text-slate-900 border-r border-slate-100">
                     {row.totalStockTon ? formatTon(row.totalStockTon, { decimals: 2, zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2 px-2 text-right font-semibold text-amber-950">
+                  <td className="py-2.5 px-2.5 text-right font-semibold text-slate-800">
                     {row.looQty ? formatQty(row.looQty, { zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2 px-2 text-right font-bold text-amber-950 border-r border-slate-100">
+                  <td className="py-2.5 px-2.5 text-right font-bold text-slate-900 border-r border-slate-100">
                     {row.looTon ? formatTon(row.looTon, { decimals: 2, zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2 px-2.5 text-right whitespace-nowrap">
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap">
                     {hasLoo ? (
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                      <span className={`inline-flex items-center justify-center min-w-[54px] px-2 py-0.5 rounded-md text-[11px] font-bold border tabular-nums ${
                         isFulfilled
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs'
                           : isDeficit
-                          ? 'bg-amber-100 text-amber-900 border-amber-300 font-black'
-                          : 'bg-amber-50 text-amber-900 border-amber-200'
+                          ? 'bg-amber-50 text-amber-900 border-amber-300 font-black shadow-2xs'
+                          : 'bg-amber-50/60 text-amber-900 border-amber-200'
                       }`}>
                         {formatPercent(row.persenFulfillment)}
                       </span>
@@ -847,37 +896,37 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
               );
             })}
           </tbody>
-          <tfoot className="sticky bottom-0 border-t-2 border-slate-300 bg-slate-100/95 backdrop-blur-xs font-bold text-[11px] text-slate-900">
+          <tfoot className="sticky bottom-0 z-10 border-t-2 border-slate-300 bg-slate-100/95 backdrop-blur-xs font-bold text-[11px] text-slate-900 shadow-xs">
             <tr>
               <td colSpan={4} className="py-2.5 px-3 text-left uppercase tracking-wider text-slate-700 text-[10px]">
                 TOTAL ({sorted.length} ITEM{selectedGudang !== 'ALL' ? ` • ${selectedGudang}` : ''}{selectedCustomer !== 'ALL' ? ` • ${selectedCustomer}` : ''})
               </td>
-              <td className="py-2 px-2 text-right text-emerald-950 font-bold">
+              <td className="py-2.5 px-2.5 text-right text-emerald-950 font-bold">
                 {formatQty(sumFgQty, { zeroAsDash: true })}
               </td>
-              <td className="py-2 px-2 text-right text-emerald-950 font-black border-r border-slate-200">
+              <td className="py-2.5 px-2.5 text-right text-emerald-950 font-black border-r border-slate-200">
                 {formatTon(sumFgTon, { decimals: 2, zeroAsDash: true })}
               </td>
-              <td className="py-2 px-2 text-right text-slate-800">
+              <td className="py-2.5 px-2.5 text-right text-slate-800">
                 {formatQty(sumWipQty, { zeroAsDash: true })}
               </td>
-              <td className="py-2 px-2 text-right text-slate-800 border-r border-slate-200">
+              <td className="py-2.5 px-2.5 text-right text-slate-800 border-r border-slate-200">
                 {formatTon(sumWipTon, { decimals: 2, zeroAsDash: true })}
               </td>
-              <td className="py-2 px-2 text-right text-slate-950 font-black">
+              <td className="py-2.5 px-2.5 text-right text-slate-950 font-black">
                 {formatQty(sumTotalQty, { zeroAsDash: true })}
               </td>
-              <td className="py-2 px-2 text-right text-slate-950 font-black border-r border-slate-200">
+              <td className="py-2.5 px-2.5 text-right text-slate-950 font-black border-r border-slate-200">
                 {formatTon(sumTotalTon, { decimals: 2, zeroAsDash: true })}
               </td>
-              <td className="py-2 px-2 text-right text-amber-950 font-bold">
+              <td className="py-2.5 px-2.5 text-right text-slate-900 font-bold">
                 {formatQty(sumLooQty, { zeroAsDash: true })}
               </td>
-              <td className="py-2 px-2 text-right text-amber-950 font-black border-r border-slate-200">
+              <td className="py-2.5 px-2.5 text-right text-slate-950 font-black border-r border-slate-200">
                 {formatTon(sumLooTon, { decimals: 2, zeroAsDash: true })}
               </td>
-              <td className="py-2 px-2.5 text-right font-black">
-                <span className={`px-1.5 py-0.5 rounded text-[10px] border ${
+              <td className="py-2.5 px-3 text-right font-black">
+                <span className={`inline-flex items-center justify-center min-w-[56px] px-2 py-0.5 rounded-md text-[11px] border tabular-nums shadow-2xs ${
                   overallAvgFulfill >= 100
                     ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
                     : 'bg-amber-100 text-amber-900 border-amber-300'
@@ -895,52 +944,45 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* BANNER HEADER & CONTROL TOOLBAR */}
-      <div className="rounded-md border border-black/20 theme-banner text-white p-3.5 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-sm font-bold uppercase tracking-wider">
-              Stock Pipa vs LOO: Per Gudang
-            </h2>
-            <span className="text-[10px] font-mono bg-emerald-950/60 text-emerald-200 px-2 py-0.5 rounded border border-emerald-800">
-              Delivery Fulfillment
-            </span>
-            {selectedGudang !== 'ALL' && (
-              <span className="text-[10px] font-mono bg-amber-400 text-amber-950 px-2 py-0.5 rounded font-bold">
-                Gudang: {selectedGudang}
-              </span>
-            )}
+      {/* Top Banner & Header */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            <ClipboardCheck className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
-          <p className="text-[11px] text-emerald-200 font-medium font-mono">
-            Monitoring kesiapan stock pipa aktual (FG &amp; WIP) terhadap target open LOO customer per gudang
-          </p>
+          <h1 className="text-base font-bold text-white font-sans tracking-tight">
+            Stock Pipa vs LOO: Per Gudang
+          </h1>
         </div>
 
         {/* FILTERS */}
         <div className="flex items-center gap-2.5 flex-wrap font-mono text-xs">
           {/* GUDANG SELECTOR */}
-          <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded border border-emerald-800">
+          <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1.5 rounded-lg border border-emerald-700/80">
             <Warehouse className="h-3.5 w-3.5 text-amber-300 shrink-0" />
-            <span className="text-emerald-300 text-[10px] uppercase font-bold">Gudang:</span>
-            <select
-              value={selectedGudang}
-              onChange={(e) => setSelectedGudang(e.target.value)}
-              className="bg-emerald-900 border border-emerald-700 text-white text-xs font-bold rounded px-1.5 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer"
-            >
-              <option value="ALL">Semua Gudang ({warehouseRecaps.length})</option>
-              {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
+            <span className="text-emerald-300 text-[10px] uppercase font-bold tracking-wider">Gudang:</span>
+            <div className="relative inline-flex items-center">
+              <select
+                value={selectedGudang}
+                onChange={(e) => setSelectedGudang(e.target.value)}
+                className="bg-emerald-900 hover:bg-emerald-850 border border-emerald-700 text-white text-xs font-bold rounded-md pl-2 pr-6 py-1 focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer appearance-none transition-colors"
+              >
+                <option value="ALL">Semua Gudang ({warehouseRecaps.length})</option>
+                {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="h-3 w-3 text-emerald-300 absolute right-1.5 pointer-events-none" />
+            </div>
           </div>
 
           {selectedGudang !== 'ALL' && (
             <button
               type="button"
               onClick={() => setSelectedGudang('ALL')}
-              className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-900 text-[11px] font-bold rounded shadow-2xs transition-all cursor-pointer"
+              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
             >
               Reset Filter
             </button>
@@ -975,25 +1017,28 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                   onMoveRight={() => handleMove(index, 'right')}
                   onWidthChange={(w) => handleWidthChange(card.id, w)}
                   badge={
-                    <select
-                      value={chartTopCount}
-                      onChange={(e) => setChartTopCount(Number(e.target.value))}
-                      className="text-[10px] font-mono bg-emerald-50 text-emerald-900 font-bold px-2 py-0.5 rounded border border-emerald-300 focus:outline-hidden focus:ring-1 focus:ring-emerald-600 cursor-pointer shadow-2xs"
-                    >
-                      <option value={5}>Top 5 Item</option>
-                      <option value={10}>Top 10 Item</option>
-                      <option value={15}>Top 15 Item</option>
-                      <option value={20}>Top 20 Item</option>
-                    </select>
+                    <div className="relative inline-flex items-center">
+                      <select
+                        value={chartTopCount}
+                        onChange={(e) => setChartTopCount(Number(e.target.value))}
+                        className="pl-2.5 pr-7 py-1 text-[11px] font-mono bg-white text-slate-700 font-bold rounded-lg border border-slate-200/90 shadow-2xs hover:border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-600/10 focus:border-emerald-600 cursor-pointer appearance-none"
+                      >
+                        <option value={5}>Top 5 Item</option>
+                        <option value={10}>Top 10 Item</option>
+                        <option value={15}>Top 15 Item</option>
+                        <option value={20}>Top 20 Item</option>
+                      </select>
+                      <ChevronDown className="h-3 w-3 text-slate-400 absolute right-2 pointer-events-none" />
+                    </div>
                   }
                   headerAction={
-                    <div className="flex items-center gap-1.5 bg-slate-100 p-0.5 rounded border border-slate-200">
+                    <div className="flex items-center p-0.5 rounded-lg bg-slate-100/90 border border-slate-200/80">
                       <button
                         type="button"
                         onClick={() => setChartSortMetric('stock')}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold font-mono transition-all cursor-pointer ${
                           chartSortMetric === 'stock'
-                            ? 'bg-emerald-800 text-white shadow-2xs'
+                            ? 'bg-white text-slate-900 shadow-2xs font-bold'
                             : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
@@ -1002,9 +1047,9 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setChartSortMetric('loo')}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold font-mono transition-all cursor-pointer ${
                           chartSortMetric === 'loo'
-                            ? 'bg-emerald-800 text-white shadow-2xs'
+                            ? 'bg-white text-slate-900 shadow-2xs font-bold'
                             : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
@@ -1046,7 +1091,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                   onMoveRight={() => handleMove(index, 'right')}
                   onWidthChange={(w) => handleWidthChange(card.id, w)}
                   badge={
-                    <span className="text-[10px] font-mono text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-mono text-emerald-800 font-bold bg-emerald-50 border border-emerald-200/80 shadow-2xs">
                       {tableFilteredItems.length} Item
                     </span>
                   }

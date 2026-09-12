@@ -119,6 +119,7 @@ export default function Home() {
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [isCustomizingLayout, setIsCustomizingLayout] = useState<boolean>(false);
   const [selectedSnapshotKey, setSelectedSnapshotKey] = useState<string>('latest');
+  const [isLoadingSnapshot, setIsLoadingSnapshot] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<TabType>('capacity');
   const [selectedGudangFilter, setSelectedGudangFilter] = useState<string>('ALL');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
@@ -273,6 +274,7 @@ export default function Home() {
 
   // Load specific snapshot key
   const loadSnapshotByKey = async (key: string) => {
+    setIsLoadingSnapshot(true);
     setSelectedSnapshotKey(key);
     try {
       const res = await fetch(`/api/warehouse?key=${encodeURIComponent(key)}`, { cache: 'no-store' });
@@ -298,6 +300,8 @@ export default function Home() {
       }
     } catch (err) {
       console.error('Failed to load snapshot:', err);
+    } finally {
+      setIsLoadingSnapshot(false);
     }
   };
 
@@ -781,10 +785,10 @@ export default function Home() {
             {/* Section 1: Monitoring Gudang (Mobile) */}
             {dashboardMenuItems.length > 0 && (
               <div className="space-y-1">
-                <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Monitoring Gudang
                 </div>
-                <nav className="space-y-0.5">
+                <nav className="space-y-1">
                   {dashboardMenuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
@@ -796,15 +800,15 @@ export default function Home() {
                           setIsMobileSidebarOpen(false);
                         }}
                         className={cn(
-                          "w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer",
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer",
                           isActive
-                            ? "bg-[#047857] text-white font-bold shadow-2xs"
-                            : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
+                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
                         )}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-slate-500")} strokeWidth={1.9} />
-                          <span className="truncate">{item.label}</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon className={cn("h-4.5 w-4.5 shrink-0", isActive ? "text-white" : "text-slate-400")} strokeWidth={isActive ? 2.2 : 1.8} />
+                          <span className="truncate leading-normal">{item.label}</span>
                         </div>
                       </button>
                     );
@@ -815,11 +819,11 @@ export default function Home() {
 
             {/* Section 2: Operasional & Input Data (Mobile) */}
             {operationalMenuItems.length > 0 && (
-              <div className="pt-2 border-t border-slate-100 space-y-1">
-                <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+              <div className="pt-3 border-t border-slate-100 space-y-1">
+                <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Operasional
                 </div>
-                <nav className="space-y-0.5">
+                <nav className="space-y-1">
                   {operationalMenuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
@@ -831,19 +835,19 @@ export default function Home() {
                           setIsMobileSidebarOpen(false);
                         }}
                         className={cn(
-                          "w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer",
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer",
                           isActive
-                            ? "bg-[#047857] text-white font-bold shadow-2xs"
-                            : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
+                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
                         )}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-slate-500")} strokeWidth={1.9} />
-                          <span className="truncate">{item.label}</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon className={cn("h-4.5 w-4.5 shrink-0", isActive ? "text-white" : "text-slate-400")} strokeWidth={isActive ? 2.2 : 1.8} />
+                          <span className="truncate leading-normal">{item.label}</span>
                         </div>
                         <span className={cn(
-                          "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ml-1 shrink-0",
-                          isActive ? "bg-emerald-900/60 text-emerald-100 border-emerald-600/40" : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0",
+                          isActive ? "bg-white/20 text-white border-white/20" : "bg-emerald-50 text-emerald-700 border-emerald-200/60"
                         )}>
                           Input
                         </span>
@@ -856,11 +860,11 @@ export default function Home() {
 
             {/* Menu Kelola Data & Hak Akses: Mobile */}
             {(canUploadSAP || canManageUsers) && (
-              <div className="pt-2 border-t border-slate-100 space-y-1">
-                <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+              <div className="pt-3 border-t border-slate-100 space-y-1">
+                <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Pengaturan &amp; Data
                 </div>
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {canUploadSAP && (
                     <button
                       type="button"
@@ -868,13 +872,13 @@ export default function Home() {
                         setIsUploadOpen(true);
                         setIsMobileSidebarOpen(false);
                       }}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-semibold text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950 transition-all cursor-pointer"
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Upload className="h-4 w-4 text-slate-500 shrink-0" strokeWidth={1.9} />
-                        <span className="truncate">Upload Raw Data SAP</span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Upload className="h-4.5 w-4.5 text-slate-400 shrink-0" strokeWidth={1.8} />
+                        <span className="truncate leading-normal">Upload Raw Data SAP</span>
                       </div>
-                      <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 ml-1 shrink-0">
+                      <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200/60 shrink-0">
                         Excel
                       </span>
                     </button>
@@ -888,19 +892,19 @@ export default function Home() {
                         setIsMobileSidebarOpen(false);
                       }}
                       className={cn(
-                        "w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer",
+                        "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all cursor-pointer",
                         activeTab === 'users'
-                          ? "bg-[#047857] text-white font-bold shadow-2xs"
-                          : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
+                          ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
                       )}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Users className={cn("h-4 w-4 shrink-0", activeTab === 'users' ? "text-white" : "text-slate-500")} strokeWidth={1.9} />
-                        <span className="truncate">Kelola Pengguna</span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Users className={cn("h-4.5 w-4.5 shrink-0", activeTab === 'users' ? "text-white" : "text-slate-400")} strokeWidth={activeTab === 'users' ? 2.2 : 1.8} />
+                        <span className="truncate leading-normal">Kelola Pengguna</span>
                       </div>
                       <span className={cn(
-                        "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ml-1 shrink-0",
-                        activeTab === 'users' ? "bg-emerald-900/60 text-emerald-100 border-emerald-600/40" : "bg-slate-100 text-slate-600 border-slate-200"
+                        "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0",
+                        activeTab === 'users' ? "bg-white/20 text-white border-white/20" : "bg-slate-100 text-slate-600 border-slate-200/60"
                       )}>
                         RBAC
                       </span>
@@ -911,15 +915,15 @@ export default function Home() {
             )}
 
             {/* Mobile User Profile Footer */}
-            <div className="pt-2 border-t border-slate-100 mt-auto">
-              <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+            <div className="pt-3 border-t border-slate-100 mt-auto">
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="h-7 w-7 rounded-full bg-emerald-700 text-white flex items-center justify-center font-mono font-bold text-[11px] shrink-0">
+                  <div className="h-8 w-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
                     {currentUser.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <div className="font-bold text-slate-900 text-xs truncate leading-tight">{currentUser.name}</div>
-                    <div className="text-[10px] font-mono text-slate-500 truncate leading-tight">
+                    <div className="font-semibold text-slate-900 text-xs truncate leading-snug">{currentUser.name}</div>
+                    <div className="text-[11px] text-slate-500 truncate leading-snug">
                       {currentUser.role === 'admin' ? 'Administrator' : 'Staff Operasional'}
                     </div>
                   </div>
@@ -927,10 +931,10 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
+                  className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
                   title="Keluar"
                 >
-                  <LogOut className="h-4 w-4" strokeWidth={1.9} />
+                  <LogOut className="h-4 w-4" strokeWidth={2} />
                 </button>
               </div>
             </div>
@@ -949,30 +953,30 @@ export default function Home() {
         >
           {isSidebarOpen ? (
             /* FULL SIDEBAR (w-64) */
-            <div className="rounded-md border border-slate-200/90 bg-white p-2.5 shadow-2xs space-y-2">
-              
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm space-y-4">
+
               {/* Sidebar Header */}
-              <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-100">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+              <div className="flex items-center justify-between px-2 pb-2 border-b border-slate-100">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   Menu Navigasi
                 </span>
                 <button
                   type="button"
                   onClick={toggleSidebar}
-                  className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                   title="Kecilkan Sidebar (Ctrl+B)"
                 >
-                  <PanelLeftClose className="h-3.5 w-3.5" strokeWidth={2} />
+                  <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
                 </button>
               </div>
 
               {/* Menu Section 1: Monitoring Gudang */}
               {dashboardMenuItems.length > 0 && (
-                <div className="space-y-0.5">
-                  <div className="px-2.5 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                <div className="space-y-1">
+                  <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Monitoring Gudang
                   </div>
-                  <nav className="space-y-0.5">
+                  <nav className="space-y-1">
                     {dashboardMenuItems.map((item) => {
                       const Icon = item.icon;
                       const isActive = activeTab === item.id;
@@ -982,21 +986,21 @@ export default function Home() {
                           id={`sidebar-${item.id}`}
                           onClick={() => handleSelectTab(item.id)}
                           className={cn(
-                            "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer group",
+                            "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer group",
                             isActive
-                              ? "bg-[#047857] text-white shadow-2xs font-bold"
-                              : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
+                              ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
                           )}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex items-center gap-3 min-w-0">
                             <Icon
                               className={cn(
-                                "h-4 w-4 shrink-0 transition-transform group-hover:scale-105",
-                                isActive ? "text-white" : "text-slate-500 group-hover:text-emerald-800"
+                                "h-4.5 w-4.5 shrink-0 transition-colors",
+                                isActive ? "text-white" : "text-slate-400 group-hover:text-emerald-700"
                               )}
-                              strokeWidth={1.9}
+                              strokeWidth={isActive ? 2.2 : 1.8}
                             />
-                            <span className="truncate leading-tight text-[11.5px]">
+                            <span className="truncate leading-normal">
                               {item.label}
                             </span>
                           </div>
@@ -1009,11 +1013,11 @@ export default function Home() {
 
               {/* Menu Section 2: Operasional & Input Data (Desktop) */}
               {operationalMenuItems.length > 0 && (
-                <div className="pt-2 border-t border-slate-100 space-y-0.5">
-                  <div className="px-2.5 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                <div className="pt-3 border-t border-slate-100 space-y-1">
+                  <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Operasional
                   </div>
-                  <nav className="space-y-0.5">
+                  <nav className="space-y-1">
                     {operationalMenuItems.map((item) => {
                       const Icon = item.icon;
                       const isActive = activeTab === item.id;
@@ -1023,27 +1027,29 @@ export default function Home() {
                           id={`sidebar-${item.id}`}
                           onClick={() => handleSelectTab(item.id)}
                           className={cn(
-                            "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer group",
+                            "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer group",
                             isActive
-                              ? "bg-[#047857] text-white shadow-2xs font-bold"
-                              : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
+                              ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
                           )}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex items-center gap-3 min-w-0">
                             <Icon
                               className={cn(
-                                "h-4 w-4 shrink-0 transition-transform group-hover:scale-105",
-                                isActive ? "text-white" : "text-slate-500 group-hover:text-emerald-800"
+                                "h-4.5 w-4.5 shrink-0 transition-colors",
+                                isActive ? "text-white" : "text-slate-400 group-hover:text-emerald-700"
                               )}
-                              strokeWidth={1.9}
+                              strokeWidth={isActive ? 2.2 : 1.8}
                             />
-                            <span className="truncate leading-tight text-[11.5px]">
+                            <span className="truncate leading-normal">
                               {item.label}
                             </span>
                           </div>
                           <span className={cn(
-                            "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ml-1 shrink-0",
-                            isActive ? "bg-emerald-900/60 text-emerald-100 border-emerald-600/40" : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
+                            isActive
+                              ? "bg-white/20 text-white border-white/20"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200/60"
                           )}>
                             Input
                           </span>
@@ -1056,22 +1062,22 @@ export default function Home() {
 
               {/* Menu Kelola Data & Hak Akses: Desktop */}
               {(canUploadSAP || canManageUsers) && (
-                <div className="pt-2 border-t border-slate-100 space-y-0.5">
-                  <div className="px-2.5 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                <div className="pt-3 border-t border-slate-100 space-y-1">
+                  <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Pengaturan &amp; Data
                   </div>
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     {canUploadSAP && (
                       <button
                         type="button"
                         onClick={() => setIsUploadOpen(true)}
-                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-semibold text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950 transition-all text-left cursor-pointer group"
+                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left cursor-pointer group"
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Upload className="h-4 w-4 text-slate-500 group-hover:text-emerald-800 shrink-0 transition-transform group-hover:scale-105" strokeWidth={1.9} />
-                          <span className="truncate text-[11.5px] leading-tight">Upload Raw Data SAP</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Upload className="h-4.5 w-4.5 text-slate-400 group-hover:text-emerald-700 shrink-0 transition-colors" strokeWidth={1.8} />
+                          <span className="truncate leading-normal">Upload Raw Data SAP</span>
                         </div>
-                        <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 ml-1 shrink-0">
+                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200/60 shrink-0">
                           Excel
                         </span>
                       </button>
@@ -1083,19 +1089,19 @@ export default function Home() {
                         id="sidebar-users"
                         onClick={() => handleSelectTab('users')}
                         className={cn(
-                          "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-semibold transition-all text-left cursor-pointer group",
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer group",
                           activeTab === 'users'
-                            ? "bg-[#047857] text-white shadow-2xs font-bold"
-                            : "text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-950"
+                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
                         )}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Users className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-105", activeTab === 'users' ? "text-white" : "text-slate-500 group-hover:text-emerald-800")} strokeWidth={1.9} />
-                          <span className="truncate text-[11.5px] leading-tight">Kelola Pengguna</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Users className={cn("h-4.5 w-4.5 shrink-0 transition-colors", activeTab === 'users' ? "text-white" : "text-slate-400 group-hover:text-emerald-700")} strokeWidth={activeTab === 'users' ? 2.2 : 1.8} />
+                          <span className="truncate leading-normal">Kelola Pengguna</span>
                         </div>
                         <span className={cn(
-                          "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ml-1 shrink-0",
-                          activeTab === 'users' ? "bg-emerald-900/60 text-emerald-100 border-emerald-600/40" : "bg-slate-100 text-slate-600 border-slate-200"
+                          "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
+                          activeTab === 'users' ? "bg-white/20 text-white border-white/20" : "bg-slate-100 text-slate-600 border-slate-200/60"
                         )}>
                           RBAC
                         </span>
@@ -1106,17 +1112,17 @@ export default function Home() {
               )}
 
               {/* User Profile Snippet in Sidebar Footer */}
-              <div className="pt-2 border-t border-slate-100 mt-2">
-                <div className="p-2 rounded-md bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="h-6 w-6 rounded-full bg-emerald-700 text-white flex items-center justify-center font-mono font-bold text-[10px] shrink-0">
+              <div className="pt-3 border-t border-slate-100">
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-between gap-2.5 hover:border-slate-300 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="h-8 w-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
                       {currentUser.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-bold text-slate-900 text-[11px] truncate leading-tight">
+                      <div className="font-semibold text-slate-900 text-xs truncate leading-snug">
                         {currentUser.name}
                       </div>
-                      <div className="text-[9px] font-mono text-slate-500 truncate leading-tight">
+                      <div className="text-[11px] text-slate-500 truncate leading-snug">
                         {currentUser.role === 'admin' ? 'Administrator' : 'Staff Operasional'}
                       </div>
                     </div>
@@ -1124,25 +1130,25 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
+                    className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
                     title="Keluar / Ganti Akun"
                   >
-                    <LogOut className="h-3.5 w-3.5" strokeWidth={1.9} />
+                    <LogOut className="h-4 w-4" strokeWidth={2} />
                   </button>
                 </div>
               </div>
             </div>
           ) : (
             /* COMPACT ICON RAIL (w-14) */
-            <div className="rounded-md border border-slate-200/90 bg-white p-2 shadow-2xs flex flex-col items-center gap-2">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-2 shadow-sm flex flex-col items-center gap-2">
               {/* Expand Toggle */}
               <button
                 type="button"
                 onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
+                className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
                 title="Perluas Sidebar (Ctrl+B)"
               >
-                <PanelLeftOpen className="h-4 w-4" strokeWidth={2} />
+                <PanelLeftOpen className="h-4.5 w-4.5" strokeWidth={2} />
               </button>
 
               <div className="w-6 h-[1px] bg-slate-100" />
@@ -1157,14 +1163,14 @@ export default function Home() {
                       key={item.id}
                       onClick={() => handleSelectTab(item.id)}
                       className={cn(
-                        "h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer",
+                        "h-9 w-9 flex items-center justify-center rounded-xl transition-all cursor-pointer",
                         isActive
-                          ? "bg-[#047857] text-white shadow-2xs font-bold"
-                          : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-950"
+                          ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                       )}
                       title={item.label}
                     >
-                      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.9} />
+                      <Icon className="h-4.5 w-4.5 shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
                     </button>
                   );
                 })}
@@ -1183,14 +1189,14 @@ export default function Home() {
                           key={item.id}
                           onClick={() => handleSelectTab(item.id)}
                           className={cn(
-                            "h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer",
+                            "h-9 w-9 flex items-center justify-center rounded-xl transition-all cursor-pointer",
                             isActive
-                              ? "bg-[#047857] text-white shadow-2xs font-bold"
-                              : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-950"
+                              ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                              : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                           )}
                           title={`${item.label} (Input RTP)`}
                         >
-                          <Icon className="h-4 w-4 shrink-0" strokeWidth={1.9} />
+                          <Icon className="h-4.5 w-4.5 shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
                         </button>
                       );
                     })}
@@ -1207,10 +1213,10 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => setIsUploadOpen(true)}
-                        className="h-8 w-8 flex items-center justify-center rounded-md text-slate-500 hover:bg-emerald-50 hover:text-emerald-950 transition-all cursor-pointer"
+                        className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer"
                         title="Upload Raw Data SAP"
                       >
-                        <Upload className="h-4 w-4" strokeWidth={1.9} />
+                        <Upload className="h-4.5 w-4.5" strokeWidth={1.8} />
                       </button>
                     )}
                     {canManageUsers && (
@@ -1218,14 +1224,14 @@ export default function Home() {
                         type="button"
                         onClick={() => handleSelectTab('users')}
                         className={cn(
-                          "h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer",
+                          "h-9 w-9 flex items-center justify-center rounded-xl transition-all cursor-pointer",
                           activeTab === 'users'
-                            ? "bg-[#047857] text-white shadow-2xs font-bold"
-                            : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-950"
+                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                         )}
                         title="Kelola Pengguna & Roles"
                       >
-                        <Users className="h-4 w-4" strokeWidth={1.9} />
+                        <Users className="h-4.5 w-4.5" strokeWidth={activeTab === 'users' ? 2.2 : 1.8} />
                       </button>
                     )}
                   </div>
@@ -1235,7 +1241,7 @@ export default function Home() {
               {/* User Avatar */}
               <div className="w-6 h-[1px] bg-slate-100 mt-auto" />
               <div
-                className="h-6 w-6 rounded-full bg-emerald-700 text-white flex items-center justify-center font-mono font-bold text-[10px] shrink-0"
+                className="h-8 w-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs"
                 title={`${currentUser.name} (${currentUser.role})`}
               >
                 {currentUser.name.charAt(0).toUpperCase()}
@@ -1291,6 +1297,34 @@ export default function Home() {
               variant="blue"
             />
           </div> */}
+
+          {/* Historical Snapshot Notice Banner */}
+          {selectedSnapshotKey !== 'latest' && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50/95 p-3.5 text-xs text-amber-950 shadow-2xs animate-in fade-in">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-md bg-amber-100 text-amber-800 shrink-0">
+                  <Clock className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-amber-900">
+                    Mode Snapshot Historis Aktif (Tanggal: {selectedSnapshotKey.replace('snap_', '')})
+                  </div>
+                  <div className="text-[11px] text-amber-800">
+                    Menampilkan data snapshot arsip per {lastUpdated}. Modifikasi data baru tidak mengubah arsip ini.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => loadSnapshotByKey('latest')}
+                disabled={isLoadingSnapshot}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-800 hover:bg-amber-900 text-white font-bold transition-all shadow-2xs cursor-pointer text-[11px] shrink-0 disabled:opacity-50"
+              >
+                <RefreshCcw className={cn("h-3 w-3", isLoadingSnapshot && "animate-spin")} />
+                <span>Kembali ke Data Terkini</span>
+              </button>
+            </div>
+          )}
 
           {/* Global Alert Notification Banner (Hidden on Mobile) */}
           {overcapacityWh && (

@@ -2,20 +2,35 @@ import * as XLSX from 'xlsx';
 import { DamagedPackagingItem } from '../types/warehouse';
 
 /**
- * Format Excel serial date number (e.g. 46270 -> "05/09/2026")
+ * Format Excel serial date number or JS Date string (e.g. 46270 or "Fri Sep 11 2026..." -> "05/09/2026")
  */
 export function formatExcelDate(val: any): string {
   if (!val && val !== 0) return '';
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '';
+    if (val.getFullYear() < 1920) return '';
+    const day = String(val.getDate()).padStart(2, '0');
+    const month = String(val.getMonth() + 1).padStart(2, '0');
+    const year = val.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
   const str = String(val).trim();
+  if (!str || str === '-' || str === '0') return '';
+
   if (str.match(/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/)) {
-    return str.replace(/[\-.]/g, '/');
+    const parts = str.split(/[\/\-.]/);
+    const day = parts[0].padStart(2, '0');
+    const month = parts[1].padStart(2, '0');
+    const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+    return `${day}/${month}/${year}`;
   }
   if (str.match(/^\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}$/)) {
     const parts = str.split(/[\/\-.]/);
     return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
   }
   const num = parseFloat(str);
-  if (!isNaN(num) && num >= 20000 && num <= 70000) {
+  if (!isNaN(num) && num >= 20000 && num <= 80000 && !str.includes(':')) {
     const intPart = Math.floor(num);
     const date = new Date(Math.round((intPart - 25569) * 86400 * 1000));
     const day = String(date.getUTCDate()).padStart(2, '0');
@@ -23,15 +38,36 @@ export function formatExcelDate(val: any): string {
     const year = date.getUTCFullYear();
     return `${day}/${month}/${year}`;
   }
+
+  // Try parse JS Date string or ISO string
+  const parsedDate = new Date(str);
+  if (!isNaN(parsedDate.getTime())) {
+    if (parsedDate.getFullYear() < 1920) return '';
+    const day = String(parsedDate.getDate()).padStart(2, '0');
+    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+    const year = parsedDate.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
   return str;
 }
 
 /**
- * Format Excel serial time (e.g. 0.07596064814815 -> "01:49:23")
+ * Format Excel serial time or JS Date string (e.g. 0.07596064814815 or "Sat Dec 30 1899 00:31:29..." -> "01:49:23")
  */
 export function formatExcelTime(val: any): string {
-  if (!val && val !== 0) return '';
+  if (!val && val !== 0) return '-';
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '-';
+    const h = String(val.getHours()).padStart(2, '0');
+    const m = String(val.getMinutes()).padStart(2, '0');
+    const s = String(val.getSeconds()).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }
+
   const str = String(val).trim();
+  if (!str || str === '0' || str === '-') return '-';
+
   if (str.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
     const parts = str.split(':');
     const h = parts[0].padStart(2, '0');
@@ -39,7 +75,17 @@ export function formatExcelTime(val: any): string {
     const s = (parts[2] || '00').padStart(2, '0');
     return `${h}:${m}:${s}`;
   }
-  const num = parseFloat(str);
+
+  // Match time pattern inside string like "Sat Dec 30 1899 00:31:29 GMT+0707"
+  const timeMatch = str.match(/\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b/);
+  if (timeMatch) {
+    const h = timeMatch[1].padStart(2, '0');
+    const m = timeMatch[2].padStart(2, '0');
+    const s = (timeMatch[3] || '00').padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }
+
+  const num = parseFloat(str.replace(',', '.'));
   if (!isNaN(num)) {
     // If it's a fractional number (0 <= x < 1) or full serial (e.g. 46270.798)
     const frac = num >= 1 ? num - Math.floor(num) : num;
@@ -51,6 +97,16 @@ export function formatExcelTime(val: any): string {
       return `${hours}:${minutes}:${seconds}`;
     }
   }
+
+  // Try parse JS Date string
+  const parsedDate = new Date(str);
+  if (!isNaN(parsedDate.getTime())) {
+    const h = String(parsedDate.getHours()).padStart(2, '0');
+    const m = String(parsedDate.getMinutes()).padStart(2, '0');
+    const s = String(parsedDate.getSeconds()).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }
+
   return str;
 }
 

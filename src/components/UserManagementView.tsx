@@ -485,35 +485,21 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
         </div>
       )}
 
-      {/* SECTION HEADER BANNER & ACTION TOOLBAR */}
-      <div className="rounded-lg border border-emerald-200/90 bg-gradient-to-r from-emerald-50/70 via-emerald-50/20 to-white p-4 sm:p-5 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-800 text-white shadow-xs font-bold ring-2 ring-emerald-700/20 shrink-0">
-              {activeSubTab === 'users' ? (
-                <Users className="h-5 w-5 text-emerald-100" strokeWidth={2.2} />
-              ) : (
-                <ShieldCheck className="h-5 w-5 text-emerald-100" strokeWidth={2.2} />
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                  {activeSubTab === 'users'
-                    ? 'MANAJEMEN PENGGUNA (USER ACCOUNTS)'
-                    : 'PENGATURAN PERAN & ATURAN HAK AKSES (ROLES & PERMISSIONS)'}
-                </h1>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100/90 text-emerald-900 border border-emerald-300/80">
-                  {activeSubTab === 'users' ? `${users.length} Akun Terdaftar` : `${roles.length} Role Aktif`}
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 font-sans mt-0.5">
-                {activeSubTab === 'users'
-                  ? 'Kelola akun pengguna, penambahan user baru, pemilihan peran hak akses, dan pengaturan password'
-                  : 'Buat peran baru, atur aturan izin modul visual, dan tentukan kewenangan aksi operasional'}
-              </p>
-            </div>
+      {/* Top Banner & Header */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            {activeSubTab === 'users' ? (
+              <Users className="h-4.5 w-4.5" strokeWidth={2.4} />
+            ) : (
+              <ShieldCheck className="h-4.5 w-4.5" strokeWidth={2.4} />
+            )}
           </div>
+          <h1 className="text-base font-bold text-white font-sans tracking-tight">
+            {activeSubTab === 'users'
+              ? 'Manajemen Pengguna (User Accounts)'
+              : 'Pengaturan Peran & Hak Akses (Roles & Permissions)'}
+          </h1>
         </div>
 
         {/* Action Buttons */}
@@ -524,10 +510,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
               fetchUsers();
               fetchRoles();
             }}
-            className="px-3 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-950 text-slate-700 font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
+            className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
             title="Segarkan Data"
           >
-            <RotateCcw className="h-3.5 w-3.5 text-slate-500" />
+            <RotateCcw className="h-3.5 w-3.5 text-emerald-300" />
             <span>Segarkan</span>
           </button>
 
@@ -535,18 +521,18 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
             <button
               type="button"
               onClick={handleOpenCreateUser}
-              className="px-3.5 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 ring-1 ring-emerald-700/50"
+              className="px-3 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-emerald-950 font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 text-xs"
             >
-              <UserPlus className="h-4 w-4 text-emerald-200" strokeWidth={2.5} />
+              <UserPlus className="h-4 w-4 text-emerald-800" strokeWidth={2.5} />
               <span>Tambah User Baru</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={handleOpenCreateRole}
-              className="px-3.5 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 ring-1 ring-emerald-700/50"
+              className="px-3 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-emerald-950 font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 text-xs"
             >
-              <ShieldCheck className="h-4 w-4 text-emerald-200" strokeWidth={2.5} />
+              <ShieldCheck className="h-4 w-4 text-emerald-800" strokeWidth={2.5} />
               <span>Buat Role Baru</span>
             </button>
           )}

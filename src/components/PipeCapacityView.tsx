@@ -8,7 +8,7 @@ import {
 import { Chart } from 'react-chartjs-2';
 import { WarehousePipeCapacity } from '../types/warehouse';
 import { formatTon, formatPercent, formatQty } from '@/lib/utils';
-import { BarChart3, TrendingUp, Table2, Users, PieChart, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { BarChart3, TrendingUp, Table2, Users, PieChart, ArrowUpDown, ArrowUp, ArrowDown, Warehouse } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
 ChartJS.register(...registerables);
@@ -142,41 +142,50 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
         type: 'line' as const,
         label: '% Terisi',
         data: data.map((d) => d.persenTerisi),
-        borderColor: '#d97706',
-        backgroundColor: '#ffffff',
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245, 158, 11, 0.04)',
         borderWidth: 2.5,
+        tension: 0.35,
         pointBackgroundColor: '#ffffff',
-        pointBorderColor: '#d97706',
-        pointBorderWidth: 2,
+        pointBorderColor: '#f59e0b',
+        pointBorderWidth: 2.5,
         pointRadius: 4,
-        pointHoverRadius: 6,
+        pointHoverRadius: 6.5,
+        pointHoverBackgroundColor: '#f59e0b',
+        pointHoverBorderColor: '#ffffff',
+        pointHoverBorderWidth: 2,
         yAxisID: 'y1',
+        order: 1,
       },
       {
         type: 'bar' as const,
         label: 'Kapasitas (Ton)',
         data: data.map((d) => d.kapasitas),
-        backgroundColor: '#cbd5e1',
-        hoverBackgroundColor: '#94a3b8',
-        borderRadius: 2,
+        backgroundColor: '#e2e8f0',
+        hoverBackgroundColor: '#cbd5e1',
+        borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 },
+        borderSkipped: false,
         yAxisID: 'y',
+        order: 3,
       },
       {
         type: 'bar' as const,
         label: 'Stock Aktual (Ton)',
         data: data.map((d) => d.stock),
         backgroundColor: data.map((d) => {
+          if (d.persenTerisi > 90) return '#ef4444';
+          if (d.persenTerisi > 80) return '#f59e0b';
+          return '#059669';
+        }),
+        hoverBackgroundColor: data.map((d) => {
           if (d.persenTerisi > 90) return '#dc2626';
           if (d.persenTerisi > 80) return '#d97706';
           return '#047857';
         }),
-        hoverBackgroundColor: data.map((d) => {
-          if (d.persenTerisi > 90) return '#b91c1c';
-          if (d.persenTerisi > 80) return '#b45309';
-          return '#065f46';
-        }),
-        borderRadius: 2,
+        borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 },
+        borderSkipped: false,
         yAxisID: 'y',
+        order: 2,
       },
     ],
   };
@@ -184,22 +193,32 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
   const comboChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+      mode: 'index' as const,
+      intersect: false,
+    },
     plugins: {
       legend: {
         position: 'bottom' as const,
         labels: {
-          font: { family: 'monospace', size: 11, weight: 'bold' as const },
-          color: '#334155',
-          boxWidth: 12,
-          boxHeight: 12,
+          font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 12, weight: 600 as const },
+          color: '#475569',
+          usePointStyle: true,
+          pointStyle: 'circle' as const,
+          boxWidth: 8,
+          boxHeight: 8,
+          padding: 16,
         },
       },
       tooltip: {
-        backgroundColor: '#0f172a',
-        titleFont: { family: 'monospace', size: 11, weight: 'bold' as const },
-        bodyFont: { family: 'monospace', size: 11 },
-        padding: 10,
-        cornerRadius: 8,
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        titleFont: { family: 'ui-sans-serif, system-ui, sans-serif', size: 12, weight: 700 as const },
+        bodyFont: { family: 'ui-sans-serif, system-ui, sans-serif', size: 11, weight: 500 as const },
+        padding: 12,
+        cornerRadius: 10,
+        boxPadding: 4,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
         callbacks: {
           label: function (context: any) {
             const val = context.raw || 0;
@@ -214,7 +233,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
     scales: {
       x: {
         grid: { display: false },
-        ticks: { font: { family: 'monospace', size: 10, weight: 'bold' as const }, color: '#334155' },
+        ticks: { font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 11, weight: 600 as const }, color: '#475569' },
       },
       y: {
         type: 'linear' as const,
@@ -222,7 +241,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
         position: 'left' as const,
         max: 1000,
         grid: { color: '#f1f5f9' },
-        ticks: { font: { family: 'monospace', size: 9 }, color: '#94a3b8', stepSize: 250 },
+        ticks: { font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 10, weight: 500 as const }, color: '#94a3b8', stepSize: 250 },
       },
       y1: {
         type: 'linear' as const,
@@ -231,7 +250,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
         max: 150,
         grid: { drawOnChartArea: false },
         ticks: {
-          font: { family: 'monospace', size: 9, weight: 'bold' as const },
+          font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 10, weight: 600 as const },
           color: '#d97706',
           stepSize: 50,
           callback: (value: any) => `${value}%`,
@@ -242,12 +261,15 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* SECTION BANNER TOP */}
-      <div className="rounded-md border border-black/20 theme-banner text-white p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-bold tracking-tight uppercase">
+      {/* Top Banner & Header */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            <Warehouse className="h-4.5 w-4.5" strokeWidth={2.4} />
+          </div>
+          <h1 className="text-base font-bold text-white font-sans tracking-tight">
             Stock Warehouse vs Kapasitas (Pipa)
-          </h2>
+          </h1>
         </div>
       </div>
 
@@ -269,7 +291,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
               >
-                <div className="h-64 w-full">
+                <div className="h-68 w-full pt-1">
                   <Chart type="bar" data={comboChartData} options={comboChartOptions} />
                 </div>
               </CustomizableCard>
@@ -292,45 +314,45 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
               >
                 <div className="space-y-4 flex flex-col justify-between h-full">
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {top5Highest.map((item, idx) => {
                       const pct = item.persenTerisi;
                       const badgeBg =
                         pct > 90
-                          ? 'bg-red-500 text-white'
+                          ? 'bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-xs'
                           : pct > 80
-                          ? 'bg-amber-500 text-slate-950'
-                          : 'bg-slate-100 text-slate-700';
+                          ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 border border-slate-200/80';
                       const textCls =
                         pct > 90
-                          ? 'text-red-700'
+                          ? 'text-red-600 font-bold'
                           : pct > 80
-                          ? 'text-amber-800'
-                          : 'text-emerald-800';
-                      const barCls =
+                          ? 'text-amber-600 font-bold'
+                          : 'text-emerald-700 font-bold';
+                      const barGradient =
                         pct > 90
-                          ? 'bg-red-600'
+                          ? 'from-red-500 to-rose-600'
                           : pct > 80
-                          ? 'bg-amber-500'
-                          : 'bg-emerald-600';
+                          ? 'from-amber-400 to-amber-500'
+                          : 'from-emerald-500 to-teal-600';
 
                       return (
-                        <div key={item.gudang} className="space-y-0.5">
-                          <div className="flex items-center justify-between text-xs font-mono">
+                        <div key={item.gudang} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
                             <div className="flex items-center gap-2">
-                              <span className={`flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold ${badgeBg}`}>
+                              <span className={`flex h-4.5 w-4.5 items-center justify-center rounded-md text-[10px] font-bold ${badgeBg}`}>
                                 {idx + 1}
                               </span>
-                              <span className="font-bold text-slate-800">{item.gudang}</span>
+                              <span className="font-semibold text-slate-800">{item.gudang}</span>
                             </div>
-                            <span className={`font-bold ${textCls}`}>
+                            <span className={`font-mono text-xs ${textCls}`}>
                               {formatPercent(item.persenTerisi)}
                             </span>
                           </div>
 
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 relative">
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100/90 relative">
                             <div
-                              className={`h-full rounded-full transition-all duration-700 ${barCls}`}
+                              className={`h-full rounded-full transition-all duration-700 bg-gradient-to-r ${barGradient}`}
                               style={{ width: `${Math.min(item.persenTerisi, 100)}%` }}
                             />
                           </div>
@@ -341,34 +363,34 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
 
                   {highestWarehouse && (() => {
                     const pct = highestWarehouse.persenTerisi;
-                    const boxBorder =
+                    const boxStyles =
                       pct > 100
-                        ? 'border-red-400 bg-red-50/80'
+                        ? 'border-red-300/80 bg-gradient-to-br from-red-50/90 via-red-50/40 to-white'
                         : pct > 90
-                        ? 'border-red-300 bg-red-50/70'
+                        ? 'border-rose-200/90 bg-gradient-to-br from-rose-50/90 via-rose-50/40 to-white'
                         : pct > 80
-                        ? 'border-amber-300 bg-amber-50/70'
-                        : 'border-emerald-300 bg-emerald-50/70';
+                        ? 'border-amber-200/90 bg-gradient-to-br from-amber-50/90 via-amber-50/40 to-white'
+                        : 'border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 via-emerald-50/40 to-white';
                     const headerText =
                       pct > 90
-                        ? 'text-red-950'
+                        ? 'text-rose-950'
                         : pct > 80
                         ? 'text-amber-950'
                         : 'text-emerald-950';
                     const subText =
                       pct > 90
-                        ? 'text-red-800'
+                        ? 'text-rose-700'
                         : pct > 80
-                        ? 'text-amber-800'
-                        : 'text-emerald-800';
+                        ? 'text-amber-700'
+                        : 'text-emerald-700';
                     const tagBg =
                       pct > 100
-                        ? 'bg-red-600 text-white'
+                        ? 'bg-rose-600 text-white shadow-xs'
                         : pct > 90
-                        ? 'bg-red-600 text-white'
+                        ? 'bg-rose-600 text-white shadow-xs'
                         : pct > 80
-                        ? 'bg-amber-400 text-slate-950'
-                        : 'bg-emerald-600 text-white';
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : 'bg-emerald-600 text-white shadow-xs';
                     const tagLabel =
                       pct > 100
                         ? 'OVERCAPACITY'
@@ -379,53 +401,54 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                         : 'NORMAL';
 
                     return (
-                      <div className={`rounded-lg border ${boxBorder} p-2.5 font-mono`}>
-                        <div className={`flex items-center justify-between ${headerText}`}>
-                          <span className="text-[10px] font-bold uppercase">Terisi Tertinggi</span>
-                          <span className={`rounded ${tagBg} px-1.5 py-0.2 text-[9px] font-bold`}>
+                      <div className={`rounded-xl border ${boxStyles} p-3 shadow-xs relative overflow-hidden`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Terisi Tertinggi</span>
+                          <span className={`rounded-full ${tagBg} px-2 py-0.5 text-[9px] font-bold tracking-wide flex items-center gap-1`}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
                             {tagLabel}
                           </span>
                         </div>
-                        <p className={`mt-0.5 text-sm font-bold ${headerText}`}>
+                        <p className={`mt-1 text-sm font-bold tracking-tight ${headerText}`}>
                           {highestWarehouse.gudang} ({formatPercent(highestWarehouse.persenTerisi)})
                         </p>
-                        <p className={`text-[10px] ${subText} font-medium`}>
+                        <p className={`text-[11px] ${subText} font-medium mt-0.5`}>
                           Stock {formatTon(highestWarehouse.stock, { showUnit: true })} / Kapasitas {formatTon(highestWarehouse.kapasitas, { showUnit: true })}
                         </p>
                       </div>
                     );
                   })()}
 
-                  <div className="grid grid-cols-3 gap-2 font-mono">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-2 text-center">
-                      <span className="text-[9px] font-bold uppercase text-slate-500 block">Kapasitas</span>
-                      <p className="text-xs font-bold text-slate-900 mt-0.5">{formatTon(totalKapasitas)}</p>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <div className="rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-slate-100/40 p-2.5 text-center shadow-2xs hover:border-slate-300 transition-colors">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block">Kapasitas</span>
+                      <p className="text-xs font-bold text-slate-900 mt-1 font-mono">{formatTon(totalKapasitas)}</p>
                     </div>
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-2 text-center">
-                      <span className="text-[9px] font-bold uppercase text-emerald-800 block">Stock</span>
-                      <p className="text-xs font-bold text-emerald-950 mt-0.5">{formatTon(totalStock)}</p>
+                    <div className="rounded-xl border border-emerald-200/80 bg-gradient-to-b from-emerald-50/80 to-emerald-100/30 p-2.5 text-center shadow-2xs hover:border-emerald-300 transition-colors">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 block">Stock</span>
+                      <p className="text-xs font-bold text-emerald-950 mt-1 font-mono">{formatTon(totalStock)}</p>
                     </div>
-                    <div className={`rounded-lg border ${
+                    <div className={`rounded-xl border ${
                       avgPersen > 90
-                        ? 'border-red-200 bg-red-50/60'
+                        ? 'border-red-200/80 bg-gradient-to-b from-red-50/80 to-red-100/30 hover:border-red-300'
                         : avgPersen > 80
-                        ? 'border-amber-200 bg-amber-50/60'
-                        : 'border-emerald-200 bg-emerald-50/60'
-                    } p-2 text-center`}>
-                      <span className={`text-[9px] font-bold uppercase ${
+                        ? 'border-amber-200/80 bg-gradient-to-b from-amber-50/80 to-amber-100/30 hover:border-amber-300'
+                        : 'border-emerald-200/80 bg-gradient-to-b from-emerald-50/80 to-emerald-100/30 hover:border-emerald-300'
+                    } p-2.5 text-center shadow-2xs transition-colors`}>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider ${
                         avgPersen > 90
                           ? 'text-red-800'
                           : avgPersen > 80
                           ? 'text-amber-800'
                           : 'text-emerald-800'
                       } block`}>% Terisi</span>
-                      <p className={`text-xs font-bold ${
+                      <p className={`text-xs font-bold font-mono ${
                         avgPersen > 90
                           ? 'text-red-950'
                           : avgPersen > 80
                           ? 'text-amber-950'
                           : 'text-emerald-950'
-                      } mt-0.5`}>{formatPercent(avgPersen)}</p>
+                      } mt-1`}>{formatPercent(avgPersen)}</p>
                     </div>
                   </div>
                 </div>
@@ -448,35 +471,35 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <span className="text-[10px] font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-300 font-semibold">
+                  <span className="text-[10px] font-mono bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full border border-slate-200/80 font-semibold shadow-2xs">
                     {data.length} Gudang Terdata
                   </span>
                 }
               >
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs font-mono">
+                <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-2xs">
+                  <table className="w-full text-left text-xs font-mono border-collapse">
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-100 text-slate-700 text-[10px] uppercase">
-                        <th className="py-2.5 px-3 font-bold">Gudang</th>
+                      <tr className="border-b border-slate-200 bg-gradient-to-r from-slate-100/90 via-slate-50 to-slate-100/90 text-slate-700 text-[10px] uppercase tracking-wider">
+                        <th className="py-2.5 px-3.5 font-bold">Gudang</th>
                         <th className="py-2.5 px-2.5 text-right font-bold">Kapasitas (T)</th>
                         <th className="py-2.5 px-2.5 text-right font-bold text-amber-900">Stock (T)</th>
                         <th className="py-2.5 px-2.5 text-right font-bold">% Terisi</th>
                         <th className="py-2.5 px-2.5 text-right font-bold">Sisa Ruang</th>
-                        <th className="py-2.5 px-2 text-right font-bold border-l border-slate-200 text-slate-600">WIP LT</th>
-                        <th className="py-2.5 px-2 text-right font-bold text-emerald-900">FG LT</th>
-                        <th className="py-2.5 px-2 text-right font-bold text-slate-600">WIP ST</th>
-                        <th className="py-2.5 px-2 text-right font-bold text-emerald-900">FG ST</th>
+                        <th className="py-2.5 px-2.5 text-right font-bold border-l border-slate-200 text-slate-600">WIP LT</th>
+                        <th className="py-2.5 px-2.5 text-right font-bold text-emerald-900">FG LT</th>
+                        <th className="py-2.5 px-2.5 text-right font-bold text-slate-600">WIP ST</th>
+                        <th className="py-2.5 px-2.5 text-right font-bold text-emerald-900">FG ST</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-800">
+                    <tbody className="divide-y divide-slate-100 text-slate-800 bg-white">
                       {data.map((item) => {
                         const pct = item.persenTerisi;
                         const stockColor =
                           pct > 90
-                            ? 'text-red-700'
+                            ? 'text-red-700 font-bold'
                             : pct > 80
-                            ? 'text-amber-800'
-                            : 'text-emerald-800';
+                            ? 'text-amber-700 font-bold'
+                            : 'text-emerald-800 font-semibold';
                         const pctColor =
                           pct > 90
                             ? 'text-red-700 font-bold'
@@ -485,37 +508,37 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                             : 'text-slate-800 font-semibold';
 
                         return (
-                          <tr key={item.gudang} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-2 px-3 font-bold text-slate-900">{item.gudang}</td>
-                            <td className="py-2 px-2.5 text-right text-slate-600">{formatTon(item.kapasitas)}</td>
-                            <td className={`py-2 px-2.5 text-right font-semibold ${stockColor}`}>
+                          <tr key={item.gudang} className="hover:bg-slate-50/90 transition-colors">
+                            <td className="py-2.5 px-3.5 font-bold text-slate-900">{item.gudang}</td>
+                            <td className="py-2.5 px-2.5 text-right text-slate-600">{formatTon(item.kapasitas)}</td>
+                            <td className={`py-2.5 px-2.5 text-right ${stockColor}`}>
                               {formatTon(item.stock)}
                             </td>
-                            <td className={`py-2 px-2.5 text-right ${pctColor}`}>
+                            <td className={`py-2.5 px-2.5 text-right ${pctColor}`}>
                               {formatPercent(item.persenTerisi)}
                             </td>
-                            <td className={`py-2 px-2.5 text-right font-medium ${item.selisih < 0 ? 'text-red-700 font-bold' : 'text-slate-600'}`}>
+                            <td className={`py-2.5 px-2.5 text-right font-medium ${item.selisih < 0 ? 'text-red-700 font-bold' : 'text-slate-600'}`}>
                               {formatTon(item.selisih)}
                             </td>
-                            <td className="py-2 px-2 text-right text-slate-600 border-l border-slate-100">{item.wipLt ? formatTon(item.wipLt) : '-'}</td>
-                            <td className="py-2 px-2 text-right font-semibold text-emerald-900">{item.fgLt ? formatTon(item.fgLt) : '-'}</td>
-                            <td className="py-2 px-2 text-right text-slate-600">{item.wipSt ? formatTon(item.wipSt) : '-'}</td>
-                            <td className="py-2 px-2 text-right font-semibold text-emerald-900">{item.fgSt ? formatTon(item.fgSt) : '-'}</td>
+                            <td className="py-2.5 px-2.5 text-right text-slate-600 border-l border-slate-100">{item.wipLt ? formatTon(item.wipLt) : '-'}</td>
+                            <td className="py-2.5 px-2.5 text-right font-semibold text-emerald-900">{item.fgLt ? formatTon(item.fgLt) : '-'}</td>
+                            <td className="py-2.5 px-2.5 text-right text-slate-600">{item.wipSt ? formatTon(item.wipSt) : '-'}</td>
+                            <td className="py-2.5 px-2.5 text-right font-semibold text-emerald-900">{item.fgSt ? formatTon(item.fgSt) : '-'}</td>
                           </tr>
                         );
                       })}
                     </tbody>
-                    <tfoot className="border-t-2 border-slate-300 bg-slate-100 font-bold text-slate-900">
+                    <tfoot className="border-t-2 border-slate-200 bg-slate-100/90 font-bold text-slate-900">
                       <tr>
-                        <td className="py-2.5 px-3 uppercase text-slate-900">TOTAL</td>
+                        <td className="py-2.5 px-3.5 uppercase text-slate-900">TOTAL</td>
                         <td className="py-2.5 px-2.5 text-right">{formatTon(totalKapasitas)}</td>
                         <td className="py-2.5 px-2.5 text-right text-emerald-950">{formatTon(totalStock)}</td>
                         <td className="py-2.5 px-2.5 text-right text-emerald-900">{formatPercent(avgPersen)}</td>
                         <td className="py-2.5 px-2.5 text-right">{formatTon(totalKapasitas - totalStock)}</td>
-                        <td className="py-2.5 px-2 text-right border-l border-slate-200">{formatTon(totalWipLt)}</td>
-                        <td className="py-2.5 px-2 text-right text-emerald-900">{formatTon(totalFgLt)}</td>
-                        <td className="py-2.5 px-2 text-right">{formatTon(totalWipSt)}</td>
-                        <td className="py-2.5 px-2 text-right text-emerald-900">{formatTon(totalFgSt)}</td>
+                        <td className="py-2.5 px-2.5 text-right border-l border-slate-200">{formatTon(totalWipLt)}</td>
+                        <td className="py-2.5 px-2.5 text-right text-emerald-900">{formatTon(totalFgLt)}</td>
+                        <td className="py-2.5 px-2.5 text-right">{formatTon(totalWipSt)}</td>
+                        <td className="py-2.5 px-2.5 text-right text-emerald-900">{formatTon(totalFgSt)}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -540,11 +563,11 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 headerAction={
                   <div className="flex items-center gap-1.5 font-mono text-xs">
-                    <span className="text-slate-500 font-bold text-[10px]">Gudang:</span>
+                    <span className="text-slate-500 font-bold text-[10px] uppercase">Gudang:</span>
                     <select
                       value={activeGudangFilter}
                       onChange={(e) => setActiveGudangFilter(e.target.value)}
-                      className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-600 focus:outline-hidden cursor-pointer"
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-600 focus:outline-hidden cursor-pointer"
                     >
                       {allAvailableGudangs.map((g) => (
                         <option key={g} value={g}>
@@ -556,13 +579,13 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                 }
               >
                 <div className="flex flex-col justify-between h-full">
-                  <div className="flex-1 max-h-[70vh] overflow-y-auto rounded border border-slate-200/80">
+                  <div className="flex-1 max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200/80 shadow-2xs">
                     <table className="w-full text-left text-xs font-mono border-collapse">
-                      <thead className="sticky top-0 bg-slate-100 text-slate-700 text-[10px] shadow-xs z-10 select-none">
+                      <thead className="sticky top-0 bg-gradient-to-r from-slate-100/95 via-slate-50/95 to-slate-100/95 backdrop-blur-xs text-slate-700 text-[10px] shadow-2xs z-10 select-none">
                         <tr>
                           <th
                             onClick={() => handleCustSort('customer')}
-                            className="py-2 px-3 font-bold bg-slate-100 border-b border-slate-200 cursor-pointer hover:bg-slate-200/80 transition-colors"
+                            className="py-2.5 px-3.5 font-bold border-b border-slate-200 cursor-pointer hover:bg-slate-200/60 transition-colors"
                           >
                             <div className="flex items-center gap-1.5">
                               <span>Nama Customer</span>
@@ -575,7 +598,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                           </th>
                           <th
                             onClick={() => handleCustSort('qty')}
-                            className="py-2 px-3 text-right font-bold bg-slate-100 border-b border-slate-200 cursor-pointer hover:bg-slate-200/80 transition-colors"
+                            className="py-2.5 px-3 text-right font-bold border-b border-slate-200 cursor-pointer hover:bg-slate-200/60 transition-colors"
                           >
                             <div className="flex items-center justify-end gap-1.5">
                               <span>Qty (Pcs)</span>
@@ -588,7 +611,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                           </th>
                           <th
                             onClick={() => handleCustSort('tonase')}
-                            className="py-2 px-3 text-right font-bold text-emerald-900 bg-slate-100 border-b border-slate-200 cursor-pointer hover:bg-slate-200/80 transition-colors"
+                            className="py-2.5 px-3.5 text-right font-bold text-emerald-900 border-b border-slate-200 cursor-pointer hover:bg-slate-200/60 transition-colors"
                           >
                             <div className="flex items-center justify-end gap-1.5">
                               <span>Tonase (Ton)</span>
@@ -604,18 +627,18 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                       <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                         {currentCustomerData.length === 0 ? (
                           <tr>
-                            <td colSpan={3} className="py-6 text-center text-slate-400">
+                            <td colSpan={3} className="py-8 text-center text-slate-400">
                               Tidak ada data customer untuk gudang ini.
                             </td>
                           </tr>
                         ) : (
                           currentCustomerData.map((c, i) => (
-                            <tr key={i} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="py-2 px-3 font-medium text-slate-900 leading-normal" title={c.customer}>
+                            <tr key={i} className="hover:bg-slate-50/90 transition-colors">
+                              <td className="py-2.5 px-3.5 font-medium text-slate-900 leading-normal" title={c.customer}>
                                 {c.customer}
                               </td>
-                              <td className="py-2 px-3 text-right leading-normal">{formatQty(c.qty)}</td>
-                              <td className="py-2 px-3 text-right font-bold text-emerald-900 leading-normal">{formatTon(c.tonase)}</td>
+                              <td className="py-2.5 px-3 text-right leading-normal">{formatQty(c.qty)}</td>
+                              <td className="py-2.5 px-3.5 text-right font-bold text-emerald-900 leading-normal">{formatTon(c.tonase)}</td>
                             </tr>
                           ))
                         )}
@@ -624,7 +647,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                   </div>
 
                   {currentCustomerData.length > 0 && (
-                    <div className="p-2 border-t border-slate-200 bg-slate-50 flex items-center justify-between font-mono text-xs font-bold text-slate-900 mt-2 rounded">
+                    <div className="p-3 border border-slate-200/80 bg-slate-50 flex items-center justify-between font-mono text-xs font-bold text-slate-900 mt-3 rounded-xl shadow-2xs">
                       <span>TOTAL ({activeGudangFilter})</span>
                       <div className="space-x-4">
                         <span>{formatQty(customerTotalQty)} Pcs</span>
@@ -652,35 +675,35 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
               >
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs font-mono">
-                    <thead className="bg-slate-50 text-slate-700 text-[10px] border-b border-slate-200">
+                <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-2xs">
+                  <table className="w-full text-left text-xs font-mono border-collapse">
+                    <thead className="bg-gradient-to-r from-slate-100/90 via-slate-50 to-slate-100/90 text-slate-700 text-[10px] border-b border-slate-200 uppercase tracking-wider">
                       <tr>
-                        <th className="py-2 px-3 font-bold">Gudang</th>
-                        <th className="py-2 px-2 text-right font-bold text-slate-800">Cust Stock (T)</th>
-                        <th className="py-2 px-2 text-right font-bold text-emerald-800">Free Stock (T)</th>
-                        <th className="py-2 px-2 text-right font-bold text-slate-900">Total Stock (T)</th>
-                        <th className="py-2 px-3 text-right font-bold text-emerald-800">% Free</th>
+                        <th className="py-2.5 px-3.5 font-bold">Gudang</th>
+                        <th className="py-2.5 px-2.5 text-right font-bold text-slate-800">Cust Stock (T)</th>
+                        <th className="py-2.5 px-2.5 text-right font-bold text-emerald-800">Free Stock (T)</th>
+                        <th className="py-2.5 px-2.5 text-right font-bold text-slate-900">Total Stock (T)</th>
+                        <th className="py-2.5 px-3.5 text-right font-bold text-emerald-800">% Free</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                    <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                       {data.map((r) => (
-                        <tr key={`free-${r.gudang}`} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-2 px-3 font-bold text-slate-900">{r.gudang}</td>
-                          <td className="py-2 px-2 text-right">{formatTon(r.customerStock)}</td>
-                          <td className="py-2 px-2 text-right font-semibold text-emerald-800">{formatTon(r.freeStock)}</td>
-                          <td className="py-2 px-2 text-right font-bold text-slate-900">{formatTon(r.stock)}</td>
-                          <td className="py-2 px-3 text-right font-bold text-emerald-900">{formatPercent(r.persenFreeStock)}</td>
+                        <tr key={`free-${r.gudang}`} className="hover:bg-slate-50/90 transition-colors">
+                          <td className="py-2.5 px-3.5 font-bold text-slate-900">{r.gudang}</td>
+                          <td className="py-2.5 px-2.5 text-right">{formatTon(r.customerStock)}</td>
+                          <td className="py-2.5 px-2.5 text-right font-semibold text-emerald-800">{formatTon(r.freeStock)}</td>
+                          <td className="py-2.5 px-2.5 text-right font-bold text-slate-900">{formatTon(r.stock)}</td>
+                          <td className="py-2.5 px-3.5 text-right font-bold text-emerald-900">{formatPercent(r.persenFreeStock)}</td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="border-t-2 border-slate-300 bg-slate-100 font-bold text-slate-900">
+                    <tfoot className="border-t-2 border-slate-200 bg-slate-100/90 font-bold text-slate-900">
                       <tr>
-                        <td className="py-2 px-3">TOTAL</td>
-                        <td className="py-2 px-2 text-right">{formatTon(totalCustStock)}</td>
-                        <td className="py-2 px-2 text-right text-emerald-950">{formatTon(totalFreeStock)}</td>
-                        <td className="py-2 px-2 text-right">{formatTon(totalStock)}</td>
-                        <td className="py-2 px-3 text-right text-emerald-900">
+                        <td className="py-2.5 px-3.5">TOTAL</td>
+                        <td className="py-2.5 px-2.5 text-right">{formatTon(totalCustStock)}</td>
+                        <td className="py-2.5 px-2.5 text-right text-emerald-950">{formatTon(totalFreeStock)}</td>
+                        <td className="py-2.5 px-2.5 text-right">{formatTon(totalStock)}</td>
+                        <td className="py-2.5 px-3.5 text-right text-emerald-900">
                           {totalStock > 0 ? formatPercent((totalFreeStock / totalStock) * 100) : '0,0%'}
                         </td>
                       </tr>

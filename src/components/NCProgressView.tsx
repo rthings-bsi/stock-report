@@ -43,7 +43,6 @@ import {
   Sparkles,
   GitFork,
   Layers,
-  ChevronRight,
   ChevronDown,
   Info,
   X,
@@ -171,11 +170,12 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
         let problemRemark = t.problemRemark;
         if (ncrNumber) {
           ncrNumber = normalizeNCRNumber(ncrNumber);
-        } else if (t.text && t.text.includes('NCR')) {
+        }
+        if (t.text) {
           const extracted = extractNCRAndRemark(t.text);
           if (extracted.ncrNumber) {
             ncrNumber = extracted.ncrNumber;
-            problemRemark = extracted.problemRemark || problemRemark;
+            problemRemark = extracted.problemRemark !== undefined ? extracted.problemRemark : problemRemark;
           }
         }
         if (ncrNumber !== t.ncrNumber || problemRemark !== t.problemRemark) {
@@ -296,9 +296,9 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
       const nonNullRemark =
         txList
-          .map((t) => t.problemRemark || t.text)
+          .map((t) => t.problemRemark)
           .filter((r): r is string => Boolean(r && r.trim()))
-          .sort((a, b) => b.length - a.length)[0] || first.problemRemark || first.text || '-';
+          .sort((a, b) => b.length - a.length)[0] || first.problemRemark || '-';
 
       const nonNullNcr = txList.map((t) => t.ncrNumber).filter((n): n is string => Boolean(n && n.trim()))[0] || first.ncrNumber;
       const nonNullOrder = txList.map((t) => t.order).filter((o): o is string => Boolean(o && o.trim() && o !== '0'))[0] || first.order;
@@ -358,6 +358,9 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       } else if (sortField === 'ncrNumber') {
         valA = a.ncrNumber || '';
         valB = b.ncrNumber || '';
+      } else if (sortField === 'order') {
+        valA = a.order || '';
+        valB = b.order || '';
       } else if (sortField === 'material') {
         valA = a.ukuran || a.material;
         valB = b.ukuran || b.material;
@@ -474,15 +477,19 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
   // Chart Data: Progres Mutasi NC per Gudang (5A* = Gd.01 s/d 5N* = Gd.14)
   const gudangProgressChartData = useMemo(() => {
-    const gdMap: Record<string, { ncIn: number; outRep: number; inPrime: number }> = {};
+    const gdMap: Record<string, { ncIn: number; outRep: number; inPrime: number; reject: number }> = {};
 
     cleanTransactions.forEach((tx) => {
       const g = normalizeGudang(tx.storageLocation);
-      if (!gdMap[g]) gdMap[g] = { ncIn: 0, outRep: 0, inPrime: 0 };
+      if (!gdMap[g]) gdMap[g] = { ncIn: 0, outRep: 0, inPrime: 0, reject: 0 };
       const ton = (tx.quantity || tx.kgGI || tx.kgGR || 0) / 1000;
       if (tx.transactionType === 'IN_NC') gdMap[g].ncIn += ton;
       else if (tx.transactionType === 'OUT_REPAIR') gdMap[g].outRep += ton;
       else if (tx.transactionType === 'IN_OK_PRIME') gdMap[g].inPrime += ton;
+    });
+
+    Object.keys(gdMap).forEach((g) => {
+      gdMap[g].reject = Math.max(0, gdMap[g].outRep - gdMap[g].inPrime);
     });
 
     const labels = Object.keys(gdMap).sort();
@@ -490,253 +497,153 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       labels,
       datasets: [
         {
-          label: 'IN NC (309) Ton',
+          label: 'IN NC (309)',
           data: labels.map((l) => gdMap[l].ncIn),
-          backgroundColor: 'rgba(225, 29, 72, 0.85)',
-          borderRadius: 4
+          backgroundColor: '#f43f5e',
+          hoverBackgroundColor: '#e11d48',
+          borderRadius: 4,
+          borderSkipped: false
         },
         {
-          label: 'OUT Repair (261) Ton',
+          label: 'OUT Repair (261)',
           data: labels.map((l) => gdMap[l].outRep),
-          backgroundColor: 'rgba(217, 119, 6, 0.85)',
-          borderRadius: 4
+          backgroundColor: '#f59e0b',
+          hoverBackgroundColor: '#d97706',
+          borderRadius: 4,
+          borderSkipped: false
         },
         {
-          label: 'IN Prime OK (101) Ton',
+          label: 'IN Prime OK (101)',
           data: labels.map((l) => gdMap[l].inPrime),
-          backgroundColor: 'rgba(4, 120, 87, 0.85)',
-          borderRadius: 4
+          backgroundColor: '#10b981',
+          hoverBackgroundColor: '#059669',
+          borderRadius: 4,
+          borderSkipped: false
+        },
+        {
+          label: 'Reject Repair',
+          data: labels.map((l) => gdMap[l].reject),
+          backgroundColor: '#0ea5e9',
+          hoverBackgroundColor: '#0284c7',
+          borderRadius: 4,
+          borderSkipped: false
         }
       ]
     };
   }, [cleanTransactions]);
 
-  // Chart Data: Donut Recovery Distribution
+  // Chart Data: Total Akumulasi Mutasi All Gudang
   const donutChartData = useMemo(() => {
-    let selesaiCount = 0;
-    let repairCount = 0;
-    let pendingCount = 0;
-    let partialCount = 0;
+    let totalNCInTon = 0;
+    let totalOutRepTon = 0;
+    let totalInPrimeTon = 0;
 
-    pipeline.forEach((p) => {
-      if (p.status === 'SELESAI OK') selesaiCount++;
-      else if (p.status === 'DALAM REPAIR') repairCount++;
-      else if (p.status === 'PARTIAL REPAIR') partialCount++;
-      else pendingCount++;
+    cleanTransactions.forEach((tx) => {
+      const ton = (tx.quantity || tx.kgGI || tx.kgGR || 0) / 1000;
+      if (tx.transactionType === 'IN_NC') totalNCInTon += ton;
+      else if (tx.transactionType === 'OUT_REPAIR') totalOutRepTon += ton;
+      else if (tx.transactionType === 'IN_OK_PRIME') totalInPrimeTon += ton;
     });
 
+    const totalRejectTon = Math.max(0, totalOutRepTon - totalInPrimeTon);
+    const totalTon = totalNCInTon + totalOutRepTon + totalInPrimeTon + totalRejectTon;
+
     return {
-      labels: ['Selesai OK', 'Partial Repair', 'Dalam Repair', 'Terdaftar NC'],
-      datasets: [
-        {
-          data: [selesaiCount, partialCount, repairCount, pendingCount],
-          backgroundColor: [
-            '#047857', // Emerald
-            '#0284c7', // Sky
-            '#d97706', // Amber
-            '#e11d48'  // Rose
-          ],
-          borderWidth: 2,
-          borderColor: '#ffffff'
-        }
-      ]
+      totalTon,
+      totalNCInTon,
+      totalOutRepTon,
+      totalInPrimeTon,
+      totalRejectTon,
+      chartData: {
+        labels: [
+          'IN NC (309)',
+          'OUT Repair (261)',
+          'IN Prime OK (101)',
+          'Reject Repair'
+        ],
+        datasets: [
+          {
+            data: [
+              parseFloat(totalNCInTon.toFixed(3)),
+              parseFloat(totalOutRepTon.toFixed(3)),
+              parseFloat(totalInPrimeTon.toFixed(3)),
+              parseFloat(totalRejectTon.toFixed(3))
+            ],
+            backgroundColor: [
+              '#f43f5e', // Rose
+              '#f59e0b', // Amber
+              '#10b981', // Emerald
+              '#0ea5e9'  // Sky
+            ],
+            hoverBackgroundColor: [
+              '#e11d48',
+              '#d97706',
+              '#059669',
+              '#0284c7'
+            ],
+            borderWidth: 2,
+            borderColor: '#ffffff',
+            spacing: 2,
+            borderRadius: 4,
+            hoverOffset: 6
+          }
+        ]
+      }
     };
-  }, [pipeline]);
+  }, [cleanTransactions]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       {/* Top Banner & Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-md border border-slate-200/80 shadow-2xs">
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-md bg-[#047857] text-white shadow-2xs">
-            <GitFork className="h-5 w-5 text-amber-300" strokeWidth={2} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            <GitFork className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg sm:text-xl font-bold text-slate-900 font-sans tracking-tight">
-                Monitoring Progres NC & Repair
-              </h1>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                MVT 309 | 261 | 101
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 font-medium">
-              Pelacakan alur material NC: Masuk NC (309) &rarr; Issue Repair (261 REP) &rarr; Finish Good Prime (101 REP)
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {canEdit && (
-            <>
-              <button
-                type="button"
-                onClick={() => setIsImportModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-white border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
-              >
-                <Upload className="h-3.5 w-3.5 text-emerald-700" strokeWidth={2} />
-                <span>Impor Data Transaksi</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingTx(null);
-                  setIsAddModalOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-[#047857] hover:bg-emerald-800 text-xs font-bold text-white transition-colors shadow-2xs cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5 text-amber-300" strokeWidth={2} />
-                <span>Input Transaksi Baru</span>
-              </button>
-            </>
-          )}
-
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-xs font-bold text-emerald-900 transition-colors shadow-2xs cursor-pointer"
-          >
-            <Download className="h-3.5 w-3.5 text-emerald-800" strokeWidth={2} />
-            <span>Export Excel</span>
-          </button>
-        </div>
-      </div>
-
-      {/* KPI Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {/* Card 1: Masuk NC (MVT 309) */}
-        <div className="bg-white p-4 rounded-md border border-slate-200 shadow-2xs relative overflow-hidden">
-          <div className="flex items-start justify-between">
-            <div>
-              <span className="text-[11px] font-bold font-mono uppercase tracking-wider text-rose-700 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-rose-500" />
-                1. NC Masuk (MVT 309)
-              </span>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-black font-mono text-slate-900">
-                  {formatQty(summary.totalNCInQty)}
-                </span>
-                <span className="text-xs text-slate-500 font-semibold">Btg</span>
-              </div>
-              <div className="mt-1 flex items-center gap-2 text-xs font-mono text-slate-600">
-                <span className="font-bold text-rose-800">{formatTon(summary.totalNCInKg / 1000, { showUnit: true, decimals: 3 })}</span>
-                <span className="text-slate-300">|</span>
-                <span>{summary.totalNCRCount} Kasus NCR</span>
-              </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-rose-50 border border-rose-200 text-rose-700">
-              <ShieldAlert className="h-4 w-4" strokeWidth={2} />
-            </div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-            <span>Material Terklasifikasi NC</span>
-            <span className="font-bold font-mono text-slate-700">Reclassification</span>
-          </div>
-        </div>
-
-        {/* Card 2: Keluar Repair (MVT 261 REP) */}
-        <div className="bg-white p-4 rounded-md border border-slate-200 shadow-2xs relative overflow-hidden">
-          <div className="flex items-start justify-between">
-            <div>
-              <span className="text-[11px] font-bold font-mono uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-amber-500" />
-                2. Issue Repair (MVT 261)
-              </span>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-black font-mono text-slate-900">
-                  {formatQty(summary.totalOutRepairQty)}
-                </span>
-                <span className="text-xs text-slate-500 font-semibold">Btg</span>
-              </div>
-              <div className="mt-1 flex items-center gap-2 text-xs font-mono text-slate-600">
-                <span className="font-bold text-amber-800">{formatTon(summary.totalOutRepairKg / 1000, { showUnit: true, decimals: 3 })}</span>
-                <span className="text-slate-300">|</span>
-                <span>Workcenter REP</span>
-              </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-amber-50 border border-amber-200 text-amber-700">
-              <Wrench className="h-4 w-4" strokeWidth={2} />
-            </div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-            <span>Outstanding Repair</span>
-            <span className="font-bold font-mono text-amber-700">{formatQty(summary.outstandingRepairQty)} Btg</span>
-          </div>
-        </div>
-
-        {/* Card 3: Selesai OK / Prime (MVT 101 REP) */}
-        <div className="bg-white p-4 rounded-md border border-slate-200 shadow-2xs relative overflow-hidden">
-          <div className="flex items-start justify-between">
-            <div>
-              <span className="text-[11px] font-bold font-mono uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                3. Hasil Prime (MVT 101)
-              </span>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-black font-mono text-emerald-950">
-                  {formatQty(summary.totalInPrimeQty)}
-                </span>
-                <span className="text-xs text-emerald-700 font-semibold">Btg</span>
-              </div>
-              <div className="mt-1 flex items-center gap-2 text-xs font-mono text-slate-600">
-                <span className="font-bold text-emerald-800">{formatTon(summary.totalInPrimeKg / 1000, { showUnit: true, decimals: 3 })}</span>
-                <span className="text-slate-300">|</span>
-                <span className="text-emerald-700 font-bold">Prime Ready</span>
-              </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700">
-              <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-            </div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-            <span>Recovery Rate</span>
-            <span className="font-bold font-mono text-emerald-800">{formatPercent(summary.overallRecoveryRate)}</span>
-          </div>
-        </div>
-
-        {/* Card 4: Sisa WIP Repair */}
-        <div className="bg-white p-4 rounded-md border border-slate-200 shadow-2xs relative overflow-hidden">
-          <div className="flex items-start justify-between">
-            <div>
-              <span className="text-[11px] font-bold font-mono uppercase tracking-wider text-sky-700 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-sky-500" />
-                4. WIP Dalam Pengerjaan
-              </span>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-black font-mono text-slate-900">
-                  {formatQty(summary.wipRepairQty)}
-                </span>
-                <span className="text-xs text-slate-500 font-semibold">Btg</span>
-              </div>
-              <div className="mt-1 flex items-center gap-2 text-xs font-mono text-slate-600">
-                <span className="font-bold text-sky-800">{formatTon(summary.wipRepairKg / 1000, { showUnit: true, decimals: 3 })}</span>
-                <span className="text-slate-300">|</span>
-                <span>In-Repair WIP</span>
-              </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-sky-50 border border-sky-200 text-sky-700">
-              <Clock className="h-4 w-4" strokeWidth={2} />
-            </div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-            <span>Total Transaksi SAP</span>
-            <span className="font-bold font-mono text-slate-700">{summary.totalTransactions} baris</span>
-          </div>
+          <h1 className="text-base font-bold text-white font-sans tracking-tight">
+            Monitoring Progres NC & Repair
+          </h1>
         </div>
       </div>
 
       {/* Visual Charts Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
-        <div className="lg:col-span-8 bg-white p-4 rounded-md border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Progres Mutasi NC per Gudang / SLoc</h3>
-              <p className="text-[11px] text-slate-500 font-medium">Perbandingan tonase IN NC (309), OUT Repair (261), dan IN Prime (101)</p>
+        {/* Left Card: Bar Chart */}
+        <div className="lg:col-span-8 bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                  Progres Mutasi NC per Gudang
+                </h3>
+                <p className="text-xs text-slate-500 font-normal mt-0.5">
+                  Perbandingan pergerakan material NC, repair, dan prime (Ton)
+                </p>
+              </div>
             </div>
-            <span className="text-xs font-mono text-slate-400 font-semibold">Satuan: Ton</span>
+
+            {/* Custom Clean Legend */}
+            <div className="flex flex-wrap items-center gap-4 mb-3">
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                <span>IN NC (309)</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                <span>OUT Repair (261)</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                <span>IN Prime OK (101)</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
+                <span>Reject Repair</span>
+              </div>
+            </div>
           </div>
-          <div className="h-56">
+
+          <div className="h-56 w-full pt-1">
             <Bar
               data={gudangProgressChartData}
               options={{
@@ -744,248 +651,364 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                 maintainAspectRatio: false,
                 plugins: {
                   legend: {
-                    position: 'top',
-                    labels: { boxWidth: 12, font: { size: 11, weight: 'bold' } }
+                    display: false
                   },
                   tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#f1f5f9',
+                    titleFont: { size: 12, weight: 'bold' },
+                    bodyFont: { size: 11 },
+                    padding: { top: 8, bottom: 8, left: 12, right: 12 },
+                    cornerRadius: 8,
+                    boxPadding: 4,
+                    usePointStyle: true,
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
                     callbacks: {
                       label: (ctx) => ` ${ctx.dataset.label}: ${(ctx.parsed.y || 0).toFixed(3)} Ton`
                     }
                   }
                 },
                 scales: {
-                  x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-                  y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } }
+                  x: {
+                    grid: { display: false },
+                    ticks: {
+                      color: '#64748b',
+                      font: { family: 'ui-monospace, monospace', size: 11, weight: 'bold' }
+                    }
+                  },
+                  y: {
+                    grid: {
+                      color: '#f1f5f9'
+                    },
+                    ticks: {
+                      color: '#94a3b8',
+                      font: { family: 'ui-monospace, monospace', size: 10 }
+                    }
+                  }
                 }
               }}
             />
           </div>
         </div>
 
-        <div className="lg:col-span-4 bg-white p-4 rounded-md border border-slate-200 shadow-2xs flex flex-col">
+        {/* Right Card: Donut Chart */}
+        <div className="lg:col-span-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Distribusi Status Repair</h3>
-              <p className="text-[11px] text-slate-500 font-medium">Proporsi penyelesaian kasus NC</p>
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                Total Akumulasi
+              </h3>
+              <p className="text-xs text-slate-500 font-normal mt-0.5">
+                Seluruh gudang
+              </p>
             </div>
-            <span className="text-xs font-mono text-emerald-800 font-bold">{formatPercent(summary.overallRecoveryRate)} Rec.</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
+              {formatTon(donutChartData.totalTon, { decimals: 2 })} Ton
+            </span>
           </div>
-          <div className="h-56 flex items-center justify-center relative">
+
+          <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto">
             <Doughnut
-              data={donutChartData}
+              data={donutChartData.chartData}
               options={{
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
                   legend: {
-                    position: 'bottom',
-                    labels: { boxWidth: 10, font: { size: 10 } }
+                    display: false
+                  },
+                  tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#f1f5f9',
+                    titleFont: { size: 12, weight: 'bold' },
+                    bodyFont: { size: 11 },
+                    padding: { top: 8, bottom: 8, left: 12, right: 12 },
+                    cornerRadius: 8,
+                    boxPadding: 4,
+                    usePointStyle: true,
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    callbacks: {
+                      label: (ctx) => ` ${ctx.label}: ${(ctx.parsed || 0).toFixed(3)} Ton`
+                    }
                   }
                 },
-                cutout: '65%'
+                cutout: '72%'
               }}
             />
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-6">
-              <span className="text-xl font-black font-mono text-slate-900">{pipeline.length}</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Kasus</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                {formatTon(donutChartData.totalTon, { decimals: 2 })}
+              </span>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                TOTAL TON
+              </span>
+            </div>
+          </div>
+
+          {/* Breakdown Pills List */}
+          <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
+            <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                <span className="text-[11px] font-medium text-slate-600 truncate">IN NC (309)</span>
+              </div>
+              <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                {formatTon(donutChartData.totalNCInTon, { decimals: 2 })}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                <span className="text-[11px] font-medium text-slate-600 truncate">OUT REP (261)</span>
+              </div>
+              <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                {formatTon(donutChartData.totalOutRepTon, { decimals: 2 })}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                <span className="text-[11px] font-medium text-slate-600 truncate">IN PRIME (101)</span>
+              </div>
+              <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                {formatTon(donutChartData.totalInPrimeTon, { decimals: 2 })}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
+                <span className="text-[11px] font-medium text-slate-600 truncate">Reject Repair</span>
+              </div>
+              <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                {formatTon(donutChartData.totalRejectTon, { decimals: 2 })}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs & Filtering Toolbar */}
-      <div className="bg-white p-4 rounded-md border border-slate-200 shadow-2xs space-y-4">
-        {/* Subtabs */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
-          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100/90 rounded-md border border-slate-200">
+      {/* Navigation Sub-Tabs & Filtering Toolbar (Compact 1 Row) */}
+      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+        {/* Left: Subtabs & View Switcher */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Subtabs */}
+          <div className="flex items-center gap-1 p-0.5 bg-slate-100/80 rounded-lg border border-slate-200/60 text-xs">
             <button
               type="button"
               onClick={() => setActiveSubTab('in_nc')}
               className={cn(
-                "px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5",
+                "px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                 activeSubTab === 'in_nc'
-                  ? "bg-rose-700 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  ? "bg-white text-slate-900 shadow-2xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
               )}
             >
-              <ShieldAlert className="h-3.5 w-3.5" strokeWidth={2} />
-              <span>IN Data NC (MVT 309)</span>
+              <ShieldAlert className="h-3.5 w-3.5 text-rose-600" />
+              <span>IN NC (309)</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveSubTab('out_repair')}
               className={cn(
-                "px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5",
+                "px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                 activeSubTab === 'out_repair'
-                  ? "bg-amber-700 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  ? "bg-white text-slate-900 shadow-2xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
               )}
             >
-              <Wrench className="h-3.5 w-3.5" strokeWidth={2} />
-              <span>OUT Repair (MVT 261)</span>
+              <Wrench className="h-3.5 w-3.5 text-amber-600" />
+              <span>OUT Repair (261)</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveSubTab('in_prime')}
               className={cn(
-                "px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5",
+                "px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                 activeSubTab === 'in_prime'
-                  ? "bg-emerald-700 text-white shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  ? "bg-white text-slate-900 shadow-2xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
               )}
             >
-              <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
-              <span>IN OK Prime (MVT 101)</span>
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+              <span>IN Prime (101)</span>
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-md border border-slate-200 text-xs">
-              <button
-                type="button"
-                onClick={() => setViewMode('grouped')}
-                className={cn(
-                  "px-2.5 py-1 rounded font-semibold transition-all cursor-pointer flex items-center gap-1.5",
-                  viewMode === 'grouped'
-                    ? "bg-white text-emerald-950 shadow-2xs font-bold border border-slate-200"
-                    : "text-slate-600 hover:text-slate-900"
-                )}
-              >
-                <Layers className="h-3.5 w-3.5 text-emerald-700" />
-                <span>Gabung per NCR ({groupedItems.length})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('flat')}
-                className={cn(
-                  "px-2.5 py-1 rounded font-semibold transition-all cursor-pointer flex items-center gap-1.5",
-                  viewMode === 'flat'
-                    ? "bg-white text-emerald-950 shadow-2xs font-bold border border-slate-200"
-                    : "text-slate-600 hover:text-slate-900"
-                )}
-              >
-                <span>Semua Transaksi ({filteredTransactions.length})</span>
-              </button>
-            </div>
+          {/* View Mode */}
+          <div className="flex items-center gap-1 p-0.5 bg-slate-100/80 rounded-lg border border-slate-200/60 text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('grouped')}
+              className={cn(
+                "px-2.5 py-1.5 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1.5",
+                viewMode === 'grouped'
+                  ? "bg-white text-slate-900 shadow-2xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+              )}
+            >
+              <Layers className="h-3.5 w-3.5 text-slate-600" />
+              <span>Gabung</span>
+              <span className="px-1 py-0.2 rounded-full text-[10px] font-mono bg-slate-200/80 text-slate-700">
+                {groupedItems.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('flat')}
+              className={cn(
+                "px-2.5 py-1.5 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1.5",
+                viewMode === 'flat'
+                  ? "bg-white text-slate-900 shadow-2xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+              )}
+            >
+              <span>Semua</span>
+              <span className="px-1 py-0.2 rounded-full text-[10px] font-mono bg-slate-200/80 text-slate-700">
+                {filteredTransactions.length}
+              </span>
+            </button>
           </div>
         </div>
 
-        {/* Filter Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        {/* Right: Search, Gudang & Workcenter */}
+        <div className="flex flex-wrap items-center gap-2 flex-1 sm:flex-initial sm:min-w-[420px] justify-end">
           {/* Search Box */}
-          <div className="lg:col-span-2 relative">
-            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" strokeWidth={1.9} />
+          <div className="relative flex-1 sm:w-56 group">
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
             <input
               type="text"
-              placeholder="Cari Material, No NCR, Batch, SPK, Alasan..."
+              placeholder="Cari Material, NCR, Batch..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-1.5 rounded-md border border-slate-300 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-700"
+              className="w-full pl-8 pr-7 py-1.5 rounded-md border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-600 transition-all"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-3 w-3" />
               </button>
             )}
           </div>
 
           {/* Filter Gudang */}
-          <div>
-            <select
-              value={selectedGudang}
-              onChange={(e) => setSelectedGudang(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700 bg-white"
-            >
-              <option value="ALL">Semua Gudang</option>
-              {gudangList.map((g) => (
-                <option key={g} value={g}>{g}</option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={selectedGudang}
+            onChange={(e) => setSelectedGudang(e.target.value)}
+            className="px-2.5 py-1.5 rounded-md border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-600 transition-all cursor-pointer"
+          >
+            <option value="ALL">Semua Gudang</option>
+            {gudangList.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
 
           {/* Filter Work Center */}
-          <div>
-            <select
-              value={selectedWorkCenter}
-              onChange={(e) => setSelectedWorkCenter(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700 bg-white"
-            >
-              <option value="ALL">Semua Work Center</option>
-              {workCenterList.map((w) => (
-                <option key={w} value={w}>{w}</option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={selectedWorkCenter}
+            onChange={(e) => setSelectedWorkCenter(e.target.value)}
+            className="px-2.5 py-1.5 rounded-md border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-600 transition-all cursor-pointer"
+          >
+            <option value="ALL">Semua WC</option>
+            {workCenterList.map((w) => (
+              <option key={w} value={w}>{w}</option>
+            ))}
+          </select>
         </div>
       </div>
 
       {/* PRIMARY TRANSACTION / GROUPED TABLE */}
-      <div className="bg-white rounded-md border border-slate-200 shadow-2xs overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           {viewMode === 'grouped' ? (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200">
-                  <th className="py-2.5 px-3 w-10 text-center">No</th>
+                <tr className="bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] tracking-wider uppercase border-b border-slate-200/80 select-none">
+                  <th className="py-3 px-3.5 w-12 text-center">No</th>
                   <th
-                    className="py-2.5 px-3 cursor-pointer hover:text-emerald-900 select-none"
-                    onClick={() => handleToggleSort('ncrNumber')}
+                    className="py-3 px-3.5 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
+                    onClick={() => handleToggleSort(activeSubTab === 'in_nc' ? 'ncrNumber' : 'order')}
                   >
-                    <div className="flex items-center gap-1">
-                      <span>{activeSubTab === 'in_nc' ? 'No NCR & Masalah' : 'Order / SPK & NCR'}</span>
-                      <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                    <div className="flex items-center gap-1.5">
+                      <span>{activeSubTab === 'in_nc' ? 'No NCR & Masalah' : 'Order'}</span>
+                      {sortField === (activeSubTab === 'in_nc' ? 'ncrNumber' : 'order') ? (
+                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                      )}
                     </div>
                   </th>
                   <th
-                    className="py-2.5 px-3 cursor-pointer hover:text-emerald-900 select-none"
+                    className="py-3 px-3.5 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
                     onClick={() => handleToggleSort('material')}
                   >
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <span>Ukuran Material</span>
-                      <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                      {sortField === 'material' ? (
+                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                      )}
                     </div>
                   </th>
-                  <th className="py-2.5 px-3">Gudang & Batch</th>
+                  <th className="py-3 px-3.5">Gudang & Batch</th>
                   <th
-                    className="py-2.5 px-3 cursor-pointer hover:text-emerald-900 select-none"
+                    className="py-3 px-3.5 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
                     onClick={() => handleToggleSort('postingDate')}
                   >
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <span>Tgl Posting</span>
-                      <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                      {sortField === 'postingDate' ? (
+                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                      )}
                     </div>
                   </th>
                   <th
-                    className="py-2.5 px-3 text-center cursor-pointer hover:text-emerald-900 select-none"
+                    className="py-3 px-3.5 text-center cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
                     onClick={() => handleToggleSort('transactionCount')}
                   >
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex items-center justify-center gap-1.5">
                       <span>Jml Dokumen</span>
-                      <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                      {sortField === 'transactionCount' ? (
+                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                      )}
                     </div>
                   </th>
                   <th
-                    className="py-2.5 px-3 text-right cursor-pointer hover:text-emerald-900 select-none"
+                    className="py-3 px-3.5 text-right cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
                     onClick={() => handleToggleSort('totalQty')}
                   >
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1.5">
                       <span>Total Kuantitas</span>
-                      <ArrowUpDown className="h-3 w-3 text-slate-400" />
+                      {sortField === 'totalQty' ? (
+                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                      )}
                     </div>
                   </th>
-                  <th className="py-2.5 px-3 text-center w-24">Aksi</th>
+                  <th className="py-3 px-3.5 text-center w-28">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100/90">
                 {sortedGroupedItems.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-10 text-center text-slate-400 font-mono text-xs">
+                    <td colSpan={8} className="py-12 text-center text-slate-400 font-mono text-xs">
                       Tidak ada data yang sesuai filter.
                     </td>
                   </tr>
@@ -994,66 +1017,88 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                     <tr
                       key={item.id}
                       onClick={() => setSelectedGroup(item)}
-                      className="hover:bg-emerald-50/40 cursor-pointer transition-colors group"
+                      className="hover:bg-emerald-50/30 cursor-pointer transition-all duration-150 group"
                     >
-                      <td className="py-2.5 px-3 text-center font-mono text-slate-400">{idx + 1}</td>
-                      <td className="py-2.5 px-3 max-w-sm">
-                        {item.ncrNumber ? (
-                          <div className="font-mono font-bold text-rose-800 text-xs flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
-                            <span>{item.ncrNumber}</span>
-                          </div>
+                      <td className="py-3 px-3.5 text-center font-mono text-slate-400 text-xs font-medium">{idx + 1}</td>
+                      <td className="py-3 px-3.5 max-w-sm">
+                        {activeSubTab === 'in_nc' ? (
+                          <>
+                            {item.ncrNumber ? (
+                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50/80 border border-rose-200/70 text-rose-700 font-mono font-bold text-xs tracking-tight shadow-2xs">
+                                <span className="h-1.5 w-1.5 rounded-full bg-rose-500 ring-2 ring-rose-200 shrink-0" />
+                                <span>{item.ncrNumber}</span>
+                              </div>
+                            ) : (
+                              <div className="font-mono text-slate-500 text-xs italic">
+                                Non-NCR {item.order ? `(Order: ${item.order})` : ''}
+                              </div>
+                            )}
+                            <div className="text-xs text-slate-700 font-medium truncate mt-1" title={item.problemRemark}>
+                              {item.problemRemark || '-'}
+                            </div>
+                          </>
                         ) : (
-                          <div className="font-mono text-slate-500 text-xs italic">
-                            Non-NCR {item.order ? `(Order: ${item.order})` : ''}
-                          </div>
+                          <>
+                            <div className="font-mono font-bold text-slate-800 text-xs">
+                              {item.order || '-'}
+                            </div>
+                            {item.workCenter && (
+                              <div className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                                {item.workCenter}
+                              </div>
+                            )}
+                          </>
                         )}
-                        <div className="text-[11px] text-slate-600 font-medium truncate mt-0.5" title={item.problemRemark}>
-                          {item.problemRemark || '-'}
-                        </div>
                       </td>
-                      <td className="py-2.5 px-3 max-w-xs">
-                        <div className="font-mono font-bold text-emerald-950 text-xs">
+                      <td className="py-3 px-3.5 max-w-xs">
+                        <div className="font-mono font-bold text-slate-900 text-xs tracking-tight">
                           {item.ukuran}
                         </div>
-                        <div className="text-[10px] font-mono text-slate-400 truncate">
+                        <div className="text-[11px] font-mono text-slate-400 truncate tracking-tight mt-0.5" title={item.material}>
                           {item.material}
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-xs">
-                        <div className="flex flex-wrap gap-1 mb-1">
+                      <td className="py-3 px-3.5 font-mono text-xs">
+                        <div className="flex flex-wrap items-center gap-1 mb-1">
                           {item.gudangs.map((g) => (
-                            <span key={g} className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <span key={g} className="px-2 py-0.5 rounded-md text-[11px] font-bold font-mono bg-emerald-50 text-emerald-800 border border-emerald-200/70 shadow-2xs">
                               {g}
                             </span>
                           ))}
                         </div>
-                        <div className="text-[10px] text-slate-500 font-mono">
-                          {item.batches.length <= 2
-                            ? item.batches.join(', ')
-                            : `${item.batches[0]} (+${item.batches.length - 1} batch)`}
+                        <div className="text-[11px] text-slate-600 font-mono font-medium">
+                          {item.batches.length <= 2 ? (
+                            item.batches.join(', ')
+                          ) : (
+                            <>
+                              <span className="font-semibold text-slate-700">{item.batches[0]}</span>{' '}
+                              <span className="text-slate-400 font-normal">(+{item.batches.length - 1} batch)</span>
+                            </>
+                          )}
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-600 text-xs">
+                      <td className="py-3 px-3.5 font-mono text-slate-600 text-xs font-medium whitespace-nowrap">
                         {formatExcelDate(item.postingDate)}
                       </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200 font-mono group-hover:bg-emerald-100 group-hover:text-emerald-900 transition-colors">
+                      <td className="py-3 px-3.5 text-center">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100/90 text-slate-700 border border-slate-200/70 font-mono group-hover:bg-emerald-50 group-hover:text-emerald-800 group-hover:border-emerald-200/80 transition-colors shadow-2xs">
                           {item.transactionCount} Dokumen
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <div className="font-mono font-bold text-slate-900">{formatQty(item.totalQty)} Btg</div>
-                        <div className="text-[10px] font-mono text-slate-500 font-semibold">
+                      <td className="py-3 px-3.5 text-right">
+                        <div className="font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
+                          {formatQty(item.totalQty)} <span className="font-sans font-medium text-slate-500 text-[11px]">Btg</span>
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
                           {formatTon(item.totalTon, { decimals: 3 })} Ton
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <td className="py-3 px-3.5 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => setSelectedGroup(item)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-200 transition-colors cursor-pointer"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50/90 hover:bg-emerald-600 text-emerald-700 hover:text-white text-xs font-semibold border border-emerald-200/80 hover:border-emerald-600 shadow-2xs hover:shadow-xs transition-all duration-150 cursor-pointer active:scale-95"
                             title="Buka rincian dokumen SAP"
                           >
                             <Eye className="h-3.5 w-3.5" />
@@ -1069,23 +1114,23 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
           ) : (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200">
-                  <th className="py-2.5 px-3 w-10 text-center">No</th>
-                  <th className="py-2.5 px-3">Tipe / Mvt</th>
-                  <th className="py-2.5 px-3">Tgl Posting / Jam</th>
-                  <th className="py-2.5 px-3">Ukuran</th>
-                  <th className="py-2.5 px-3">Batch & Gudang</th>
-                  <th className="py-2.5 px-3">
+                <tr className="bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] tracking-wider uppercase border-b border-slate-200/80 select-none">
+                  <th className="py-3 px-3.5 w-12 text-center">No</th>
+                  <th className="py-3 px-3.5">Tipe / Mvt</th>
+                  <th className="py-3 px-3.5">Tgl Posting / Jam</th>
+                  <th className="py-3 px-3.5">Ukuran</th>
+                  <th className="py-3 px-3.5">Batch & Gudang</th>
+                  <th className="py-3 px-3.5">
                     {activeSubTab === 'in_nc' ? 'Keterangan NC' : 'Order / Workcenter'}
                   </th>
-                  <th className="py-2.5 px-3 text-right">Kuantitas</th>
-                  <th className="py-2.5 px-3 text-center w-20">Aksi</th>
+                  <th className="py-3 px-3.5 text-right">Kuantitas</th>
+                  <th className="py-3 px-3.5 text-center w-24">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100/90">
                 {filteredTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-10 text-center text-slate-400 font-mono text-xs">
+                    <td colSpan={8} className="py-12 text-center text-slate-400 font-mono text-xs">
                       Tidak ada data transaksi yang sesuai filter.
                     </td>
                   </tr>
@@ -1093,65 +1138,73 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   filteredTransactions.map((tx, idx) => {
                     const typeBadge =
                       tx.transactionType === 'IN_NC' ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-200">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
                           IN NC ({tx.movementType})
                         </span>
                       ) : tx.transactionType === 'OUT_REPAIR' ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-amber-50 text-amber-700 border border-amber-200/80 shadow-2xs">
                           OUT REP ({tx.movementType})
                         </span>
                       ) : tx.transactionType === 'IN_OK_PRIME' ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
                           IN PRIME ({tx.movementType})
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-slate-100 text-slate-700 border border-slate-200/80 shadow-2xs">
                           MVT {tx.movementType}
                         </span>
                       );
 
                     return (
-                      <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-2.5 px-3 text-center font-mono text-slate-400">{idx + 1}</td>
-                        <td className="py-2.5 px-3">{typeBadge}</td>
-                        <td className="py-2.5 px-3 font-mono text-slate-600 text-[11px]">
+                      <tr key={tx.id} className="hover:bg-slate-50/80 transition-all duration-150">
+                        <td className="py-3 px-3.5 text-center font-mono text-slate-400 text-xs font-medium">{idx + 1}</td>
+                        <td className="py-3 px-3.5">{typeBadge}</td>
+                        <td className="py-3 px-3.5 font-mono text-slate-600 text-xs font-medium whitespace-nowrap">
                           <div>{formatExcelDate(tx.postingDate || tx.entryDate)}</div>
                           <div className="text-[10px] text-slate-400">{formatExcelTime(tx.timeOfEntry) || '-'}</div>
                         </td>
-                        <td className="py-2.5 px-3 max-w-xs">
-                          <div className="font-mono font-bold text-emerald-950 text-xs">
+                        <td className="py-3 px-3.5 max-w-xs">
+                          <div className="font-mono font-bold text-slate-900 text-xs tracking-tight">
                             {parseMaterialUkuran(tx.material, tx.materialDescription)}
                           </div>
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-xs">
+                        <td className="py-3 px-3.5 font-mono text-xs">
                           <div className="font-bold text-slate-800">{tx.batch}</div>
-                          <div className="text-[10px] text-emerald-800 font-semibold">{normalizeGudang(tx.storageLocation)} <span className="text-slate-400 font-normal">({tx.storageLocation})</span></div>
+                          <div className="text-[11px] text-emerald-800 font-semibold mt-0.5">
+                            {normalizeGudang(tx.storageLocation)}{' '}
+                            <span className="text-slate-400 font-normal">({tx.storageLocation})</span>
+                          </div>
                         </td>
-                        <td className="py-2.5 px-3 max-w-sm">
+                        <td className="py-3 px-3.5 max-w-sm">
                           {activeSubTab === 'in_nc' ? (
                             <div>
                               {tx.ncrNumber && (
-                                <div className="font-mono font-bold text-rose-800 text-[11px]">{tx.ncrNumber}</div>
+                                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50/80 border border-rose-200/70 text-rose-700 font-mono font-bold text-xs tracking-tight shadow-2xs">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500 ring-2 ring-rose-200 shrink-0" />
+                                  <span>{tx.ncrNumber}</span>
+                                </div>
                               )}
-                              <div className="text-[11px] text-slate-700 font-medium truncate" title={tx.problemRemark || tx.text || '-'}>
-                                {tx.problemRemark || tx.text || '-'}
+                              <div className="text-xs text-slate-700 font-medium truncate mt-1" title={tx.problemRemark || '-'}>
+                                {tx.problemRemark || '-'}
                               </div>
                             </div>
                           ) : (
                             <div>
                               <div className="font-mono text-xs text-slate-800 font-bold">{tx.order || '-'}</div>
-                              <div className="text-[10px] text-slate-500">{tx.workCenter || '-'}</div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">{tx.workCenter || '-'}</div>
                             </div>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 text-right">
-                          <div className="font-mono font-bold text-slate-900">{formatQty(tx.qtyInUnOfEntry)} Btg</div>
-                          <div className="text-[10px] font-mono text-slate-500">
+                        <td className="py-3 px-3.5 text-right">
+                          <div className="font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
+                            {formatQty(tx.qtyInUnOfEntry)} <span className="font-sans font-medium text-slate-500 text-[11px]">Btg</span>
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
                             {formatTon((tx.quantity || tx.kgGI || tx.kgGR || 0) / 1000, { decimals: 3 })} Ton
                           </div>
                         </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
+                        <td className="py-3 px-3.5 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => {
@@ -1184,7 +1237,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                                   });
                                 }
                               }}
-                              className="p-1 rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 border border-transparent hover:border-emerald-200/60 transition-all cursor-pointer"
                               title="Detail Alur Mutasi & Dokumen"
                             >
                               <ExternalLink className="h-3.5 w-3.5" />
@@ -1193,7 +1246,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleDeleteTransaction(tx.id)}
-                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200/60 transition-all cursor-pointer"
                                 title="Hapus baris"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1224,7 +1277,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-slate-900">
-                      Rincian Dokumen SAP — {selectedGroup.ncrNumber || 'Non-NCR'}
+                      Rincian Dokumen SAP — {activeSubTab === 'in_nc' ? (selectedGroup.ncrNumber || 'Non-NCR') : (selectedGroup.order ? `Order ${selectedGroup.order}` : 'Non-Order')}
                     </h3>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                       {selectedGroup.transactions.length} Dokumen SAP
@@ -1677,8 +1730,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   kgGI: mvt === '261' ? kgVal : 0,
                   kgGR: mvt === '101' ? kgVal : 0,
                   transactionType: txType,
-                  ncrNumber: text.includes('NCR') ? text.split(' ')[0] : undefined,
-                  problemRemark: text
+                  ...extractNCRAndRemark(text)
                 };
 
                 updateTransactionsList([newTx, ...transactions]);

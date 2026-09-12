@@ -21,7 +21,8 @@ import {
   CheckCircle2,
   TrendingUp,
   Info,
-  ShieldAlert
+  ShieldAlert,
+  ChevronDown
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
@@ -147,29 +148,29 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
       {
         label: 'Kapasitas (Ton)',
         data: rows.map((r) => r.kapasitas),
-        backgroundColor: '#cbd5e1',
-        hoverBackgroundColor: '#94a3b8',
-        borderRadius: 3,
+        backgroundColor: '#e2e8f0',
+        hoverBackgroundColor: '#cbd5e1',
+        borderRadius: 4,
         barPercentage: 0.65,
-        categoryPercentage: 0.7,
+        categoryPercentage: 0.75,
       },
       {
         label: 'Coil (Ton)',
         data: rows.map((r) => r.coilTon),
         backgroundColor: '#059669',
         hoverBackgroundColor: '#047857',
-        borderRadius: 3,
+        borderRadius: 4,
         barPercentage: 0.65,
-        categoryPercentage: 0.7,
+        categoryPercentage: 0.75,
       },
       {
         label: 'Strip (Ton)',
         data: rows.map((r) => r.stripTon),
         backgroundColor: '#d97706',
         hoverBackgroundColor: '#b45309',
-        borderRadius: 3,
+        borderRadius: 4,
         barPercentage: 0.65,
-        categoryPercentage: 0.7,
+        categoryPercentage: 0.75,
       },
     ],
   };
@@ -181,18 +182,25 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
       legend: {
         position: 'bottom' as const,
         labels: {
-          font: { family: 'monospace', size: 11, weight: 'bold' as const },
-          color: '#334155',
-          boxWidth: 12,
-          boxHeight: 12,
+          font: { family: 'inherit', size: 11, weight: 600 as const },
+          color: '#475569',
+          boxWidth: 10,
+          boxHeight: 10,
+          borderRadius: 2,
+          useBorderRadius: true,
+          padding: 16,
         },
       },
       tooltip: {
         backgroundColor: '#0f172a',
-        titleFont: { family: 'monospace', size: 12, weight: 'bold' as const },
-        bodyFont: { family: 'monospace', size: 11 },
-        padding: 10,
-        cornerRadius: 6,
+        titleFont: { family: 'inherit', size: 12, weight: 700 as const },
+        bodyFont: { family: 'inherit', size: 11 },
+        padding: 12,
+        cornerRadius: 8,
+        boxPadding: 4,
+        usePointStyle: true,
+        borderColor: '#334155',
+        borderWidth: 1,
         callbacks: {
           label: function (context: any) {
             const val = context.raw || 0;
@@ -204,13 +212,15 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
     scales: {
       x: {
         grid: { display: false },
-        ticks: { font: { family: 'monospace', size: 10, weight: 'bold' as const }, color: '#334155' },
+        ticks: { font: { family: 'inherit', size: 11, weight: 600 as const }, color: '#475569' },
+        border: { color: '#e2e8f0' },
       },
       y: {
         max: 9500,
         grid: { color: '#f1f5f9' },
+        border: { dash: [4, 4], display: false },
         ticks: {
-          font: { family: 'monospace', size: 10 },
+          font: { family: 'inherit', size: 10, weight: 500 as const },
           color: '#64748b',
           stepSize: 2000,
           callback: (value: any) => `${value / 1000}k`,
@@ -224,11 +234,14 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
     labels: ['Coil', 'Strip'],
     datasets: [
       {
-        data: [totalCoilTon, totalStripTon],
-        backgroundColor: ['#059669', '#d97706'],
-        hoverBackgroundColor: ['#047857', '#b45309'],
+        data: [Number(totalCoilTon.toFixed(2)), Number(totalStripTon.toFixed(2))],
+        backgroundColor: ['#10b981', '#f59e0b'],
+        hoverBackgroundColor: ['#059669', '#d97706'],
         borderWidth: 2,
         borderColor: '#ffffff',
+        spacing: 2,
+        borderRadius: 4,
+        hoverOffset: 6,
       },
     ],
   };
@@ -236,19 +249,23 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
   const donutOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '70%',
+    cutout: '72%',
     plugins: {
       legend: {
-        position: 'bottom' as const,
-        labels: {
-          font: { family: 'monospace', size: 11, weight: 'bold' as const },
-          color: '#334155',
-          boxWidth: 12,
-          boxHeight: 12,
-        },
+        display: false,
       },
       tooltip: {
-        backgroundColor: '#0f172a',
+        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+        titleColor: '#f8fafc',
+        bodyColor: '#f1f5f9',
+        titleFont: { size: 12, weight: 'bold' as const },
+        bodyFont: { size: 11 },
+        padding: { top: 8, bottom: 8, left: 12, right: 12 },
+        cornerRadius: 8,
+        boxPadding: 4,
+        usePointStyle: true,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
         callbacks: {
           label: function (context: any) {
             const val = context.raw || 0;
@@ -261,31 +278,22 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
   };
 
   return (
-    <div className="space-y-5 font-sans">
-      
-      {/* =========================================================================
-          1. SECTION BANNER TOP WITH EXECUTIVE GUDANG FILTER
-          ========================================================================= */}
-      <div className="rounded-md border border-black/20 theme-banner text-white p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-wider">
-              Stock Bahan Baku: Coil &amp; Strip
-            </h2>
-            {selectedGudang !== 'ALL' && (
-              <span className="text-[10px] font-mono bg-amber-400 text-slate-900 px-2 py-0.5 rounded font-bold">
-                Filter: {selectedGudang}
-              </span>
-            )}
+    <div className="space-y-4">
+
+      {/* Top Banner & Header */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            <Disc className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
-          <p className="text-[11px] text-emerald-200 font-medium font-mono mt-0.5">
-            Monitoring kapasitas terisi bahan baku pipa, komposisi tonase, dan alokasi bay Plant 1105
-          </p>
+          <h1 className="text-base font-bold text-white font-sans tracking-tight">
+            Stock Bahan Baku: Coil &amp; Strip
+          </h1>
         </div>
 
         {/* TOP FILTER CONTROLS */}
-        <div className="flex items-center gap-2.5 flex-wrap font-mono text-xs">
-          <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded border border-emerald-800">
+        <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
+          <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-700/80">
             <Warehouse className="h-3.5 w-3.5 text-amber-300 shrink-0" />
             <span className="text-emerald-300 text-[10px] uppercase font-bold">Gudang:</span>
             <select
@@ -306,7 +314,7 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
             <button
               type="button"
               onClick={() => setSelectedGudang('ALL')}
-              className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-900 text-[11px] font-bold rounded shadow-2xs transition-all cursor-pointer"
+              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
             >
               Reset Filter
             </button>
@@ -315,9 +323,9 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
       </div>
 
       {isEmpty ? (
-        <div className="rounded-md border border-dashed border-slate-300 bg-white p-10 text-center">
+        <div className="rounded-xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-xs">
           <p className="text-sm font-bold text-slate-700">Belum ada data Stock Coil &amp; Strip</p>
-          <p className="mt-1 text-xs text-slate-500 font-mono">
+          <p className="mt-1 text-xs text-slate-500">
             Upload file export SAP Coil &amp; Strip melalui menu &quot;Upload Raw SAP&quot;.
           </p>
         </div>
@@ -326,94 +334,114 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
           {/* =========================================================================
               2. EXECUTIVE MEETING SUMMARY KPI BAR (5 STRATEGIC METRICS)
               ========================================================================= */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 font-mono text-xs">
-            
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+
             {/* Card 1: Total Tonase & Qty */}
-            <div className="p-3.5 rounded-md bg-white border border-slate-200/90 shadow-2xs space-y-1">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between font-sans">
+            <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
                 <span>Total Bahan Baku</span>
-                <Disc className="h-3.5 w-3.5 text-slate-600" />
+                <div className="p-1 rounded-md bg-slate-100 text-slate-600">
+                  <Disc className="h-3.5 w-3.5" />
+                </div>
               </div>
-              <div className="text-xl font-black text-slate-900">
-                {formatTon(grandTotalTon, { showUnit: true })}
+              <div>
+                <div className="text-2xl font-bold tracking-tight text-slate-900 font-tabular">
+                  {formatTon(grandTotalTon, { showUnit: true })}
+                </div>
               </div>
-              <div className="text-[10px] text-slate-500 flex items-center justify-between font-sans pt-0.5">
-                <span>{formatQty(grandTotalQty, { unit: 'Roll' })}</span>
-                <span>Sisa: {formatTon(grandFreeTon, { showUnit: true })}</span>
+              <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100 font-tabular">
+                <span className="font-medium text-slate-600">{formatQty(grandTotalQty, { unit: 'Roll' })}</span>
+                <span className="text-slate-400">Sisa: {formatTon(grandFreeTon, { showUnit: true })}</span>
               </div>
             </div>
 
             {/* Card 2: Kapasitas Terisi */}
-            <div className={`p-3.5 rounded-md border shadow-2xs space-y-1 ${
+            <div className={`p-4 rounded-xl border shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-2 ${
               grandPersen > 90
-                ? 'bg-rose-50/70 border-rose-200 text-rose-950'
+                ? 'bg-gradient-to-br from-white via-rose-50/40 to-rose-50/70 border-rose-200/90 text-rose-950'
                 : grandPersen > 80
-                ? 'bg-amber-50/70 border-amber-200 text-amber-950'
-                : 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
+                ? 'bg-gradient-to-br from-white via-amber-50/40 to-amber-50/70 border-amber-200/90 text-amber-950'
+                : 'bg-gradient-to-br from-white via-emerald-50/40 to-emerald-50/60 border-emerald-200/90 text-emerald-950'
             }`}>
-              <div className="text-[10px] font-bold uppercase tracking-wider flex items-center justify-between font-sans">
-                <span>Kapasitas Terisi</span>
-                <TrendingUp className="h-3.5 w-3.5" />
+              <div className="text-[11px] font-bold uppercase tracking-wider flex items-center justify-between">
+                <span className={grandPersen > 90 ? 'text-rose-900' : grandPersen > 80 ? 'text-amber-900' : 'text-emerald-900'}>
+                  Kapasitas Terisi
+                </span>
+                <div className={`p-1 rounded-md ${
+                  grandPersen > 90 ? 'bg-rose-100 text-rose-700' : grandPersen > 80 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                }`}>
+                  <TrendingUp className="h-3.5 w-3.5" />
+                </div>
               </div>
-              <div className="text-xl font-black">
-                {formatPercent(grandPersen)}
+              <div>
+                <div className="text-2xl font-bold tracking-tight font-tabular">
+                  {formatPercent(grandPersen)}
+                </div>
               </div>
-              <div className="text-[10px] font-bold font-sans flex items-center gap-1.5 pt-0.5">
-                <span className={`px-1.5 py-0.2 rounded text-[9px] font-mono border ${
+              <div className="text-[11px] font-bold flex items-center gap-1.5 pt-1 border-t border-slate-200/50">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-2xs ${
                   grandPersen > 90
-                    ? 'bg-rose-100 text-rose-900 border-rose-300'
+                    ? 'bg-rose-100 text-rose-800 border-rose-300'
                     : grandPersen > 80
                     ? 'bg-amber-100 text-amber-900 border-amber-300'
-                    : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : 'bg-emerald-100 text-emerald-800 border-emerald-300'
                 }`}>
                   {grandPersen > 90 ? 'OVERCAPACITY' : grandPersen > 80 ? 'WASPADA' : 'OPTIMAL'}
                 </span>
-                <span className="font-normal opacity-80">dari {formatTon(grandKapasitas, { showUnit: true })}</span>
+                <span className="font-normal text-slate-500 text-[10px] font-tabular">dari {formatTon(grandKapasitas, { showUnit: true })}</span>
               </div>
             </div>
 
             {/* Card 3: Coil Breakdown */}
-            <div className="p-3.5 rounded-md bg-emerald-50/40 border border-emerald-200 shadow-2xs space-y-1">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 flex items-center justify-between font-sans">
+            <div className="p-4 rounded-xl bg-white border border-emerald-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 flex items-center justify-between">
                 <span>Coil</span>
-                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs font-tabular">
                   {coilSharePct.toFixed(1)}% Share
                 </span>
               </div>
-              <div className="text-xl font-black text-emerald-950">
-                {formatTon(totalCoilTon, { showUnit: true })}
+              <div>
+                <div className="text-2xl font-bold tracking-tight text-emerald-950 font-tabular">
+                  {formatTon(totalCoilTon, { showUnit: true })}
+                </div>
               </div>
-              <div className="text-[10px] text-emerald-800 font-sans">
-                {formatQty(totalCoilQty, { unit: 'Roll' })} &bull; Bahan Baku Induk
+              <div className="text-[11px] text-slate-600 font-medium pt-1 border-t border-slate-100 font-tabular">
+                <span className="text-emerald-800 font-semibold">{formatQty(totalCoilQty, { unit: 'Roll' })}</span> &bull; Bahan Baku Induk
               </div>
             </div>
 
             {/* Card 4: Strip Breakdown */}
-            <div className="p-3.5 rounded-md bg-amber-50/40 border border-amber-200 shadow-2xs space-y-1">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-900 flex items-center justify-between font-sans">
+            <div className="p-4 rounded-xl bg-white border border-amber-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center justify-between">
                 <span>Strip</span>
-                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs font-tabular">
                   {stripSharePct.toFixed(1)}% Share
                 </span>
               </div>
-              <div className="text-xl font-black text-amber-950">
-                {formatTon(totalStripTon, { showUnit: true })}
+              <div>
+                <div className="text-2xl font-bold tracking-tight text-amber-950 font-tabular">
+                  {formatTon(totalStripTon, { showUnit: true })}
+                </div>
               </div>
-              <div className="text-[10px] text-amber-800 font-sans">
-                {formatQty(totalStripQty, { unit: 'Roll' })} &bull; Strip Siap Forming
+              <div className="text-[11px] text-slate-600 font-medium pt-1 border-t border-slate-100 font-tabular">
+                <span className="text-amber-800 font-semibold">{formatQty(totalStripQty, { unit: 'Roll' })}</span> &bull; Strip Siap Forming
               </div>
             </div>
 
             {/* Card 5: Critical / Highest Warehouse */}
-            <div className="p-3.5 rounded-md bg-slate-50 border border-slate-200/90 shadow-2xs space-y-1 col-span-2 md:col-span-1">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between font-sans">
+            <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-2 col-span-2 md:col-span-1">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
                 <span>Gudang Terpadat</span>
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                <div className="p-1 rounded-md bg-amber-50 text-amber-600">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                </div>
               </div>
-              <div className="text-xl font-black text-slate-900">
-                {highestWarehouse ? highestWarehouse.gudang : '-'}
+              <div>
+                <div className="text-2xl font-bold tracking-tight text-slate-900 font-tabular">
+                  {highestWarehouse ? highestWarehouse.gudang : '-'}
+                </div>
               </div>
-              <div className="text-[10px] text-slate-600 font-sans truncate">
+              <div className="text-[11px] text-slate-600 truncate pt-1 border-t border-slate-100 font-tabular">
                 {highestWarehouse ? `${formatPercent(highestWarehouse.persenTerisi)} (${formatTon(highestWarehouse.totalTon, { showUnit: true })})` : 'Semua seimbang'}
               </div>
             </div>
@@ -421,25 +449,9 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
           </div>
 
           {/* =========================================================================
-              3. EXECUTIVE MEETING INSIGHT BANNER
+              3. CHARTS GRID (BAR COMPARISON + COMPOSITION DONUT)
               ========================================================================= */}
-          <div className="rounded-md border border-emerald-200 bg-emerald-50/50 p-3 flex items-start gap-2.5 text-xs text-emerald-950 font-sans shadow-2xs">
-            <Info className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
-            <div className="leading-relaxed">
-              <strong className="font-bold">Executive Meeting Note: </strong>
-              Total bahan baku Plant 1105 terisi <strong>{formatPercent(grandPersen)}</strong> ({formatTon(grandTotalTon, { showUnit: true })} dari kapasitas {formatTon(grandKapasitas, { showUnit: true })}). Porsi <strong>Coil mendominasi {coilSharePct.toFixed(1)}%</strong>, sementara <strong>Strip {stripSharePct.toFixed(1)}%</strong>. 
-              {highestWarehouse && highestWarehouse.persenTerisi > 80 && (
-                <span className="text-amber-900 font-semibold ml-1">
-                  Perhatian khusus untuk area <strong>{highestWarehouse.gudang} ({highestWarehouse.area})</strong> yang telah mencapai {formatPercent(highestWarehouse.persenTerisi)} kapasitas.
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* =========================================================================
-              4. CHARTS GRID (BAR COMPARISON + COMPOSITION DONUT)
-              ========================================================================= */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             {cards.map((card, index) => {
               // CARD 1: BAR CHART DISTRIBUSI STOCK VS KAPASITAS
               if (card.id === 'chart-coil-capacity') {
@@ -458,12 +470,12 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                     onMoveRight={() => handleMove(index, 'right')}
                     onWidthChange={(w) => handleWidthChange(card.id, w)}
                     badge={
-                      <span className="text-[10px] font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-semibold">
+                      <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200 font-semibold tracking-wide shadow-2xs">
                         Tonase
                       </span>
                     }
                   >
-                    <div className="h-64 w-full">
+                    <div className="h-64 w-full pt-1">
                       <Bar data={chartData} options={chartOptions} />
                     </div>
                   </CustomizableCard>
@@ -486,27 +498,45 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                     onMoveLeft={() => handleMove(index, 'left')}
                     onMoveRight={() => handleMove(index, 'right')}
                     onWidthChange={(w) => handleWidthChange(card.id, w)}
+                    badge={
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
+                        {formatTon(grandTotalTon, { decimals: 2 })} Ton
+                      </span>
+                    }
                   >
-                    <div className="flex flex-col justify-between h-full space-y-3 font-mono">
-                      <div className="h-44 w-full relative flex items-center justify-center">
+                    <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
+                      <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto min-w-0">
                         <Doughnut data={donutData} options={donutOptions} />
-                        <div className="absolute flex flex-col items-center justify-center pointer-events-none">
-                          <span className="text-[10px] text-slate-400 font-bold uppercase">Total</span>
-                          <span className="text-xs font-black text-slate-900">{formatTon(grandTotalTon, { showUnit: true })}</span>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                            {formatTon(grandTotalTon, { decimals: 2 })}
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                            TOTAL TON
+                          </span>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[11px]">
-                        <div className="p-2 rounded bg-emerald-50/70 border border-emerald-200 space-y-0.5">
-                          <span className="text-[9px] text-emerald-800 font-bold uppercase block">Coil</span>
-                          <span className="font-bold text-emerald-950 block">{formatPercent(coilSharePct)}</span>
-                          <span className="text-[10px] text-emerald-700">{formatQty(totalCoilQty, { unit: 'Roll' })}</span>
+                      {/* Breakdown Pills List */}
+                      <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
+                        <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                            <span className="text-[11px] font-medium text-slate-600 truncate">Coil ({totalCoilQty} Roll)</span>
+                          </div>
+                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                            {formatTon(totalCoilTon, { decimals: 2 })}
+                          </span>
                         </div>
 
-                        <div className="p-2 rounded bg-amber-50/70 border border-amber-200 space-y-0.5">
-                          <span className="text-[9px] text-amber-900 font-bold uppercase block">Strip</span>
-                          <span className="font-bold text-amber-950 block">{formatPercent(stripSharePct)}</span>
-                          <span className="text-[10px] text-amber-800">{formatQty(totalStripQty, { unit: 'Roll' })}</span>
+                        <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                            <span className="text-[11px] font-medium text-slate-600 truncate">Strip ({totalStripQty} Roll)</span>
+                          </div>
+                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                            {formatTon(totalStripTon, { decimals: 2 })}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -531,62 +561,61 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                     onMoveRight={() => handleMove(index, 'right')}
                     onWidthChange={(w) => handleWidthChange(card.id, w)}
                     badge={
-                      <span className="text-[10px] font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-300 font-semibold">
+                      <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200 font-semibold tracking-wide shadow-2xs">
                         {sortedTableRows.length} Gudang
                       </span>
                     }
                   >
-                    <div className="overflow-x-auto max-h-[500px]">
-                      <table className="w-full text-left text-xs font-mono border-collapse">
-                        <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-100 text-slate-700 text-[10px] uppercase shadow-2xs">
+                    <div className="overflow-x-auto max-h-[500px] rounded-lg border border-slate-200/80">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-slate-700 text-[10px] uppercase tracking-wider shadow-2xs">
                           <tr>
                             <th
                               onClick={() => handleSort('gudang')}
-                              className="py-2.5 px-3 font-bold cursor-pointer hover:bg-slate-200 transition-colors"
+                              className="py-3 px-3.5 font-bold cursor-pointer hover:bg-slate-100 transition-colors"
                               rowSpan={2}
                             >
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1.5">
                                 <span>Gudang</span>
-                                {sortField === 'gudang' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                                {sortField === 'gudang' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3 text-slate-900" /> : <ArrowDown className="h-3 w-3 text-slate-900" />)}
                               </div>
                             </th>
-                            <th className="py-2.5 px-3 font-bold" rowSpan={2}>Area Alokasi</th>
-                            <th className="py-1 text-center font-bold border-l border-r border-slate-200 bg-emerald-50 text-emerald-950" colSpan={2}>Coil</th>
-                            <th className="py-1 text-center font-bold bg-amber-50 text-amber-950 border-r border-slate-200" colSpan={2}>Strip</th>
-                            <th className="py-1 text-center font-bold bg-slate-200/80 text-slate-900 border-r border-slate-200" colSpan={2}>Total Bahan Baku</th>
+                            <th className="py-3 px-3 font-bold" rowSpan={2}>Area Alokasi</th>
+                            <th className="py-1.5 text-center font-bold border-l border-r border-slate-200 bg-emerald-50/80 text-emerald-950" colSpan={2}>Coil</th>
+                            <th className="py-1.5 text-center font-bold bg-amber-50/80 text-amber-950 border-r border-slate-200" colSpan={2}>Strip</th>
+                            <th className="py-1.5 text-center font-bold bg-slate-100 text-slate-900 border-r border-slate-200" colSpan={2}>Total Bahan Baku</th>
                             <th
                               onClick={() => handleSort('kapasitas')}
-                              className="py-2.5 px-2.5 text-right font-bold border-r border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors"
+                              className="py-3 px-3 text-right font-bold border-r border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors"
                               rowSpan={2}
                             >
-                              <div className="flex items-center justify-end gap-1">
+                              <div className="flex items-center justify-end gap-1.5">
                                 <span>Kapasitas</span>
-                                {sortField === 'kapasitas' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                                {sortField === 'kapasitas' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3 text-slate-900" /> : <ArrowDown className="h-3 w-3 text-slate-900" />)}
                               </div>
                             </th>
                             <th
                               onClick={() => handleSort('persenTerisi')}
-                              className="py-2.5 px-3 text-right font-bold text-slate-900 cursor-pointer hover:bg-slate-200 transition-colors"
+                              className="py-3 px-3.5 text-right font-bold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors"
                               rowSpan={2}
                             >
-                              <div className="flex items-center justify-end gap-1">
+                              <div className="flex items-center justify-end gap-1.5">
                                 <span>% Terisi</span>
-                                {sortField === 'persenTerisi' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                                {sortField === 'persenTerisi' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3 text-slate-900" /> : <ArrowDown className="h-3 w-3 text-slate-900" />)}
                               </div>
                             </th>
                           </tr>
-                          <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 text-[10px]">
-                            <th className="py-1 px-2.5 text-right font-bold border-l border-slate-200">Roll</th>
-                            <th className="py-1 px-2.5 text-right font-bold border-r border-slate-200">Tonase</th>
-                            <th className="py-1 px-2.5 text-right font-bold">Roll</th>
-                            <th className="py-1 px-2.5 text-right font-bold border-r border-slate-200">Tonase</th>
-                            <th className="py-1 px-2.5 text-right font-bold text-slate-900">Total Roll</th>
-                            <th className="py-1 px-2.5 text-right font-bold text-slate-900 border-r border-slate-200">Total Ton</th>
+                          <tr className="border-b border-slate-200 bg-slate-50/90 text-slate-600 text-[10px]">
+                            <th className="py-1.5 px-3 text-right font-semibold border-l border-slate-200">Roll</th>
+                            <th className="py-1.5 px-3 text-right font-semibold border-r border-slate-200">Tonase</th>
+                            <th className="py-1.5 px-3 text-right font-semibold">Roll</th>
+                            <th className="py-1.5 px-3 text-right font-semibold border-r border-slate-200">Tonase</th>
+                            <th className="py-1.5 px-3 text-right font-semibold text-slate-900">Total Roll</th>
+                            <th className="py-1.5 px-3 text-right font-semibold text-slate-900 border-r border-slate-200">Total Ton</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-800">
+                        <tbody className="divide-y divide-slate-100 text-slate-800 bg-white">
                           {sortedTableRows.map((r) => {
-                            const freeTon = Math.max(0, r.kapasitas - r.totalTon);
                             const isHigh = r.persenTerisi > 90;
                             const isWarn = r.persenTerisi > 80 && r.persenTerisi <= 90;
 
@@ -597,35 +626,41 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                                   isHigh ? 'bg-rose-50/30' : ''
                                 }`}
                               >
-                                <td className="py-2 px-3 font-bold text-slate-900 whitespace-nowrap">
+                                <td className="py-2.5 px-3.5 font-bold text-slate-900 whitespace-nowrap">
                                   {r.gudang}
                                 </td>
-                                <td className="py-2 px-3 font-medium text-slate-600 whitespace-nowrap">
+                                <td className="py-2.5 px-3 font-medium text-slate-600 whitespace-nowrap">
                                   {r.area}
                                 </td>
-                                <td className="py-2 px-2.5 text-right text-slate-700 border-l border-slate-100">
+                                <td className="py-2.5 px-3 text-right text-slate-700 font-tabular border-l border-slate-100">
                                   {formatQty(r.coilQty)}
                                 </td>
-                                <td className="py-2 px-2.5 text-right font-semibold text-emerald-800 border-r border-slate-100">
+                                <td className="py-2.5 px-3 text-right font-semibold text-emerald-800 font-tabular border-r border-slate-100">
                                   {formatTon(r.coilTon)}
                                 </td>
-                                <td className="py-2 px-2.5 text-right text-slate-700">
+                                <td className="py-2.5 px-3 text-right text-slate-700 font-tabular">
                                   {formatQty(r.stripQty)}
                                 </td>
-                                <td className="py-2 px-2.5 text-right font-semibold text-amber-900 border-r border-slate-100">
+                                <td className="py-2.5 px-3 text-right font-semibold text-amber-900 font-tabular border-r border-slate-100">
                                   {formatTon(r.stripTon)}
                                 </td>
-                                <td className="py-2 px-2.5 text-right font-bold text-slate-900">
+                                <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-tabular">
                                   {formatQty(r.totalQty)}
                                 </td>
-                                <td className="py-2 px-2.5 text-right font-bold text-slate-900 border-r border-slate-100">
+                                <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-tabular border-r border-slate-100">
                                   {formatTon(r.totalTon)}
                                 </td>
-                                <td className="py-2 px-2.5 text-right text-slate-600 border-r border-slate-100">
+                                <td className="py-2.5 px-3 text-right text-slate-600 font-tabular border-r border-slate-100">
                                   {formatTon(r.kapasitas)}
                                 </td>
-                                <td className="py-2 px-3 text-right font-bold">
-                                  <span className={isHigh ? 'text-rose-700' : isWarn ? 'text-amber-700' : 'text-emerald-700'}>
+                                <td className="py-2.5 px-3.5 text-right font-bold font-tabular">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                    isHigh
+                                      ? 'bg-rose-100 text-rose-800'
+                                      : isWarn
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-emerald-100 text-emerald-800'
+                                  }`}>
                                     {formatPercent(r.persenTerisi)}
                                   </span>
                                 </td>
@@ -633,33 +668,33 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                             );
                           })}
                         </tbody>
-                        <tfoot className="sticky bottom-0 border-t-2 border-slate-300 bg-slate-100 font-bold text-slate-900 shadow-xs">
+                        <tfoot className="sticky bottom-0 border-t-2 border-slate-200 bg-slate-100/95 font-bold text-slate-900 backdrop-blur-xs shadow-xs">
                           <tr>
-                            <td className="py-2.5 px-3 uppercase text-slate-900" colSpan={2}>
+                            <td className="py-3 px-3.5 uppercase text-slate-900 tracking-wide" colSpan={2}>
                               TOTAL ({sortedTableRows.length} GUDANG)
                             </td>
-                            <td className="py-2.5 px-2.5 text-right text-emerald-900 border-l border-slate-200">
+                            <td className="py-3 px-3 text-right text-emerald-900 font-tabular border-l border-slate-200">
                               {formatQty(totalCoilQty)}
                             </td>
-                            <td className="py-2.5 px-2.5 text-right text-emerald-900 border-r border-slate-200">
+                            <td className="py-3 px-3 text-right text-emerald-900 font-tabular border-r border-slate-200">
                               {formatTon(totalCoilTon)}
                             </td>
-                            <td className="py-2.5 px-2.5 text-right text-amber-950">
+                            <td className="py-3 px-3 text-right text-amber-950 font-tabular">
                               {formatQty(totalStripQty)}
                             </td>
-                            <td className="py-2.5 px-2.5 text-right text-amber-950 border-r border-slate-200">
+                            <td className="py-3 px-3 text-right text-amber-950 font-tabular border-r border-slate-200">
                               {formatTon(totalStripTon)}
                             </td>
-                            <td className="py-2.5 px-2.5 text-right text-slate-950">
+                            <td className="py-3 px-3 text-right text-slate-950 font-tabular">
                               {formatQty(grandTotalQty)}
                             </td>
-                            <td className="py-2.5 px-2.5 text-right text-slate-950 border-r border-slate-200">
+                            <td className="py-3 px-3 text-right text-slate-950 font-tabular border-r border-slate-200">
                               {formatTon(grandTotalTon)}
                             </td>
-                            <td className="py-2.5 px-2.5 text-right border-r border-slate-200">
+                            <td className="py-3 px-3 text-right font-tabular border-r border-slate-200">
                               {formatTon(grandKapasitas)}
                             </td>
-                            <td className="py-2.5 px-3 text-right text-slate-950">
+                            <td className="py-3 px-3.5 text-right text-slate-950 font-tabular">
                               {formatPercent(grandPersen)}
                             </td>
                           </tr>
@@ -678,3 +713,4 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
     </div>
   );
 };
+

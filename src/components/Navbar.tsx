@@ -107,6 +107,30 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Helpers for clean date formatting
+  const formatSnapDateLabel = (dateIsoOrSnap: string, lastUpdatedStr?: string): string => {
+    const cleanDate = dateIsoOrSnap.replace('snap_', '').trim();
+    if (cleanDate === 'latest') {
+      if (lastUpdatedStr) {
+        const mLocal = lastUpdatedStr.match(/^(\d{1,2})[./\-](\d{1,2})[./\-](\d{4})/);
+        if (mLocal) {
+          return `${mLocal[1].padStart(2, '0')}/${mLocal[2].padStart(2, '0')}/${mLocal[3]}`;
+        }
+        const mIso = lastUpdatedStr.match(/^(\d{4})[./\-](\d{1,2})[./\-](\d{1,2})/);
+        if (mIso) {
+          return `${mIso[3].padStart(2, '0')}/${mIso[2].padStart(2, '0')}/${mIso[1]}`;
+        }
+      }
+      return 'Data Terkini';
+    }
+
+    const parts = cleanDate.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return cleanDate;
+  };
+
   // Map available snapshot dates: 'YYYY-MM-DD' -> snapshot_key
   const availableDateMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -121,16 +145,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Find active date string (YYYY-MM-DD)
   const activeDateString = useMemo(() => {
-    if (selectedSnapshotKey === 'latest') return 'latest';
-    return selectedSnapshotKey.replace('snap_', '');
-  }, [selectedSnapshotKey]);
-
-  const activeDateLabel = useMemo(() => {
     if (selectedSnapshotKey === 'latest') {
-      return lastUpdated.slice(0, 10);
+      if (snapshots.length > 0 && snapshots[0]?.snapshot_key.startsWith('snap_')) {
+        return snapshots[0].snapshot_key.replace('snap_', '');
+      }
+      const mIso = lastUpdated.match(/(\d{4})[./\-](\d{1,2})[./\-](\d{1,2})/);
+      if (mIso) return `${mIso[1]}-${mIso[2].padStart(2, '0')}-${mIso[3].padStart(2, '0')}`;
+      const mLocal = lastUpdated.match(/(\d{1,2})[./\-](\d{1,2})[./\-](\d{4})/);
+      if (mLocal) return `${mLocal[3]}-${mLocal[2].padStart(2, '0')}-${mLocal[1].padStart(2, '0')}`;
+      return new Date().toISOString().slice(0, 10);
     }
     return selectedSnapshotKey.replace('snap_', '');
-  }, [selectedSnapshotKey, lastUpdated]);
+  }, [selectedSnapshotKey, snapshots, lastUpdated]);
+
+  const activeDateLabel = useMemo(() => {
+    const isLive = selectedSnapshotKey === 'latest';
+    const dateFormatted = formatSnapDateLabel(selectedSnapshotKey === 'latest' ? activeDateString : selectedSnapshotKey, lastUpdated);
+    return isLive ? `${dateFormatted} (Terkini)` : dateFormatted;
+  }, [selectedSnapshotKey, activeDateString, lastUpdated]);
 
   // Calendar matrix calculation
   const calendarDays = useMemo(() => {
@@ -375,18 +407,61 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors cursor-pointer text-[11px] ${
                           selectedSnapshotKey === 'latest'
                             ? 'bg-emerald-800 text-white font-bold'
-                            : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200'
+                            : 'bg-slate-50 hover:bg-emerald-50 text-slate-800 border border-slate-200 hover:border-emerald-300'
                         }`}
                       >
                         <div className="flex items-center gap-1.5">
                           <History className={`h-3.5 w-3.5 ${selectedSnapshotKey === 'latest' ? 'text-amber-300' : 'text-emerald-700'}`} />
-                          <span>Data Terkini (Aktif)</span>
+                          <span>{selectedSnapshotKey === 'latest' ? 'Data Terkini (Aktif)' : 'Kembali ke Data Terkini'}</span>
                         </div>
-                        <span className={`text-[10px] ${selectedSnapshotKey === 'latest' ? 'text-emerald-100' : 'text-slate-500'}`}>
-                          {lastUpdated.slice(0, 10)}
+                        <span className={`text-[10px] font-mono ${selectedSnapshotKey === 'latest' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                          {formatSnapDateLabel('latest', lastUpdated)}
                         </span>
                       </button>
                     </div>
+
+                    {/* Snapshot History List for Direct Selection */}
+                    {snapshots.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-slate-100 space-y-1">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                          Riwayat Arsip Tanggal
+                        </div>
+                        <div className="max-h-28 overflow-y-auto space-y-0.5 pr-0.5">
+                          {snapshots.map((s, idx) => {
+                            const snapDate = s.snapshot_key.replace('snap_', '');
+                            const isCurrentActive = (selectedSnapshotKey === 'latest' && idx === 0) || selectedSnapshotKey === s.snapshot_key;
+                            return (
+                              <button
+                                key={s.snapshot_key}
+                                type="button"
+                                onClick={() => {
+                                  onSelectSnapshot(s.snapshot_key);
+                                  setIsOpenMenu(false);
+                                }}
+                                className={`w-full text-left px-2 py-1 rounded flex items-center justify-between text-[10.5px] transition-colors cursor-pointer ${
+                                  isCurrentActive
+                                    ? 'bg-emerald-100/90 text-emerald-950 font-bold border border-emerald-300'
+                                    : 'hover:bg-slate-100 text-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${idx === 0 ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+                                  <span className="truncate">{formatSnapDateLabel(snapDate)}</span>
+                                  {idx === 0 && (
+                                    <span className="text-[9px] bg-emerald-200/80 text-emerald-800 px-1 py-0.2 rounded font-bold shrink-0">
+                                      Terbaru
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[9px] text-slate-400 font-mono shrink-0 ml-1">
+                                  {s.last_updated.split(',')[1]?.trim() || ''}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                 {/* Reset Option if custom */}
                 {currentUser?.role === 'admin' && isCustomData && (

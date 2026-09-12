@@ -6,11 +6,13 @@ import {
 } from '../types/warehouse';
 
 /**
- * Format Excel serial date number (e.g. 46276 -> "10/09/2026")
+ * Format Excel serial date number or JS Date string (e.g. 46276 or "Fri Sep 11 2026..." -> "11/09/2026")
  */
 export function formatExcelDate(val: unknown): string {
   if (val === null || val === undefined) return '';
   if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '';
+    if (val.getFullYear() < 1920) return '';
     const day = String(val.getDate()).padStart(2, '0');
     const month = String(val.getMonth() + 1).padStart(2, '0');
     const year = val.getFullYear();
@@ -18,7 +20,7 @@ export function formatExcelDate(val: unknown): string {
   }
 
   let str = String(val).trim();
-  if (!str) return '';
+  if (!str || str === '-' || str === '0') return '';
 
   // Standard DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
   if (str.match(/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/)) {
@@ -37,7 +39,7 @@ export function formatExcelDate(val: unknown): string {
 
   // Excel serial number (e.g. 46276 or "46276")
   const num = parseFloat(str);
-  if (!isNaN(num) && num >= 20000 && num <= 80000) {
+  if (!isNaN(num) && num >= 20000 && num <= 80000 && !str.includes(':')) {
     const intPart = Math.floor(num);
     const date = new Date(Math.round((intPart - 25569) * 86400 * 1000));
     const day = String(date.getUTCDate()).padStart(2, '0');
@@ -46,15 +48,26 @@ export function formatExcelDate(val: unknown): string {
     return `${day}/${month}/${year}`;
   }
 
+  // Try parse JS Date string or ISO string (e.g. "Fri Sep 11 2026 23:59:48 GMT+0700" or "2026-09-11T...")
+  const parsedDate = new Date(str);
+  if (!isNaN(parsedDate.getTime())) {
+    if (parsedDate.getFullYear() < 1920) return '';
+    const day = String(parsedDate.getDate()).padStart(2, '0');
+    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+    const year = parsedDate.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
   return str;
 }
 
 /**
- * Format Excel serial time (e.g. 0.28306712962963 -> "06:47:37")
+ * Format Excel serial time or JS Date string (e.g. 0.28306712962963 or "Sat Dec 30 1899 00:31:29..." -> "00:31:29")
  */
 export function formatExcelTime(val: unknown): string {
-  if (val === null || val === undefined) return '';
+  if (val === null || val === undefined) return '-';
   if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '-';
     const h = String(val.getHours()).padStart(2, '0');
     const m = String(val.getMinutes()).padStart(2, '0');
     const s = String(val.getSeconds()).padStart(2, '0');
@@ -73,6 +86,15 @@ export function formatExcelTime(val: unknown): string {
     return `${h}:${m}:${s}`;
   }
 
+  // Match time pattern inside string like "Sat Dec 30 1899 00:31:29 GMT+0707"
+  const timeMatch = str.match(/\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b/);
+  if (timeMatch) {
+    const h = timeMatch[1].padStart(2, '0');
+    const m = timeMatch[2].padStart(2, '0');
+    const s = (timeMatch[3] || '00').padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }
+
   // Excel serial time fraction (e.g. 0.28306712962963)
   const num = parseFloat(str.replace(',', '.'));
   if (!isNaN(num)) {
@@ -85,6 +107,15 @@ export function formatExcelTime(val: unknown): string {
       const seconds = String(totalSeconds % 60).padStart(2, '0');
       return `${hours}:${minutes}:${seconds}`;
     }
+  }
+
+  // Try parse JS Date string
+  const parsedDate = new Date(str);
+  if (!isNaN(parsedDate.getTime())) {
+    const h = String(parsedDate.getHours()).padStart(2, '0');
+    const m = String(parsedDate.getMinutes()).padStart(2, '0');
+    const s = String(parsedDate.getSeconds()).padStart(2, '0');
+    return `${h}:${m}:${s}`;
   }
 
   return str;
@@ -286,16 +317,16 @@ export function parseSapNumber(val: unknown): number {
 
 /**
  * Normalisasi format nomor NCR ke standar SPK/SAP: <NOMOR>/NCR-SKF/<BULAN_ROMAWI>/<TAHUN>
- * Contoh standar: "21/NCR-SKF/IX/2026"
- * Mengubah anomali seperti "18/NCR-AOP/IX/2026", "25/NCR-TOY/IX/2026", "29/NCR-DEN/IX/2026", "21/NCR/IX/2026", dll.
- * Yang membedakan hanya nomor urut di awal sebelum /NCR.
+ * Format standar: "NO/NCR-SKF/Bulan/Tahun" dengan bulan dalam bentuk Romawi.
+ * Contoh standar: "134/NCR-SKF/IX/2026"
+ * Mengubah variasi seperti "143/IX/2026", "143/09/2026", "18/NCR-AOP/IX/2026", "25/NCR-TOY/IX/2026", "21/NCR/IX/2026", dll.
  */
 export function normalizeNCRNumber(rawNcr: string, fallbackMonth = 'IX', fallbackYear = '2026'): string {
   if (!rawNcr || !rawNcr.trim()) return '';
 
   const clean = rawNcr.trim();
 
-  // Helper konversi angka bulan (1-12 atau 01-12) ke Romawi
+  // Helper konversi angka bulan (1-12 / 01-12 / singkatan) ke Romawi
   const monthMap: Record<string, string> = {
     '1': 'I', '01': 'I', 'I': 'I',
     '2': 'II', '02': 'II', 'II': 'II',
@@ -308,50 +339,73 @@ export function normalizeNCRNumber(rawNcr: string, fallbackMonth = 'IX', fallbac
     '9': 'IX', '09': 'IX', 'IX': 'IX',
     '10': 'X', 'X': 'X',
     '11': 'XI', 'XI': 'XI',
-    '12': 'XII', 'XII': 'XII'
+    '12': 'XII', 'XII': 'XII',
+    'JAN': 'I', 'FEB': 'II', 'MAR': 'III', 'APR': 'IV', 'MEI': 'V', 'MAY': 'V',
+    'JUN': 'VI', 'JUL': 'VII', 'AGU': 'VIII', 'AUG': 'VIII', 'SEP': 'IX', 'OKT': 'X', 'OCT': 'X',
+    'NOV': 'XI', 'DES': 'XII', 'DEC': 'XII'
   };
 
-  // 1. Pola standar / variasi: <NOMOR>/NCR.../<BULAN>/<TAHUN>
-  // Contoh: "21/NCR-SKF/IX/2026", "18/NCR-AOP/IX/2026", "25/NCR-TOY/09/2026", "29/NCR-DEN/IX/2026", "12/NCR/IX/2026"
-  const standardPattern = /^(\d+)[\/\-_\s]*NCR(?:-[A-Za-z0-9]+)?(?:[\/\-_\s]+([A-Za-z0-9]+))?(?:[\/\-_\s]+(\d{4}))?/i;
-  const match = clean.match(standardPattern);
+  const toRoman = (m?: string): string => {
+    if (!m) return fallbackMonth;
+    const up = m.trim().toUpperCase();
+    if (monthMap[up]) return monthMap[up];
+    if (/^[IVXLCDM]+$/i.test(up)) return up.toUpperCase();
+    return fallbackMonth;
+  };
 
-  if (match) {
-    const num = match[1];
-    let month = match[2] ? match[2].toUpperCase() : fallbackMonth;
-    if (monthMap[month]) {
-      month = monthMap[month];
-    } else if (!/^[IVXLCDM]+$/i.test(month)) {
-      month = fallbackMonth;
-    }
-    const year = match[3] || fallbackYear;
-    return `${num}/NCR-SKF/${month}/${year}`;
-  }
+  const toFullYear = (y?: string): string => {
+    if (!y) return fallbackYear;
+    const cleanY = y.trim();
+    if (cleanY.length === 2) return `20${cleanY}`;
+    if (cleanY.length === 4) return cleanY;
+    return fallbackYear;
+  };
 
-  // 2. Pola prefix NCR: "NCR/21/IX/2026" atau "NCR-21" atau "NCR 21"
-  const prefixPattern = /^NCR[\/\-_\s]+(\d+)(?:[\/\-_\s]+([A-Za-z0-9]+))?(?:[\/\-_\s]+(\d{4}))?/i;
+  // 1. Pola prefix NCR: "NCR/21/IX/2026" atau "NCR-21" atau "NCR 21/IX/2026" atau "NCR.137.SKF.IX.2026"
+  const prefixPattern = /^NCR[\/\-_.\s]+(\d+)(?:[\/\-_.\s]+(?:SKF|AOP|TOY|DEN|[A-Za-z0-9]+))?(?:[\/\-_.\s]+([IVXLCDM]+|\d{1,2}|JAN|FEB|MAR|APR|MEI|MAY|JUN|JUL|AGU|AUG|SEP|OKT|OCT|NOV|DES|DEC))?(?:[\/\-_.\s]+(\d{2,4}))?/i;
   const prefixMatch = clean.match(prefixPattern);
   if (prefixMatch) {
     const num = prefixMatch[1];
-    let month = prefixMatch[2] ? prefixMatch[2].toUpperCase() : fallbackMonth;
-    if (monthMap[month]) {
-      month = monthMap[month];
-    } else if (!/^[IVXLCDM]+$/i.test(month)) {
-      month = fallbackMonth;
-    }
-    const year = prefixMatch[3] || fallbackYear;
+    const month = toRoman(prefixMatch[2]);
+    const year = toFullYear(prefixMatch[3]);
     return `${num}/NCR-SKF/${month}/${year}`;
   }
 
-  // 3. Pola digit yang diikuti NCR di mana saja: "21/NCR"
-  const digitNcr = clean.match(/(\d+)[\/\s\-]*NCR/i);
+  // 2. Pola standar / variasi: <NOMOR>/[NCR/SKF/DEPT]/<BULAN>/<TAHUN>
+  // Contoh: "134/NCR-SKF/IX/2026", "137.SKF/IX/2026", "137/SKF/IX/2026", "137/NCR.SKF/IX/2026", "137.SKF.IX.2026", "18/NCR-AOP/IX/2026"
+  const standardPattern = /^(\d+)[\/\-_.\s]*(?:NCR(?:[\/\-_.\s]*(?:SKF|AOP|TOY|DEN|[A-Za-z0-9]{2,6}))?|SKF|AOP|TOY|DEN|[A-Za-z0-9]{2,6})?[\/\-_.\s]+([IVXLCDM]+|\d{1,2}|JAN|FEB|MAR|APR|MEI|MAY|JUN|JUL|AGU|AUG|SEP|OKT|OCT|NOV|DES|DEC)[\/\-_.\s]+(\d{2,4})/i;
+  const match = clean.match(standardPattern);
+  if (match) {
+    const num = match[1];
+    const month = toRoman(match[2]);
+    const year = toFullYear(match[3]);
+    return `${num}/NCR-SKF/${month}/${year}`;
+  }
+
+  // 3. Pola tanpa keyword NCR: <NOMOR>/<BULAN>/<TAHUN> (misal: "143/IX/2026", "143/09/2026", "143/IX/26")
+  const noNcrPattern = /^(\d+)[\/\-_.\s]+([IVXLCDM]+|\d{1,2}|JAN|FEB|MAR|APR|MEI|MAY|JUN|JUL|AGU|AUG|SEP|OKT|OCT|NOV|DES|DEC)[\/\-_.\s]+(\d{2,4})/i;
+  const noNcrMatch = clean.match(noNcrPattern);
+  if (noNcrMatch) {
+    const num = noNcrMatch[1];
+    const month = toRoman(noNcrMatch[2]);
+    const year = toFullYear(noNcrMatch[3]);
+    return `${num}/NCR-SKF/${month}/${year}`;
+  }
+
+  // 4. Pola angka + NCR/SKF + Tahun tanpa bulan: "137/NCR/2026" atau "137.SKF/2026"
+  const numDeptYearPattern = /^(\d+)[\/\-_.\s]*(?:NCR(?:[\/\-_.\s]*(?:SKF|AOP|TOY|DEN|[A-Za-z0-9]+))?|SKF|AOP|TOY|DEN)[\/\-_.\s]+(\d{2,4})/i;
+  const numDeptYearMatch = clean.match(numDeptYearPattern);
+  if (numDeptYearMatch) {
+    const num = numDeptYearMatch[1];
+    const year = toFullYear(numDeptYearMatch[2]);
+    return `${num}/NCR-SKF/${fallbackMonth}/${year}`;
+  }
+
+  // 5. Pola digit yang diikuti NCR/SKF saja: "21/NCR", "137.SKF", "137/NCR-SKF"
+  const digitNcr = clean.match(/^(\d+)[\/\-_.\s]*(?:NCR(?:[\/\-_.\s]*(?:SKF|AOP|TOY|DEN))?|SKF|AOP|TOY|DEN|NCR)/i);
   if (digitNcr) {
     const num = digitNcr[1];
-    const yearMatch = clean.match(/\b(20\d{2})\b/);
-    const year = yearMatch ? yearMatch[1] : fallbackYear;
-    const romMatch = clean.match(/\b(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\b/i);
-    const month = romMatch ? romMatch[1].toUpperCase() : fallbackMonth;
-    return `${num}/NCR-SKF/${month}/${year}`;
+    return `${num}/NCR-SKF/${fallbackMonth}/${fallbackYear}`;
   }
 
   return clean;
@@ -359,24 +413,47 @@ export function normalizeNCRNumber(rawNcr: string, fallbackMonth = 'IX', fallbac
 
 /**
  * Ekstraksi Nomor NCR dan Keterangan Masalah dari kolom Text / Keterangan SAP
- * Contoh: "21/NCR-SKF/IX/2026 KARAT LUAR DALAM SEBAGIAN"
- * -> ncrNumber: "21/NCR-SKF/IX/2026", problemRemark: "KARAT LUAR DALAM SEBAGIAN"
+ * Contoh:
+ * - "134/NCR-SKF/IX/2026 KOTOR GRAM" -> ncrNumber: "134/NCR-SKF/IX/2026", problemRemark: "KOTOR GRAM"
+ * - "137.SKF/IX/2026 CACAT ROLL REPAIR" -> ncrNumber: "137/NCR-SKF/IX/2026", problemRemark: "CACAT ROLL REPAIR"
+ * - "143/IX/2026 PENYOK CEKAM CUTTING" -> ncrNumber: "143/NCR-SKF/IX/2026", problemRemark: "PENYOK CEKAM CUTTING"
  */
 export function extractNCRAndRemark(text?: string): { ncrNumber?: string; problemRemark?: string } {
   if (!text) return {};
   const cleaned = cleanStr(text);
   if (!cleaned) return {};
 
-  // Regex mencari pattern NCR (misal: 21/NCR-SKF/IX/2026 atau 18/NCR-AOP/IX/2026 atau NCR/2026/001 atau 123/NCR/...)
-  const ncrMatch = cleaned.match(/(\d+[\/\-_\s]*NCR[\/A-Za-z0-9_\-]+|\bNCR[\/\-_\s]*[\/A-Za-z0-9_\-]+)/i);
-  if (ncrMatch) {
-    const rawNcr = ncrMatch[0].trim();
-    const ncrNumber = normalizeNCRNumber(rawNcr);
-    const problemRemark = cleaned.replace(ncrMatch[0], '').replace(/^[\s\-–:/]+|[\s\-–:/]+$/g, '').trim();
-    return {
-      ncrNumber,
-      problemRemark: problemRemark || cleaned
-    };
+  const MONTH_REGEX = "(?:[0-9]{1,2}|[IVXLCDM]+|JAN|FEB|MAR|APR|MEI|MAY|JUN|JUL|AGU|AUG|SEP|OKT|OCT|NOV|DES|DEC)";
+
+  const patterns = [
+    // 1. Prefix NCR (NCR/137/SKF/IX/2026, NCR.137/SKF/IX/2026, NCR-137/IX/2026, NCR 137) - tidak didahului angka atau slash
+    /(?<![\d/])\bNCR[\/\-_.\s]+\d{1,6}(?:[\/\-_.\s]+(?:SKF|AOP|TOY|DEN|[A-Za-z0-9]+))?(?:[\/\-_.\s]+(?:[0-9]{1,2}|[IVXLCDM]+|JAN|FEB|MAR|APR|MEI|MAY|JUN|JUL|AGU|AUG|SEP|OKT|OCT|NOV|DES|DEC))?(?:[\/\-_.\s]+(?:\d{4}|\d{2}))?\b/i,
+
+    // 2. Angka di awal + (NCR-SKF | SKF | NCR.SKF | dept) + Bulan + Tahun
+    // Contoh: 137/NCR-SKF/IX/2026, 137.SKF/IX/2026, 137/SKF/IX/2026, 137/NCR.SKF/IX/2026, 137.SKF.IX.2026
+    /\b\d{1,6}[\/\-_.\s]*(?:NCR(?:[\/\-_.\s]*(?:SKF|AOP|TOY|DEN|[A-Za-z0-9]{2,6}))?|SKF|AOP|TOY|DEN|[A-Za-z0-9]{2,6})[\/\-_.\s]+(?:[0-9]{1,2}|[IVXLCDM]+|JAN|FEB|MAR|APR|MEI|MAY|JUN|JUL|AGU|AUG|SEP|OKT|OCT|NOV|DES|DEC)[\/\-_.\s]+(?:\d{4}|\d{2})\b/i,
+
+    // 3. Angka di awal + (NCR... | SKF | AOP | TOY | DEN) + Tahun: 137/NCR/2026, 137.SKF/2026
+    /\b\d{1,6}[\/\-_.\s]*(?:NCR(?:[\/\-_.\s]*(?:SKF|AOP|TOY|DEN|[A-Za-z0-9]+))?|SKF|AOP|TOY|DEN)[\/\-_.\s]+(?:\d{4}|\d{2})\b/i,
+
+    // 4. Angka di awal + Bulan + Tahun (tanpa keyword NCR): 137/IX/2026, 137/09/2026
+    /\b\d{1,6}[\/\-_.\s]+(?:[0-9]{1,2}|[IVXLCDM]+|JAN|FEB|MAR|APR|MEI|MAY|JUN|JUL|AGU|AUG|SEP|OKT|OCT|NOV|DES|DEC)[\/\-_.\s]+(?:\d{4}|\d{2})\b/i,
+
+    // 5. Angka + (NCR... | SKF | AOP | TOY | DEN) saja: 137/NCR, 137.SKF, 137/NCR-SKF
+    /\b\d{1,6}[\/\-_.\s]*(?:NCR(?:[\/\-_.\s]*(?:SKF|AOP|TOY|DEN))?|SKF|AOP|TOY|DEN|NCR)\b/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = cleaned.match(pattern);
+    if (match) {
+      const rawNcr = match[0].trim();
+      const ncrNumber = normalizeNCRNumber(rawNcr);
+      const problemRemark = cleaned.replace(match[0], '').replace(/^[\s\-–:/|\[\].]+|[\s\-–:/|\[\].]+$/g, '').trim();
+      return {
+        ncrNumber,
+        problemRemark
+      };
+    }
   }
 
   return {

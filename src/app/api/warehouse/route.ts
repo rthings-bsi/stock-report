@@ -391,9 +391,19 @@ export async function POST(request: Request) {
           customer_breakdown: finalCustBreakdown,
         };
 
-        const { error: supaErr } = await supabase
+        let { error: supaErr } = await supabase
           .from('warehouse_snapshots')
           .upsert(payload, { onConflict: 'snapshot_key' });
+
+        // Fallback jika kolom nc_progress_data belum ada di schema Supabase
+        if (supaErr && supaErr.message?.includes('nc_progress_data')) {
+          const fallbackPayload = { ...payload };
+          delete (fallbackPayload as any).nc_progress_data;
+          const retry = await supabase
+            .from('warehouse_snapshots')
+            .upsert(fallbackPayload, { onConflict: 'snapshot_key' });
+          supaErr = retry.error;
+        }
 
         if (supaErr) {
           console.warn('Supabase sync warning (data tetap aman di SQLite):', supaErr);

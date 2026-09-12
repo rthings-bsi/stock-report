@@ -219,18 +219,20 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
       {
         label: 'Fast Moving',
         data: filteredBarData.map((d) => d.fastTon),
-        backgroundColor: '#047857',
-        hoverBackgroundColor: '#065f46',
-        borderRadius: 2,
-        maxBarThickness: selectedGudang !== 'ALL' ? 64 : 36,
+        backgroundColor: '#059669',
+        hoverBackgroundColor: '#047857',
+        borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+        borderSkipped: false,
+        maxBarThickness: selectedGudang !== 'ALL' ? 56 : 32,
       },
       {
         label: 'Slow Moving',
         data: filteredBarData.map((d) => d.slowTon),
         backgroundColor: '#d97706',
         hoverBackgroundColor: '#b45309',
-        borderRadius: 2,
-        maxBarThickness: selectedGudang !== 'ALL' ? 64 : 36,
+        borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+        borderSkipped: false,
+        maxBarThickness: selectedGudang !== 'ALL' ? 56 : 32,
       },
     ],
   };
@@ -242,22 +244,23 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
       legend: {
         position: 'bottom' as const,
         labels: {
-          font: { family: 'monospace', size: 10, weight: 'bold' as const },
+          font: { family: 'inherit', size: 11, weight: 'bold' as const },
           color: '#475569',
           boxWidth: 10,
           boxHeight: 10,
           usePointStyle: true,
           pointStyle: 'rectRounded',
-          padding: 16,
+          padding: 20,
         },
       },
       tooltip: {
         backgroundColor: '#0f172a',
-        titleFont: { family: 'monospace', size: 11, weight: 'bold' as const },
-        bodyFont: { family: 'monospace', size: 11 },
-        padding: 8,
-        cornerRadius: 4,
+        titleFont: { family: 'inherit', size: 12, weight: 'bold' as const },
+        bodyFont: { family: 'inherit', size: 11 },
+        padding: 10,
+        cornerRadius: 6,
         displayColors: true,
+        boxPadding: 4,
         callbacks: {
           label: function (context: any) {
             const val = context.raw || 0;
@@ -269,13 +272,13 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     scales: {
       x: {
         grid: { display: false },
-        ticks: { font: { family: 'monospace', size: 10, weight: 'bold' as const }, color: '#334155' },
+        ticks: { font: { family: 'inherit', size: 11, weight: 'bold' as const }, color: '#334155' },
         border: { color: '#cbd5e1' },
       },
       y: {
         grid: { color: '#f1f5f9' },
-        ticks: { font: { family: 'monospace', size: 9 }, color: '#64748b' },
-        border: { dash: [4, 4], color: '#cbd5e1' },
+        ticks: { font: { family: 'inherit', size: 10 }, color: '#64748b' },
+        border: { dash: [4, 4], color: '#e2e8f0' },
       },
     },
   };
@@ -291,12 +294,14 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     labels: ['Fast Moving', 'Slow Moving'],
     datasets: [
       {
-        data: [Number(activeFastTon.toFixed(1)), Number(activeSlowTon.toFixed(1))],
-        backgroundColor: ['#047857', '#d97706'],
-        hoverBackgroundColor: ['#065f46', '#b45309'],
+        data: [Number(activeFastTon.toFixed(2)), Number(activeSlowTon.toFixed(2))],
+        backgroundColor: ['#10b981', '#f59e0b'],
+        hoverBackgroundColor: ['#059669', '#d97706'],
         borderWidth: 2,
         borderColor: '#ffffff',
-        cutout: '74%',
+        spacing: 2,
+        borderRadius: 4,
+        hoverOffset: 6,
       },
     ],
   };
@@ -304,6 +309,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
   const doughnutOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    cutout: '72%',
     onClick: (_event: any, elements: any[]) => {
       if (elements && elements.length > 0) {
         const index = elements[0].index;
@@ -318,19 +324,19 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#0f172a',
-        titleFont: { family: 'monospace', size: 10, weight: 'bold' as const },
-        bodyFont: { family: 'monospace', size: 10 },
-        padding: 8,
-        cornerRadius: 4,
-        displayColors: false,
+        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+        titleColor: '#f8fafc',
+        bodyColor: '#f1f5f9',
+        titleFont: { size: 12, weight: 'bold' as const },
+        bodyFont: { size: 11 },
+        padding: { top: 8, bottom: 8, left: 12, right: 12 },
+        cornerRadius: 8,
+        boxPadding: 4,
+        usePointStyle: true,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
         callbacks: {
-          title: () => '',
-          label: function (context: any) {
-            const val = context.raw || 0;
-            const pct = activeGrandTotal > 0 ? (val / activeGrandTotal) * 100 : 0;
-            return `${context.label}: ${val.toLocaleString('id-ID', { minimumFractionDigits: 1 })} T (${pct.toFixed(1)}%)`;
-          },
+          label: (ctx: any) => ` ${ctx.label}: ${(ctx.parsed || 0).toFixed(2)} Ton`,
         },
       },
     },
@@ -859,31 +865,21 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* BANNER HEADER & CONTROL TOOLBAR */}
-      <div className="rounded-md border border-black/20 theme-banner text-white p-3.5 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-sm font-bold uppercase tracking-wider">
-              Stock Pipa Fast Moving vs Slow Moving
-            </h2>
-            <span className="text-[10px] font-mono bg-emerald-950/60 text-emerald-200 px-2 py-0.5 rounded border border-emerald-800">
-              PASM Analysis
-            </span>
-            {selectedGudang !== 'ALL' && (
-              <span className="text-[10px] font-mono bg-amber-400 text-amber-950 px-2 py-0.5 rounded font-bold">
-                Gudang: {selectedGudang}
-              </span>
-            )}
+      {/* Top Banner & Header */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            <Clock className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
-          <p className="text-[11px] text-emerald-200 font-medium font-mono">
-            Monitoring perputaran stock pipa aktual terhadap status slow moving per gudang
-          </p>
+          <h1 className="text-base font-bold text-white font-sans tracking-tight">
+            Stock Pipa Fast Moving vs Slow Moving
+          </h1>
         </div>
 
         {/* FILTERS */}
         <div className="flex items-center gap-2.5 flex-wrap font-mono text-xs">
           {/* GUDANG SELECTOR */}
-          <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded border border-emerald-800">
+          <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-700/80">
             <Warehouse className="h-3.5 w-3.5 text-amber-300 shrink-0" />
             <span className="text-emerald-300 text-[10px] uppercase font-bold">Gudang:</span>
             <select
@@ -904,7 +900,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
             <button
               type="button"
               onClick={() => setSelectedGudang('ALL')}
-              className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-900 text-[11px] font-bold rounded shadow-2xs transition-all cursor-pointer"
+              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
             >
               Reset Filter
             </button>
@@ -940,7 +936,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <span className="text-[10px] font-mono bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded border border-slate-300">
+                  <span className="text-[10px] font-mono bg-slate-100 text-slate-700 font-semibold px-2.5 py-0.5 rounded-full border border-slate-200">
                     {selectedGudang !== 'ALL' ? selectedGudang : 'Per Gudang'}
                   </span>
                 }
@@ -1030,27 +1026,34 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 onMoveLeft={() => handleMove(index, 'left')}
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
+                badge={
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
+                    {formatTon(activeGrandTotal, { decimals: 2 })} Ton
+                  </span>
+                }
               >
-                <div className="flex flex-col sm:flex-row items-center justify-around py-1 gap-4">
-                  <div className="relative h-48 w-56 flex items-center justify-center shrink-0">
+                <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
+                  <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto min-w-0">
                     <Doughnut data={doughnutData} options={doughnutOptions} />
-                    <div className="absolute flex flex-col items-center pointer-events-none">
-                      <span className="text-xl font-bold font-mono text-slate-900">{activeFastPct.toFixed(0)}%</span>
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase font-mono">Fast</span>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                        {formatTon(activeGrandTotal, { decimals: 2 })}
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                        TOTAL TON
+                      </span>
                     </div>
                   </div>
 
-                  <div className="space-y-3 font-mono w-full sm:w-auto">
-                    <div className="flex items-center justify-between gap-4 p-3 rounded-md bg-slate-50 border border-slate-200">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-xs bg-emerald-700 shrink-0" />
-                        <div>
-                          <div className="text-[10px] font-bold uppercase text-slate-500">Fast Moving</div>
-                          <div className="text-xs font-bold text-slate-900">{formatTon(activeFastTon, { showUnit: true })}</div>
-                        </div>
+                  {/* Breakdown Pills List */}
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
+                    <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="text-[11px] font-medium text-slate-600 truncate">Fast Moving ({formatPercent(activeFastPct)})</span>
                       </div>
-                      <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200">
-                        {formatPercent(activeFastPct)}
+                      <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                        {formatTon(activeFastTon, { decimals: 2 })}
                       </span>
                     </div>
 
@@ -1060,20 +1063,15 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                         setSelectedDrilldownYear(null);
                         setShowYearModal(true);
                       }}
-                      className="flex items-center justify-between gap-4 p-3 rounded-md bg-amber-50/70 border border-amber-200 hover:border-amber-400 hover:bg-amber-100/60 transition-all cursor-pointer shadow-2xs group"
-                      title="Klik untuk melihat rincian tonase Slow Moving per tahun (Prod. Year)"
+                      className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-amber-50/80 transition-colors"
+                      title="Klik untuk melihat rincian tonase Slow Moving per tahun"
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-xs bg-amber-600 shrink-0 group-hover:scale-125 transition-transform" />
-                        <div>
-                          <div className="text-[10px] font-bold uppercase text-amber-950">
-                            Slow Moving
-                          </div>
-                          <div className="text-xs font-bold text-slate-900">{formatTon(activeSlowTon, { showUnit: true })}</div>
-                        </div>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                        <span className="text-[11px] font-medium text-slate-600 truncate">Slow Moving ({formatPercent(activeSlowPct)})</span>
                       </div>
-                      <span className="text-[11px] font-bold text-amber-900 bg-amber-100/90 px-2 py-0.5 rounded border border-amber-300">
-                        {formatPercent(activeSlowPct)}
+                      <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                        {formatTon(activeSlowTon, { decimals: 2 })}
                       </span>
                     </div>
                   </div>

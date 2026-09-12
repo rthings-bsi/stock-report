@@ -1,4 +1,4 @@
-import { normalizeNCRNumber } from './parseNCProgress';
+import { normalizeNCRNumber, extractNCRAndRemark } from './parseNCProgress';
 import * as XLSX from 'xlsx';
 import {
   WarehousePipeCapacity,
@@ -677,9 +677,8 @@ export function parseExcelFiles(
     ).trim();
 
     // Ekstrak dan standardisasi pola nomor dokumen NC jika tertulis di dalam CUST.REMARK atau kolom NO NC
-    const ncRegex = /(\d+\/(?:NCR-[A-Za-z0-9\-_]+\/|)[IVXLCDM0-9a-z\-_]+\/(?:\d{4}|\d{2})|\d+\/[IVXLCDM0-9a-z\-_]+\/\d{4})/i;
-    const matchedNC = rawCustRemark.match(ncRegex);
-    const extractedNoNC = rawNoNC || (matchedNC ? matchedNC[0] : '');
+    const extractedFromRemark = extractNCRAndRemark(rawCustRemark);
+    const extractedNoNC = rawNoNC ? normalizeNCRNumber(rawNoNC) : (extractedFromRemark.ncrNumber || '');
     const finalNoNC = extractedNoNC ? normalizeNCRNumber(extractedNoNC) : '';
 
     const upperCust = rawCustRemark.toUpperCase();
