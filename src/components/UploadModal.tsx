@@ -5,6 +5,7 @@ import { Upload, FileSpreadsheet, X, CheckCircle2, AlertCircle, Loader2 } from '
 import { readExcelFile, parseExcelFiles, ParsedWarehouseState } from '../lib/parser';
 import { parseDamagedPackagingFile } from '../lib/parseDamagedPackaging';
 import { parseIncomingPackagingFile } from '../lib/parseIncomingPackaging';
+import { parseNCProgressRows } from '../lib/parseNCProgress';
 import { RolePermissions } from '../types/auth';
 
 interface UploadModalProps {
@@ -27,6 +28,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [looFile, setLooFile] = useState<File | null>(null);
   const [packagingFile, setPackagingFile] = useState<File | null>(null);
   const [incomingFile, setIncomingFile] = useState<File | null>(null);
+  const [ncProgressFile, setNcProgressFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -35,17 +37,19 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const canUploadLoo = isAdmin || Boolean(userPermissions?.canUploadLoo ?? userPermissions?.canUploadSAP ?? true);
   const canUploadDamagedPkg = isAdmin || Boolean(userPermissions?.canUploadDamagedPkg ?? userPermissions?.canUploadSAP ?? true);
   const canUploadIncomingPkg = isAdmin || Boolean(userPermissions?.canUploadIncomingPkg ?? userPermissions?.canUploadSAP ?? true);
-  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg;
+  const canUploadProgressNC = isAdmin || Boolean(userPermissions?.canUploadProgressNC ?? userPermissions?.canUploadSAP ?? true);
+  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg || canUploadProgressNC;
 
   const pipeInputRef = useRef<HTMLInputElement>(null);
   const coilInputRef = useRef<HTMLInputElement>(null);
   const looInputRef = useRef<HTMLInputElement>(null);
   const packagingInputRef = useRef<HTMLInputElement>(null);
   const incomingInputRef = useRef<HTMLInputElement>(null);
+  const ncProgressInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
   const handleProcessFiles = async () => {
-    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile) {
+    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile && !ncProgressFile) {
       setErrorMsg('Silakan pilih minimal satu file spreadsheet export SAP (.xlsx / .xls).');
       return;
     }
@@ -59,15 +63,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       let looRows: Record<string, unknown>[] = [];
       let packagingRows: Record<string, unknown>[] = [];
       let incomingRows: Record<string, unknown>[] = [];
+      let ncProgressRows: Record<string, unknown>[] = [];
 
       if (pipeFile && canUploadPipe) pipeRows = await readExcelFile(pipeFile);
       if (coilFile && canUploadCoil) coilRows = await readExcelFile(coilFile);
       if (looFile && canUploadLoo) looRows = await readExcelFile(looFile);
       if (packagingFile && canUploadDamagedPkg) packagingRows = await readExcelFile(packagingFile);
       if (incomingFile && canUploadIncomingPkg) incomingRows = await readExcelFile(incomingFile);
+      if (ncProgressFile && canUploadProgressNC) ncProgressRows = await readExcelFile(ncProgressFile);
 
       const parsedResult = parseExcelFiles(pipeRows, coilRows, looRows);
-      const uploadedCategories: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg')[] = [];
+      const uploadedCategories: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc')[] = [];
       if (pipeFile && pipeRows.length > 0) uploadedCategories.push('pipe');
       if (coilFile && coilRows.length > 0) uploadedCategories.push('coil');
       if (looFile && looRows.length > 0) uploadedCategories.push('loo');
@@ -79,12 +85,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         parsedResult.incomingPackagingData = parseIncomingPackagingFile(incomingRows);
         uploadedCategories.push('incoming_pkg');
       }
+      if (ncProgressFile && canUploadProgressNC && ncProgressRows.length > 0) {
+        parsedResult.ncProgressData = parseNCProgressRows(ncProgressRows);
+        uploadedCategories.push('progress_nc');
+      }
       parsedResult.uploadedCategories = uploadedCategories;
       onDataParsed(parsedResult);
       onClose();
     } catch (err: unknown) {
       console.error(err);
-      setErrorMsg('Gagal memproses file. Pastikan format kolom file sesuai export standar SAP (MB52 / ZMM / LOO / Packaging).');
+      setErrorMsg('Gagal memproses file. Pastikan format kolom file sesuai export standar SAP (MB52 / MB51 / ZMM / LOO / Packaging).');
     } finally {
       setIsLoading(false);
     }
@@ -312,6 +322,43 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               )}
             </div>
           )}
+
+          {/* 6. Data Transaksi Progres NC (MVT 309, 261, 101) */}
+          {canUploadProgressNC && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-emerald-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900">Data Transaksi Progres NC &amp; Repair</span>
+                    <p className="text-[10px] text-slate-500 font-mono">Export SAP MB51 / ZMM (MVT 309, 261 REP, 101 REP)</p>
+                  </div>
+                </div>
+                <input
+                  ref={ncProgressInputRef}
+                  type="file"
+                  accept=".xlsx, .xls, .csv, .txt, .tsv"
+                  className="hidden"
+                  onChange={(e) => setNcProgressFile(e.target.files?.[0] || null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => ncProgressInputRef.current?.click()}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  {ncProgressFile ? 'Ganti File' : 'Pilih File'}
+                </button>
+              </div>
+              {ncProgressFile && (
+                <div className="mt-2.5 flex items-center gap-2 text-xs font-mono font-medium text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span className="truncate">{ncProgressFile.name} ({(ncProgressFile.size / 1024).toFixed(0)} KB)</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Modal Footer */}
@@ -325,7 +372,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           </button>
           <button
             type="button"
-            disabled={isLoading || (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile)}
+            disabled={isLoading || (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile && !ncProgressFile)}
             onClick={handleProcessFiles}
             className="flex items-center gap-2 rounded-lg bg-emerald-800 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 disabled:opacity-50 transition-all cursor-pointer"
           >

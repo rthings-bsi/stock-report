@@ -118,6 +118,7 @@ export async function GET(request: Request) {
         unfifoPipeData: parseJsonSafe(row.unfifo_pipe_data, []),
         damagedPackagingData: parseJsonSafe(row.damaged_packaging_data, []),
         incomingPackagingData: parseJsonSafe(row.incoming_packaging_data, []),
+        ncProgressData: parseJsonSafe(row.nc_progress_data, []),
         customerBreakdown: parseJsonSafe(row.customer_breakdown, {}),
         createdAt: row.created_at,
       };
@@ -177,6 +178,7 @@ export async function GET(request: Request) {
       unfifoPipeData: parseJsonSafe(row.unfifo_pipe_data, []),
       damagedPackagingData: parseJsonSafe(row.damaged_packaging_data, []),
       incomingPackagingData: parseJsonSafe(row.incoming_packaging_data, []),
+      ncProgressData: parseJsonSafe(row.nc_progress_data, []),
       customerBreakdown: parseJsonSafe(row.customer_breakdown, {}),
       createdAt: row.created_at,
     };
@@ -207,6 +209,7 @@ export async function POST(request: Request) {
       unfifoPipeData,
       damagedPackagingData,
       incomingPackagingData,
+      ncProgressData,
       customerBreakdown,
       lastUpdated,
       snapshotKey,
@@ -251,6 +254,7 @@ export async function POST(request: Request) {
       const prevUnfifoPipe = existing ? parseJsonSafe(existing.unfifo_pipe_data, []) : [];
       const prevDamagedPkg = existing ? parseJsonSafe(existing.damaged_packaging_data, []) : [];
       const prevIncomingPkg = existing ? parseJsonSafe(existing.incoming_packaging_data, []) : [];
+      const prevNcProgress = existing ? parseJsonSafe(existing.nc_progress_data, []) : [];
       const prevCustBreakdown = existing ? parseJsonSafe(existing.customer_breakdown, {}) : {};
 
       const payload = {
@@ -259,7 +263,7 @@ export async function POST(request: Request) {
         pipe_capacities: hasRealPipe(pipeCapacities) ? pipeCapacities : (hasRealPipe(prevPipe) ? prevPipe : (pipeCapacities || [])),
         fast_slow_data: hasArray(fastSlowData) ? fastSlowData : prevFastSlow,
         coil_strip_data: hasRealCoil(coilStripData) ? coilStripData : (hasRealCoil(prevCoil) ? prevCoil : (coilStripData || [])),
-        nc_warehouse_data: hasRealPipe(pipeCapacities) && hasArray(ncWarehouseData) ? ncWarehouseData : (hasRealPipe(prevPipe) ? prevNcWh : (ncWarehouseData || [])),
+        nc_warehouse_data: hasRealPipe(pipeCapacities) && hasArray(ncWarehouseData) ? ncWarehouseData : (hasRealPipe(prevNcWh) ? prevNcWh : (ncWarehouseData || [])),
         nc_items: hasArray(ncItems) ? ncItems : prevNcItems,
         loo_st_data: hasArray(looSTData) ? looSTData : prevLooST,
         loo_lt_data: hasArray(looLTData) ? looLTData : prevLooLT,
@@ -268,6 +272,7 @@ export async function POST(request: Request) {
         unfifo_pipe_data: hasArray(unfifoPipeData) ? unfifoPipeData : prevUnfifoPipe,
         damaged_packaging_data: hasArray(damagedPackagingData) ? damagedPackagingData : prevDamagedPkg,
         incoming_packaging_data: hasArray(incomingPackagingData) ? incomingPackagingData : prevIncomingPkg,
+        nc_progress_data: hasArray(ncProgressData) ? ncProgressData : prevNcProgress,
         customer_breakdown: hasObject(customerBreakdown) ? customerBreakdown : prevCustBreakdown,
       };
 
@@ -308,12 +313,13 @@ export async function POST(request: Request) {
     const prevUnfifoPipe = existingRow ? parseJsonSafe(existingRow.unfifo_pipe_data, []) : [];
     const prevDamagedPkg = existingRow ? parseJsonSafe(existingRow.damaged_packaging_data, []) : [];
     const prevIncomingPkg = existingRow ? parseJsonSafe(existingRow.incoming_packaging_data, []) : [];
+    const prevNcProgress = existingRow ? parseJsonSafe(existingRow.nc_progress_data, []) : [];
     const prevCustBreakdown = existingRow ? parseJsonSafe(existingRow.customer_breakdown, {}) : {};
 
     const finalPipe = hasRealPipe(pipeCapacities) ? pipeCapacities : (hasRealPipe(prevPipe) ? prevPipe : (pipeCapacities || []));
     const finalFastSlow = hasArray(fastSlowData) ? fastSlowData : prevFastSlow;
     const finalCoil = hasRealCoil(coilStripData) ? coilStripData : (hasRealCoil(prevCoil) ? prevCoil : (coilStripData || []));
-    const finalNcWh = hasRealPipe(pipeCapacities) && hasArray(ncWarehouseData) ? ncWarehouseData : (hasRealPipe(prevPipe) ? prevNcWh : (ncWarehouseData || []));
+    const finalNcWh = hasRealPipe(pipeCapacities) && hasArray(ncWarehouseData) ? ncWarehouseData : (hasRealPipe(prevNcWh) ? prevNcWh : (ncWarehouseData || []));
     const finalNcItems = hasArray(ncItems) ? ncItems : prevNcItems;
     const finalLooST = hasArray(looSTData) ? looSTData : prevLooST;
     const finalLooLT = hasArray(looLTData) ? looLTData : prevLooLT;
@@ -322,6 +328,7 @@ export async function POST(request: Request) {
     const finalUnfifoPipe = hasArray(unfifoPipeData) ? unfifoPipeData : prevUnfifoPipe;
     const finalDamagedPkg = hasArray(damagedPackagingData) ? damagedPackagingData : prevDamagedPkg;
     const finalIncomingPkg = hasArray(incomingPackagingData) ? incomingPackagingData : prevIncomingPkg;
+    const finalNcProgress = hasArray(ncProgressData) ? ncProgressData : prevNcProgress;
     const finalCustBreakdown = hasObject(customerBreakdown) ? customerBreakdown : prevCustBreakdown;
 
     const upsertStmt = db.prepare(`
@@ -340,6 +347,7 @@ export async function POST(request: Request) {
         unfifo_pipe_data,
         damaged_packaging_data,
         incoming_packaging_data,
+        nc_progress_data,
         customer_breakdown
       ) VALUES (
         @snapshotKey,
@@ -356,6 +364,7 @@ export async function POST(request: Request) {
         @unfifoPipeData,
         @damagedPackagingData,
         @incomingPackagingData,
+        @ncProgressData,
         @customerBreakdown
       )
       ON CONFLICT(snapshot_key) DO UPDATE SET
@@ -372,6 +381,7 @@ export async function POST(request: Request) {
         unfifo_pipe_data = excluded.unfifo_pipe_data,
         damaged_packaging_data = excluded.damaged_packaging_data,
         incoming_packaging_data = excluded.incoming_packaging_data,
+        nc_progress_data = excluded.nc_progress_data,
         customer_breakdown = excluded.customer_breakdown,
         created_at = CURRENT_TIMESTAMP;
     `);
@@ -391,6 +401,7 @@ export async function POST(request: Request) {
       unfifoPipeData: JSON.stringify(finalUnfifoPipe),
       damagedPackagingData: JSON.stringify(finalDamagedPkg),
       incomingPackagingData: JSON.stringify(finalIncomingPkg),
+      ncProgressData: JSON.stringify(finalNcProgress),
       customerBreakdown: JSON.stringify(finalCustBreakdown),
     });
 

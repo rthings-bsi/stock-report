@@ -47,6 +47,7 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
             unfifo_pipe_data TEXT,
             damaged_packaging_data TEXT,
             incoming_packaging_data TEXT,
+            nc_progress_data TEXT,
             customer_breakdown TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           );

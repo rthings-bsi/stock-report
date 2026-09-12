@@ -10,7 +10,8 @@ import {
   UnfifoCoilItem,
   UnfifoPipeItem,
   DamagedPackagingItem,
-  IncomingPackagingItem
+  IncomingPackagingItem,
+  NCProgressTransaction
 } from '../types/warehouse';
 
 export interface ParsedWarehouseState {
@@ -26,9 +27,10 @@ export interface ParsedWarehouseState {
   unfifoPipeData?: UnfifoPipeItem[];
   damagedPackagingData?: DamagedPackagingItem[];
   incomingPackagingData?: IncomingPackagingItem[];
+  ncProgressData?: NCProgressTransaction[];
   customerBreakdown?: Record<string, Array<{ customer: string; qty: number; tonase: number }>>;
   lastUpdated: string;
-  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg')[];
+  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc')[];
 }
 
 const PIPE_CAPACITY_MAP: Record<string, number> = {

@@ -197,3 +197,84 @@ export interface UnfifoPipeItem {
   unfifoStatus: string;
   issueNote?: string;
 }
+
+export type NCProgressTransactionType = 'IN_NC' | 'OUT_REPAIR' | 'IN_OK_PRIME' | 'OTHER';
+
+export interface NCProgressTransaction {
+  id: string;
+  entryDate: string;
+  timeOfEntry?: string;
+  plant: string;
+  storageLocation: string;
+  postingDate: string;
+  movementType: string;
+  customer?: string; // Name 2
+  purchaseOrder?: string;
+  order?: string;
+  workCenter?: string;
+  material: string;
+  materialDescription: string;
+  batch: string;
+  qtyInUnOfEntry: number;
+  quantity: number; // in KG
+  amountInLC?: number;
+  documentHeaderText?: string;
+  materialDocument: string;
+  materialDocItem: string;
+  reference?: string;
+  grGiSlip?: string;
+  userName: string;
+  text?: string; // Keterangan masalah / No NCR (e.g. "21/NCR-SKF/IX/2026 KARAT LUAR DALAM SEBAGIAN")
+  unloadingPoint?: string;
+  salesOrder?: string;
+  salesOrderItem?: string;
+  kgGI: number;
+  kgGR: number;
+  transactionType: NCProgressTransactionType;
+  ncrNumber?: string;
+  problemRemark?: string;
+}
+
+export interface NCProgressPipelineItem {
+  key: string;
+  material: string;
+  materialDescription: string;
+  customer: string;
+  order?: string;
+  workCenter?: string;
+  unloadingPoint?: string;
+  salesOrder?: string;
+  ncrNumber?: string;
+  problemRemark?: string;
+  batchNC?: string;
+  batchPrime?: string;
+  slocNC?: string;
+  slocPrime?: string;
+  qtyNCIn: number;
+  kgNCIn: number;
+  qtyOutRepair: number;
+  kgOutRepair: number;
+  qtyInPrime: number;
+  kgInPrime: number;
+  status: 'TERDAFTAR NC' | 'DALAM REPAIR' | 'SELESAI OK' | 'PARTIAL REPAIR';
+  recoveryRate: number;
+  transactions: NCProgressTransaction[];
+  lastDate?: string;
+}
+
+export interface NCProgressSummary {
+  totalNCInQty: number;
+  totalNCInKg: number;
+  totalOutRepairQty: number;
+  totalOutRepairKg: number;
+  totalInPrimeQty: number;
+  totalInPrimeKg: number;
+  outstandingRepairQty: number;
+  outstandingRepairKg: number;
+  wipRepairQty: number;
+  wipRepairKg: number;
+  overallRecoveryRate: number;
+  totalTransactions: number;
+  totalNCRCount: number;
+}
+

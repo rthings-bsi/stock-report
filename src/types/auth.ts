@@ -10,6 +10,7 @@ export interface RolePermissions {
   viewLoo: boolean;            // Stock Pipa vs LOO
   viewDamagedPkg: boolean;     // Data Packaging Rusak
   viewIncomingPkg: boolean;    // Input & Kelola Incoming Packaging (RTP)
+  viewProgressNC?: boolean;    // Progres NC & Repair (MVT 309, 261 REP, 101 OK)
   viewUserManagement: boolean; // Kelola Pengguna & Roles
 
   // Upload Raw Data Permissions (Pecahan Upload Data Raw SAP & Packaging)
@@ -19,10 +20,12 @@ export interface RolePermissions {
   canUploadLoo: boolean;         // Upload Raw Data LOO (Delivery Order)
   canUploadDamagedPkg: boolean;  // Upload Raw Packaging Rusak (RTP NG)
   canUploadIncomingPkg: boolean; // Upload Raw Mutasi & Incoming Packaging (RTP)
+  canUploadProgressNC?: boolean;// Upload Raw Transaksi Progres NC (MVT 309/261/101)
 
   // Action & Operational Permissions
   canEditIncomingPkg: boolean; // Tambah/Edit/Hapus Data RTP
   canEditDamagedPkg: boolean;  // Edit Status Repack Packaging Rusak
+  canEditProgressNC?: boolean; // Tambah/Edit/Hapus Data Transaksi Progres NC
   canExportExcel: boolean;     // Download spreadsheet Excel
   canCustomizeLayout: boolean; // Ubah tata letak/sembunyikan card
   canManageUsers: boolean;     // Tambah/Edit/Hapus User & Role
@@ -70,6 +73,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   viewLoo: true,
   viewDamagedPkg: true,
   viewIncomingPkg: true,
+  viewProgressNC: true,
   viewUserManagement: true,
   canUploadSAP: true,
   canUploadPipe: true,
@@ -77,8 +81,10 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   canUploadLoo: true,
   canUploadDamagedPkg: true,
   canUploadIncomingPkg: true,
+  canUploadProgressNC: true,
   canEditIncomingPkg: true,
   canEditDamagedPkg: true,
+  canEditProgressNC: true,
   canExportExcel: true,
   canCustomizeLayout: true,
   canManageUsers: true,
@@ -94,6 +100,7 @@ export const DEFAULT_STAFF_PERMISSIONS: RolePermissions = {
   viewLoo: true,
   viewDamagedPkg: true,
   viewIncomingPkg: true,
+  viewProgressNC: true,
   viewUserManagement: false,
   canUploadSAP: false,
   canUploadPipe: false,
@@ -101,8 +108,10 @@ export const DEFAULT_STAFF_PERMISSIONS: RolePermissions = {
   canUploadLoo: false,
   canUploadDamagedPkg: false,
   canUploadIncomingPkg: false,
+  canUploadProgressNC: false,
   canEditIncomingPkg: true,
   canEditDamagedPkg: false,
+  canEditProgressNC: true,
   canExportExcel: true,
   canCustomizeLayout: false,
   canManageUsers: false,
@@ -118,6 +127,7 @@ export const DEFAULT_VIEWER_PERMISSIONS: RolePermissions = {
   viewLoo: true,
   viewDamagedPkg: true,
   viewIncomingPkg: true,
+  viewProgressNC: true,
   viewUserManagement: false,
   canUploadSAP: false,
   canUploadPipe: false,
@@ -125,8 +135,10 @@ export const DEFAULT_VIEWER_PERMISSIONS: RolePermissions = {
   canUploadLoo: false,
   canUploadDamagedPkg: false,
   canUploadIncomingPkg: false,
+  canUploadProgressNC: false,
   canEditIncomingPkg: false,
   canEditDamagedPkg: false,
+  canEditProgressNC: false,
   canExportExcel: true,
   canCustomizeLayout: false,
   canManageUsers: false,

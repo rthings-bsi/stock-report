@@ -23,7 +23,8 @@ import {
   PackageCheck,
   Users,
   UserCog,
-  X
+  X,
+  GitFork
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { LoginPage } from '@/components/LoginPage';
@@ -39,6 +40,7 @@ import { PipeCapacityView } from '@/components/PipeCapacityView';
 import { FastSlowView } from '@/components/FastSlowView';
 import { CoilStripView } from '@/components/CoilStripView';
 import { NCQualityView } from '@/components/NCQualityView';
+import { NCProgressView } from '@/components/NCProgressView';
 import { LooFulfillmentView } from '@/components/LooFulfillmentView';
 import { UnfifoView } from '@/components/UnfifoView';
 import { DamagedPackagingView } from '@/components/DamagedPackagingView';
@@ -55,6 +57,7 @@ import {
   initialTop10LooAllAreaLT,
   initialUnfifoData
 } from '@/lib/mockData';
+import { initialNCProgressData } from '@/lib/ncProgressData';
 import { initialDamagedPackagingData } from '@/lib/damagedPackagingData';
 import { initialIncomingPackagingData } from '@/lib/incomingPackagingData';
 import {
@@ -68,7 +71,8 @@ import {
   UnfifoCoilItem,
   UnfifoPipeItem,
   DamagedPackagingItem,
-  IncomingPackagingItem
+  IncomingPackagingItem,
+  NCProgressTransaction
 } from '@/types/warehouse';
 import { ParsedWarehouseState } from '@/lib/parser';
 import { cn, formatTon, formatPercent } from '@/lib/utils';
@@ -78,6 +82,7 @@ const VALID_TABS = [
   'fastslow',
   'coilstrip',
   'nc',
+  'nc_progress',
   'loo',
   'unfifo',
   'packaging',
@@ -101,6 +106,7 @@ export default function Home() {
   const [unfifoPipeData, setUnfifoPipeData] = useState<UnfifoPipeItem[]>([]);
   const [damagedPackagingData, setDamagedPackagingData] = useState<DamagedPackagingItem[]>(initialDamagedPackagingData);
   const [incomingPackagingData, setIncomingPackagingData] = useState<IncomingPackagingItem[]>(initialIncomingPackagingData);
+  const [ncProgressData, setNcProgressData] = useState<NCProgressTransaction[]>(initialNCProgressData);
   const [customerBreakdown, setCustomerBreakdown] = useState<Record<string, Array<{ customer: string; qty: number; tonase: number }>>>({});
 
   // Application State
@@ -285,6 +291,7 @@ export default function Home() {
         setUnfifoPipeData(d.unfifoPipeData || []);
         setDamagedPackagingData(d.damagedPackagingData || []);
         setIncomingPackagingData(d.incomingPackagingData || []);
+        setNcProgressData(d.ncProgressData || []);
         setCustomerBreakdown(d.customerBreakdown || {});
         setLastUpdated(d.lastUpdated || '');
         setIsCustomData(true);
@@ -314,6 +321,7 @@ export default function Home() {
           if (d.unfifoPipeData?.length > 0) setUnfifoPipeData(d.unfifoPipeData);
           if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
           if (d.incomingPackagingData?.length > 0) setIncomingPackagingData(d.incomingPackagingData);
+          if (d.ncProgressData?.length > 0) setNcProgressData(d.ncProgressData);
           if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
           if (d.lastUpdated) setLastUpdated(d.lastUpdated);
           setIsCustomData(true);
@@ -345,6 +353,7 @@ export default function Home() {
               if (d.unfifoCoilData?.length > 0) setUnfifoCoilData(d.unfifoCoilData);
               if (d.unfifoPipeData?.length > 0) setUnfifoPipeData(d.unfifoPipeData);
               if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
+              if (d.ncProgressData?.length > 0) setNcProgressData(d.ncProgressData);
               if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
               if (d.lastUpdated) setLastUpdated(d.lastUpdated);
               setIsCustomData(true);
@@ -382,6 +391,7 @@ export default function Home() {
       unfifoPipeData,
       damagedPackagingData,
       incomingPackagingData,
+      ncProgressData,
       customerBreakdown,
       lastUpdated: new Date().toLocaleString('id-ID'),
     };
@@ -428,6 +438,7 @@ export default function Home() {
     const hasLoo = Boolean((newState.looSTData && newState.looSTData.length > 0) || (newState.looLTData && newState.looLTData.length > 0));
     const hasDamagedPkg = Boolean(newState.damagedPackagingData && newState.damagedPackagingData.length > 0);
     const hasIncomingPkg = Boolean(newState.incomingPackagingData && newState.incomingPackagingData.length > 0);
+    const hasProgressNC = Boolean(newState.ncProgressData && newState.ncProgressData.length > 0);
 
     const nextPipeCapacities = hasPipe ? newState.pipeCapacities! : (pipeCapacities.length > 0 ? pipeCapacities : (currentSaved.pipeCapacities || []));
     const nextFastSlowData = hasPipe && newState.fastSlowData ? newState.fastSlowData : (fastSlowData.length > 0 ? fastSlowData : (currentSaved.fastSlowData || []));
@@ -445,6 +456,7 @@ export default function Home() {
 
     const nextDamagedPackagingData = hasDamagedPkg ? newState.damagedPackagingData! : (damagedPackagingData.length > 0 ? damagedPackagingData : (currentSaved.damagedPackagingData || []));
     const nextIncomingPackagingData = hasIncomingPkg ? newState.incomingPackagingData! : (incomingPackagingData.length > 0 ? incomingPackagingData : (currentSaved.incomingPackagingData || []));
+    const nextNcProgressData = hasProgressNC ? newState.ncProgressData! : (ncProgressData.length > 0 ? ncProgressData : (currentSaved.ncProgressData || []));
 
     const nowStr = newState.lastUpdated || new Date().toLocaleString('id-ID');
 
@@ -473,6 +485,9 @@ export default function Home() {
     if (hasIncomingPkg) {
       setIncomingPackagingData(nextIncomingPackagingData);
     }
+    if (hasProgressNC) {
+      setNcProgressData(nextNcProgressData);
+    }
 
     setLastUpdated(nowStr);
     setIsCustomData(true);
@@ -491,6 +506,7 @@ export default function Home() {
       unfifoPipeData: nextUnfifoPipeData,
       damagedPackagingData: nextDamagedPackagingData,
       incomingPackagingData: nextIncomingPackagingData,
+      ncProgressData: nextNcProgressData,
       customerBreakdown: nextCustomerBreakdown,
       lastUpdated: nowStr,
     };
@@ -533,6 +549,7 @@ export default function Home() {
     setUnfifoPipeData([]);
     setDamagedPackagingData(initialDamagedPackagingData);
     setIncomingPackagingData(initialIncomingPackagingData);
+    setNcProgressData(initialNCProgressData);
     setCustomerBreakdown({});
     setIsCustomData(false);
 
@@ -626,11 +643,13 @@ export default function Home() {
       userPermissions.canUploadLoo ||
       userPermissions.canUploadDamagedPkg ||
       userPermissions.canUploadIncomingPkg ||
+      userPermissions.canUploadProgressNC ||
       userPermissions.canUploadSAP
     );
   const canCustomizeLayout = currentUser?.role === 'admin' || Boolean(userPermissions.canCustomizeLayout);
   const canEditIncomingPkg = currentUser?.role === 'admin' || Boolean(userPermissions.canEditIncomingPkg);
   const canEditDamagedPkg = currentUser?.role === 'admin' || Boolean(userPermissions.canEditDamagedPkg);
+  const canEditProgressNC = currentUser?.role === 'admin' || Boolean(userPermissions.canEditProgressNC);
   const isEditable = canManageUsers || canUploadSAP;
 
   // Master definition of all possible menu items with their required permission keys
@@ -639,6 +658,7 @@ export default function Home() {
     { id: 'fastslow', label: 'Fast vs Slow Moving', icon: Clock, desc: 'Analisis PASM Pipa', permKey: 'viewFastSlow' },
     { id: 'coilstrip', label: 'Coil & Strip', icon: Disc, desc: 'Bahan Baku Induk', permKey: 'viewCoilStrip' },
     { id: 'nc', label: 'Stock NC', icon: ShieldAlert, desc: 'Grade E & Mutu C', permKey: 'viewNC' },
+    { id: 'nc_progress', label: 'Progres NC & Repair', icon: GitFork, desc: 'MVT 309, 261 & 101', permKey: 'viewProgressNC' },
     { id: 'unfifo', label: 'UNFIFO', icon: RefreshCcw, desc: 'Audit Alur Pengeluaran', permKey: 'viewUnfifo' },
     { id: 'loo', label: 'Stock Pipa vs LOO', icon: TrendingUp, desc: 'Pemenuhan Target LOO', permKey: 'viewLoo' },
     { id: 'packaging', label: 'Data Packaging Rusak', icon: PackageX, desc: 'Temuan & Status Repack', permKey: 'viewDamagedPkg' },
@@ -1306,6 +1326,31 @@ export default function Home() {
                 ncWarehouseData={ncWarehouseData}
                 ncItems={ncItems}
                 isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
+              />
+            )}
+
+            {activeTab === 'nc_progress' && (currentUser.role === 'admin' || userPermissions.viewProgressNC) && (
+              <NCProgressView
+                data={ncProgressData}
+                isAdmin={currentUser?.role === 'admin' || canUploadSAP}
+                canEdit={canEditProgressNC}
+                onDataUpdate={async (newData) => {
+                  setNcProgressData(newData);
+                  setIsCustomData(true);
+                  try {
+                    const localSaved = localStorage.getItem('spindo_warehouse_saved_state');
+                    const prev = localSaved ? JSON.parse(localSaved) : {};
+                    const updatedState = { ...prev, ncProgressData: newData };
+                    localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(updatedState));
+                    await fetch('/api/warehouse', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(updatedState),
+                    });
+                  } catch (err) {
+                    console.error('Failed to sync NC progress data:', err);
+                  }
+                }}
               />
             )}
 
