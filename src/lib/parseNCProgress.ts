@@ -465,41 +465,42 @@ export function extractNCRAndRemark(text?: string): { ncrNumber?: string; proble
  * Klasifikasi tipe transaksi Progres NC:
  * 1. IN_NC: Movement Type = 309
  * 2. OUT_REPAIR: Movement Type = 261 AND Work Center mengandung REP (REP-501 dsb)
- * 3. IN_OK_PRIME: Movement Type = 101 AND Work Center mengandung REP
+ * 3. OUT_REPAIR_RETURN: Movement Type = 262 (Pengembalian / Reversal GI Repair ke Gudang)
+ * 4. IN_OK_PRIME: Movement Type = 101 AND Work Center mengandung REP
  */
 export function classifyTransaction(
   mvt: string,
   workCenter?: string,
-  order?: string
+  order?: string,
+  batch?: string,
+  text?: string
 ): NCProgressTransactionType {
   const m = cleanStr(mvt);
   const wc = cleanStr(workCenter).toUpperCase();
-  const ord = cleanStr(order);
 
-  const isRepWorkcenter = wc.includes('REP') || wc.startsWith('REP-');
+  // Khusus MVT 261, 262, 101: HANYA izinkan work center REP* (case-insensitive)
+  const isRepWorkcenter = wc.startsWith('REP');
 
   if (m === '309' || m.startsWith('309')) {
     return 'IN_NC';
   }
 
+  // MVT 261: Issue ke Repair Order - HANYA work center REP*
   if (m === '261' || m.startsWith('261')) {
-    if (isRepWorkcenter || (ord && ord.length > 5 && isRepWorkcenter)) {
-      return 'OUT_REPAIR';
-    }
-    // Fallback jika ada work center REP di field lain
-    if (isRepWorkcenter) return 'OUT_REPAIR';
+    return isRepWorkcenter ? 'OUT_REPAIR' : 'OTHER';
   }
 
+  // MVT 262: Return/Reversal GI Repair ke gudang - HANYA work center REP*
+  if (m === '262' || m.startsWith('262')) {
+    return isRepWorkcenter ? 'OUT_REPAIR_RETURN' : 'OTHER';
+  }
+
+  // MVT 101: Receipt hasil perbaikan Prime - HANYA work center REP*
   if (m === '101' || m.startsWith('101')) {
-    if (isRepWorkcenter) {
-      return 'IN_OK_PRIME';
-    }
+    return isRepWorkcenter ? 'IN_OK_PRIME' : 'OTHER';
   }
 
-  // Jika mvt 261 tapi workcenter kosong namun ada order repair khusus
-  if (m === '261' && isRepWorkcenter) return 'OUT_REPAIR';
-  if (m === '101' && isRepWorkcenter) return 'IN_OK_PRIME';
-
+  // Catatan: Reject / DG Repair bukan movement type terpisah, melainkan hasil perhitungan (261 - 262 - 101)
   return 'OTHER';
 }
 
@@ -578,7 +579,12 @@ export function parseNCProgressRows(rows: Record<string, unknown>[]): NCProgress
       else if (kgGR > 0) quantityKg = kgGR;
     }
 
-    const transactionType = classifyTransaction(movementType, workCenter, order);
+    const transactionType = classifyTransaction(movementType, workCenter, order, batch, text);
+
+    // Selain alur Progres NC (IN_NC 309, OUT_REPAIR 261 REP*, OUT_REPAIR_RETURN 262 REP*, IN_OK_PRIME 101 REP*), abaikan transaksi
+    if (transactionType === 'OTHER') {
+      return;
+    }
 
     // Filter khusus IN NC (MVT 309): Hanya ambil data batch NC yang berakhiran 'C' atau 'E'
     // (Abaikan baris pasangan asal 'A'/Prime yang ter-ekspor ganda dari transaksi SAP 309)
@@ -693,13 +699,14 @@ export function buildNCProgressPipeline(transactions: NCProgressTransaction[]): 
 
   transactions.forEach((tx) => {
     // Tentukan group key yang paling akurat
-    // 1. Jika ada Order nomor repair (e.g. 500000408790), pakai Order
+    // 1. Jika ada Order nomor repair valid (bukan '0' atau kosong), pakai Order
     // 2. Jika ada Unloading Point (e.g. 4002161591), gabungkan dengan Material
     // 3. Jika ada No NCR, pakai No NCR + Material
     // 4. Fallback ke Material + Customer / Base Batch
+    const hasValidOrder = Boolean(tx.order && tx.order.trim() !== '' && tx.order.trim() !== '0');
     let groupKey = '';
-    if (tx.order && tx.order.trim() !== '') {
-      groupKey = `ORD_${tx.order.trim()}`;
+    if (hasValidOrder) {
+      groupKey = `ORD_${tx.order!.trim()}`;
     } else if (tx.unloadingPoint && tx.unloadingPoint.trim() !== '') {
       groupKey = `UP_${tx.unloadingPoint.trim()}_${tx.material.trim()}`;
     } else if (tx.ncrNumber && tx.ncrNumber.trim() !== '') {
@@ -735,13 +742,17 @@ export function buildNCProgressPipeline(transactions: NCProgressTransaction[]): 
     let problemRemark = '';
     let batchNC = '';
     let batchPrime = '';
+    let batchReject = '';
     let slocNC = '';
     let slocPrime = '';
+    let slocReject = '';
 
     let qtyNCIn = 0;
     let kgNCIn = 0;
-    let qtyOutRepair = 0;
-    let kgOutRepair = 0;
+    let qty261 = 0;
+    let kg261 = 0;
+    let qty262 = 0;
+    let kg262 = 0;
     let qtyInPrime = 0;
     let kgInPrime = 0;
     let lastDate = '';
@@ -750,8 +761,8 @@ export function buildNCProgressPipeline(transactions: NCProgressTransaction[]): 
       if (!material && tx.material) material = tx.material;
       if (!materialDescription && tx.materialDescription) materialDescription = tx.materialDescription;
       if (!customer && tx.customer) customer = tx.customer;
-      if (!order && tx.order) order = tx.order;
-      if (!workCenter && tx.workCenter) workCenter = tx.workCenter;
+      if (!order && tx.order && tx.order.trim() !== '' && tx.order.trim() !== '0') order = tx.order.trim();
+      if (!workCenter && tx.workCenter && tx.workCenter.trim()) workCenter = tx.workCenter.trim();
       if (!unloadingPoint && tx.unloadingPoint) unloadingPoint = tx.unloadingPoint;
       if (!salesOrder && tx.salesOrder) salesOrder = tx.salesOrder;
       if (!ncrNumber && tx.ncrNumber) ncrNumber = tx.ncrNumber;
@@ -765,26 +776,44 @@ export function buildNCProgressPipeline(transactions: NCProgressTransaction[]): 
         if (!batchNC && tx.batch) batchNC = tx.batch;
         if (!slocNC && tx.storageLocation) slocNC = tx.storageLocation;
       } else if (tx.transactionType === 'OUT_REPAIR') {
-        qtyOutRepair += tx.qtyInUnOfEntry;
-        kgOutRepair += tx.kgGI || tx.quantity || 0;
+        // MVT 261: Issue ke SPK Repair
+        qty261 += tx.qtyInUnOfEntry;
+        kg261 += tx.kgGI || tx.quantity || 0;
         if (!batchNC && tx.batch) batchNC = tx.batch;
-        if (!order && tx.order) order = tx.order;
-        if (!workCenter && tx.workCenter) workCenter = tx.workCenter;
+        if (!order && tx.order && tx.order.trim() !== '' && tx.order.trim() !== '0') order = tx.order.trim();
+        if (!workCenter && tx.workCenter && tx.workCenter.trim()) workCenter = tx.workCenter.trim();
+      } else if (tx.transactionType === 'OUT_REPAIR_RETURN') {
+        // MVT 262: Return / Reversal GI Repair ke gudang
+        qty262 += tx.qtyInUnOfEntry;
+        kg262 += (tx.kgGI || tx.quantity || 0);
+        if (!batchNC && tx.batch) batchNC = tx.batch;
+        if (!order && tx.order && tx.order.trim() !== '' && tx.order.trim() !== '0') order = tx.order.trim();
+        if (!workCenter && tx.workCenter && tx.workCenter.trim()) workCenter = tx.workCenter.trim();
       } else if (tx.transactionType === 'IN_OK_PRIME') {
+        // MVT 101: Hasil Selesai Prime
         qtyInPrime += tx.qtyInUnOfEntry;
         kgInPrime += tx.kgGR || tx.quantity || 0;
         if (!batchPrime && tx.batch) batchPrime = tx.batch;
         if (!slocPrime && tx.storageLocation) slocPrime = tx.storageLocation;
-        if (!order && tx.order) order = tx.order;
-        if (!workCenter && tx.workCenter) workCenter = tx.workCenter;
+        if (!order && tx.order && tx.order.trim() !== '' && tx.order.trim() !== '0') order = tx.order.trim();
+        if (!workCenter && tx.workCenter && tx.workCenter.trim()) workCenter = tx.workCenter.trim();
       }
     });
 
+    // Net GI Repair = 261 - 262
+    const qtyOutRepair = Math.max(0, qty261 - qty262);
+    const kgOutRepair = Math.max(0, kg261 - kg262);
+
+    // Rumus Reject / DG Repair = MVT 261 - 262 - 101
+    const qtyReject = Math.max(0, qty261 - qty262 - qtyInPrime);
+    const kgReject = Math.max(0, kg261 - kg262 - kgInPrime);
+
     // Tentukan Status Progress
     let status: NCProgressPipelineItem['status'] = 'TERDAFTAR NC';
-    if (qtyInPrime >= (qtyOutRepair || qtyNCIn) && (qtyOutRepair > 0 || qtyInPrime > 0)) {
+    const totalDone = qtyInPrime + qtyReject;
+    if (totalDone >= (qtyOutRepair || qtyNCIn) && (qtyOutRepair > 0 || totalDone > 0)) {
       status = 'SELESAI OK';
-    } else if (qtyInPrime > 0 && qtyInPrime < (qtyOutRepair || qtyNCIn)) {
+    } else if (totalDone > 0 && totalDone < (qtyOutRepair || qtyNCIn)) {
       status = 'PARTIAL REPAIR';
     } else if (qtyOutRepair > 0) {
       status = 'DALAM REPAIR';
@@ -801,22 +830,30 @@ export function buildNCProgressPipeline(transactions: NCProgressTransaction[]): 
       material: material || 'MATERIAL-NC',
       materialDescription: materialDescription || 'Item Pipa Spindo',
       customer: customer || 'PT. SETIA GUNA SEJATI',
-      order,
-      workCenter: workCenter || 'REP-501',
+      order: order || '',
+      workCenter: workCenter || (txList.find((t) => t.workCenter && t.workCenter.trim())?.workCenter || ''),
       unloadingPoint,
       salesOrder,
       ncrNumber,
       problemRemark: problemRemark || 'Karat / Cacat Permukaan',
       batchNC: batchNC || (txList[0]?.batch ?? '-'),
       batchPrime: batchPrime || (txList.find((t) => t.transactionType === 'IN_OK_PRIME')?.batch || '-'),
+      batchReject: batchReject || '-',
       slocNC: slocNC || '5M13',
       slocPrime: slocPrime || '5M08',
+      slocReject: slocReject || '-',
       qtyNCIn,
       kgNCIn,
+      qty261,
+      kg261,
+      qty262,
+      kg262,
       qtyOutRepair,
       kgOutRepair,
       qtyInPrime,
       kgInPrime,
+      qtyReject,
+      kgReject,
       status,
       recoveryRate,
       transactions: txList,
@@ -836,8 +873,10 @@ export function computeNCProgressSummary(
 ): NCProgressSummary {
   let totalNCInQty = 0;
   let totalNCInKg = 0;
-  let totalOutRepairQty = 0;
-  let totalOutRepairKg = 0;
+  let total261Qty = 0;
+  let total261Kg = 0;
+  let total262Qty = 0;
+  let total262Kg = 0;
   let totalInPrimeQty = 0;
   let totalInPrimeKg = 0;
 
@@ -846,21 +885,32 @@ export function computeNCProgressSummary(
       totalNCInQty += tx.qtyInUnOfEntry;
       totalNCInKg += tx.quantity || tx.kgGI || tx.kgGR || 0;
     } else if (tx.transactionType === 'OUT_REPAIR') {
-      totalOutRepairQty += tx.qtyInUnOfEntry;
-      totalOutRepairKg += tx.kgGI || tx.quantity || 0;
+      total261Qty += tx.qtyInUnOfEntry;
+      total261Kg += tx.kgGI || tx.quantity || 0;
+    } else if (tx.transactionType === 'OUT_REPAIR_RETURN') {
+      total262Qty += tx.qtyInUnOfEntry;
+      total262Kg += (tx.kgGI || tx.quantity || 0);
     } else if (tx.transactionType === 'IN_OK_PRIME') {
       totalInPrimeQty += tx.qtyInUnOfEntry;
       totalInPrimeKg += tx.kgGR || tx.quantity || 0;
     }
   });
 
+  // Net GI repair = 261 - 262
+  const totalOutRepairQty = Math.max(0, total261Qty - total262Qty);
+  const totalOutRepairKg = Math.max(0, total261Kg - total262Kg);
+
+  // Rumus Reject / DG Repair = MVT 261 - 262 - 101
+  const totalRejectQty = Math.max(0, total261Qty - total262Qty - totalInPrimeQty);
+  const totalRejectKg = Math.max(0, total261Kg - total262Kg - totalInPrimeKg);
+
   // Outstanding NC yang belum di-issue ke order repair
   const outstandingRepairQty = Math.max(0, totalNCInQty - totalOutRepairQty);
   const outstandingRepairKg = Math.max(0, totalNCInKg - totalOutRepairKg);
 
-  // WIP dalam pengerjaan repair yang belum GR 101 selesai
-  const wipRepairQty = Math.max(0, totalOutRepairQty - totalInPrimeQty);
-  const wipRepairKg = Math.max(0, totalOutRepairKg - totalInPrimeKg);
+  // WIP dalam pengerjaan repair yang belum selesai
+  const wipRepairQty = Math.max(0, totalOutRepairQty - totalInPrimeQty - totalRejectQty);
+  const wipRepairKg = Math.max(0, totalOutRepairKg - totalInPrimeKg - totalRejectKg);
 
   const baseForRecovery = totalOutRepairQty > 0 ? totalOutRepairQty : totalNCInQty;
   const overallRecoveryRate = baseForRecovery > 0 ? (totalInPrimeQty / baseForRecovery) * 100 : 0;
@@ -874,10 +924,16 @@ export function computeNCProgressSummary(
   return {
     totalNCInQty,
     totalNCInKg,
+    total261Qty,
+    total261Kg,
+    total262Qty,
+    total262Kg,
     totalOutRepairQty,
     totalOutRepairKg,
     totalInPrimeQty,
     totalInPrimeKg,
+    totalRejectQty,
+    totalRejectKg,
     outstandingRepairQty,
     outstandingRepairKg,
     wipRepairQty,

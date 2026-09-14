@@ -24,7 +24,8 @@ import {
   Users,
   UserCog,
   X,
-  GitFork
+  GitFork,
+  SlidersHorizontal
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { LoginPage } from '@/components/LoginPage';
@@ -46,6 +47,7 @@ import { UnfifoView } from '@/components/UnfifoView';
 import { DamagedPackagingView } from '@/components/DamagedPackagingView';
 import { IncomingPackagingView } from '@/components/IncomingPackagingView';
 import { UserManagementView } from '@/components/UserManagementView';
+import { CapacitySettingsView } from '@/components/CapacitySettingsView';
 import { UploadModal } from '@/components/UploadModal';
 import {
   initialPipeCapacityData,
@@ -72,7 +74,11 @@ import {
   UnfifoPipeItem,
   DamagedPackagingItem,
   IncomingPackagingItem,
-  NCProgressTransaction
+  NCProgressTransaction,
+  WarehouseCapacityConfig,
+  DEFAULT_PIPE_CAPACITIES,
+  DEFAULT_COIL_CAPACITIES,
+  DEFAULT_COIL_AREA_LABELS
 } from '@/types/warehouse';
 import { ParsedWarehouseState } from '@/lib/parser';
 import { cn, formatTon, formatPercent } from '@/lib/utils';
@@ -87,12 +93,20 @@ const VALID_TABS = [
   'unfifo',
   'packaging',
   'incoming_pkg',
+  'capacity_settings',
   'users',
 ] as const;
 
 type TabType = (typeof VALID_TABS)[number];
 
 export default function Home() {
+  // Master Capacity Configuration State
+  const [capacityConfig, setCapacityConfig] = useState<WarehouseCapacityConfig>({
+    pipeCapacities: DEFAULT_PIPE_CAPACITIES,
+    coilCapacities: DEFAULT_COIL_CAPACITIES,
+    areaLabels: DEFAULT_COIL_AREA_LABELS
+  });
+
   // State for all warehouse data sets
   const [pipeCapacities, setPipeCapacities] = useState<WarehousePipeCapacity[]>(initialPipeCapacityData);
   const [fastSlowData, setFastSlowData] = useState<FastSlowPipe[]>(initialFastSlowData);
@@ -310,6 +324,18 @@ export default function Home() {
     async function loadSavedData() {
       // 1. Coba load dari localStorage terlebih dahulu untuk respon instan offline
       try {
+        const localCap = localStorage.getItem('spindo_warehouse_capacity_config');
+        if (localCap) {
+          const capObj = JSON.parse(localCap);
+          if (capObj && (capObj.pipeCapacities || capObj.coilCapacities)) {
+            setCapacityConfig(capObj);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to parse capacity config from localStorage:', err);
+      }
+
+      try {
         const localSaved = localStorage.getItem('spindo_warehouse_saved_state');
         if (localSaved) {
           const d = JSON.parse(localSaved);
@@ -336,10 +362,26 @@ export default function Home() {
 
       // 2. Sinkronkan dengan server database Supabase / SQLite
       try {
-        const [whRes, pkgRes] = await Promise.allSettled([
+        const [whRes, pkgRes, capRes] = await Promise.allSettled([
           fetch('/api/warehouse', { cache: 'no-store' }),
-          fetch('/api/incoming-packaging', { cache: 'no-store' })
+          fetch('/api/incoming-packaging', { cache: 'no-store' }),
+          fetch('/api/settings?key=warehouse_capacity_config', { cache: 'no-store' })
         ]);
+
+        // Load master capacity config dari settings
+        if (capRes.status === 'fulfilled') {
+          try {
+            const capJson = await capRes.value.json();
+            if (capJson?.success && capJson?.data) {
+              setCapacityConfig(capJson.data);
+              try {
+                localStorage.setItem('spindo_warehouse_capacity_config', JSON.stringify(capJson.data));
+              } catch {}
+            }
+          } catch (e) {
+            console.warn('Failed to parse capacity config from API:', e);
+          }
+        }
 
         if (whRes.status === 'fulfilled') {
           const json = await whRes.value.json();
@@ -361,6 +403,9 @@ export default function Home() {
               if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
               if (d.lastUpdated) setLastUpdated(d.lastUpdated);
               setIsCustomData(true);
+              try {
+                localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(d));
+              } catch {}
             }
           }
         }
@@ -437,12 +482,68 @@ export default function Home() {
       console.error('Failed to read localStorage:', e);
     }
 
-    const hasPipe = Boolean(newState.pipeCapacities && newState.pipeCapacities.length > 0);
-    const hasCoil = Boolean(newState.coilStripData && newState.coilStripData.length > 0);
-    const hasLoo = Boolean((newState.looSTData && newState.looSTData.length > 0) || (newState.looLTData && newState.looLTData.length > 0));
-    const hasDamagedPkg = Boolean(newState.damagedPackagingData && newState.damagedPackagingData.length > 0);
-    const hasIncomingPkg = Boolean(newState.incomingPackagingData && newState.incomingPackagingData.length > 0);
-    const hasProgressNC = Boolean(newState.ncProgressData && newState.ncProgressData.length > 0);
+    const hasPipe = newState.uploadedCategories
+      ? newState.uploadedCategories.includes('pipe')
+      : Boolean(newState.pipeCapacities && newState.pipeCapacities.some(c => (c.stock || 0) > 0));
+    const hasCoil = newState.uploadedCategories
+      ? newState.uploadedCategories.includes('coil')
+      : Boolean(newState.coilStripData && newState.coilStripData.some(c => (c.totalTon || 0) > 0));
+    const hasLoo = newState.uploadedCategories
+      ? newState.uploadedCategories.includes('loo')
+      : Boolean((newState.looSTData && newState.looSTData.length > 0) || (newState.looLTData && newState.looLTData.length > 0));
+    const hasDamagedPkg = newState.uploadedCategories
+      ? newState.uploadedCategories.includes('damaged_pkg')
+      : Boolean(newState.damagedPackagingData && newState.damagedPackagingData.length > 0);
+    const hasIncomingPkg = newState.uploadedCategories
+      ? newState.uploadedCategories.includes('incoming_pkg')
+      : Boolean(newState.incomingPackagingData && newState.incomingPackagingData.length > 0);
+    const hasProgressNC = newState.uploadedCategories
+      ? newState.uploadedCategories.includes('progress_nc')
+      : Boolean(newState.ncProgressData && newState.ncProgressData.length > 0);
+
+    // Helper untuk memperkaya item LOO dengan data stock eksisting jika hanya LOO yang diunggah
+    const enrichLooWithExistingStock = (
+      currentLoo: LooComparisonItem[] | undefined,
+      refLoo: LooComparisonItem[] | undefined
+    ) => {
+      if (!currentLoo || currentLoo.length === 0) return currentLoo || [];
+      if (!refLoo || refLoo.length === 0) return currentLoo;
+      const refMap = new Map<string, LooComparisonItem>();
+      for (const item of refLoo) {
+        if (item.kodeMaterial) refMap.set(item.kodeMaterial, item);
+        if (item.ukuran) refMap.set(item.ukuran, item);
+      }
+      return currentLoo.map((item) => {
+        if ((item.totalStockTon || 0) > 0) return item;
+        const ref = refMap.get(item.kodeMaterial) || refMap.get(item.ukuran);
+        if (!ref || (ref.totalStockTon || 0) === 0) return item;
+        const fgTon = ref.fgTon || 0;
+        const wipTon = ref.wipTon || 0;
+        const totalStockTon = ref.totalStockTon || (fgTon + wipTon);
+        const primeTon = ref.primeTon || 0;
+        const looTon = item.looTon || 0;
+        const persenFulfillment = looTon > 0 ? (totalStockTon / looTon) * 100 : 100;
+        const primeFulfillment = looTon > 0 ? (primeTon / looTon) * 100 : 100;
+        return {
+          ...item,
+          fgTon,
+          wipTon,
+          totalStockTon,
+          primeTon,
+          gradeCTon: ref.gradeCTon || 0,
+          gradeETon: ref.gradeETon || 0,
+          grade: ref.grade || item.grade || 'PRIME',
+          gudang: ref.gudang || item.gudang,
+          gudangs: ref.gudangs || item.gudangs,
+          gudangBreakdown: ref.gudangBreakdown || item.gudangBreakdown,
+          fgQty: ref.fgQty || item.fgQty || 0,
+          wipQty: ref.wipQty || item.wipQty || 0,
+          totalQty: ref.totalQty || item.totalQty || 0,
+          persenFulfillment: Number(persenFulfillment.toFixed(1)),
+          primeFulfillment: Number(primeFulfillment.toFixed(1)),
+        };
+      });
+    };
 
     const nextPipeCapacities = hasPipe ? newState.pipeCapacities! : (pipeCapacities.length > 0 ? pipeCapacities : (currentSaved.pipeCapacities || []));
     const nextFastSlowData = hasPipe && newState.fastSlowData ? newState.fastSlowData : (fastSlowData.length > 0 ? fastSlowData : (currentSaved.fastSlowData || []));
@@ -455,8 +556,15 @@ export default function Home() {
     const nextCoilStripData = hasCoil ? newState.coilStripData! : (coilStripData.length > 0 ? coilStripData : (currentSaved.coilStripData || []));
     const nextUnfifoCoilData = hasCoil && newState.unfifoCoilData ? newState.unfifoCoilData : (unfifoCoilData.length > 0 ? unfifoCoilData : (currentSaved.unfifoCoilData || []));
 
-    const nextLooSTData = hasLoo && newState.looSTData ? newState.looSTData : (looSTData.length > 0 ? looSTData : (currentSaved.looSTData || []));
-    const nextLooLTData = hasLoo && newState.looLTData ? newState.looLTData : (looLTData.length > 0 ? looLTData : (currentSaved.looLTData || []));
+    const rawLooST = hasLoo && newState.looSTData ? newState.looSTData : (looSTData.length > 0 ? looSTData : (currentSaved.looSTData || []));
+    const rawLooLT = hasLoo && newState.looLTData ? newState.looLTData : (looLTData.length > 0 ? looLTData : (currentSaved.looLTData || []));
+
+    const nextLooSTData = hasLoo && !hasPipe
+      ? enrichLooWithExistingStock(rawLooST, looSTData.length > 0 ? looSTData : currentSaved.looSTData)
+      : rawLooST;
+    const nextLooLTData = hasLoo && !hasPipe
+      ? enrichLooWithExistingStock(rawLooLT, looLTData.length > 0 ? looLTData : currentSaved.looLTData)
+      : rawLooLT;
 
     const nextDamagedPackagingData = hasDamagedPkg ? newState.damagedPackagingData! : (damagedPackagingData.length > 0 ? damagedPackagingData : (currentSaved.damagedPackagingData || []));
     const nextIncomingPackagingData = hasIncomingPkg ? newState.incomingPackagingData! : (incomingPackagingData.length > 0 ? incomingPackagingData : (currentSaved.incomingPackagingData || []));
@@ -517,6 +625,7 @@ export default function Home() {
       lastUpdated: nowStr,
       snapshotKey: snapshotKey,
       targetDate: newState.targetDate,
+      uploadedCategories: newState.uploadedCategories,
     };
 
     // Auto-save ganda (LocalStorage + Server API)
@@ -570,6 +679,30 @@ export default function Home() {
       await fetch('/api/warehouse', { method: 'DELETE' });
     } catch (err) {
       console.error('Failed to reset SQLite snapshot:', err);
+    }
+  };
+
+  const handleResetSnapshot = async (key: string) => {
+    try {
+      const res = await fetch(`/api/warehouse?key=${encodeURIComponent(key)}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        const listRes = await fetch('/api/warehouse?list=true', { cache: 'no-store' });
+        const listJson = await listRes.json();
+        const remainingSnapshots: any[] = listJson?.snapshots || [];
+
+        if (remainingSnapshots.length === 0) {
+          handleResetData();
+        } else {
+          if (selectedSnapshotKey === key || selectedSnapshotKey === 'latest') {
+            await loadSnapshotByKey('latest');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to reset specific snapshot:', err);
     }
   };
 
@@ -663,6 +796,8 @@ export default function Home() {
   const canEditIncomingPkg = currentUser?.role === 'admin' || Boolean(userPermissions.canEditIncomingPkg);
   const canEditDamagedPkg = currentUser?.role === 'admin' || Boolean(userPermissions.canEditDamagedPkg);
   const canEditProgressNC = currentUser?.role === 'admin' || Boolean(userPermissions.canEditProgressNC);
+  const viewCapacitySettings = currentUser?.role === 'admin' || Boolean(userPermissions.viewCapacitySettings);
+  const canManageCapacity = currentUser?.role === 'admin' || Boolean(userPermissions.canManageCapacity);
   const isEditable = canManageUsers || canUploadSAP;
 
   // Master definition of all possible menu items with their required permission keys
@@ -702,9 +837,64 @@ export default function Home() {
     const tabs: TabType[] = [];
     dashboardMenuItems.forEach((i) => tabs.push(i.id as TabType));
     operationalMenuItems.forEach((i) => tabs.push(i.id as TabType));
+    if (viewCapacitySettings) tabs.push('capacity_settings');
     if (canManageUsers) tabs.push('users');
     return tabs;
-  }, [dashboardMenuItems, operationalMenuItems, canManageUsers]);
+  }, [dashboardMenuItems, operationalMenuItems, viewCapacitySettings, canManageUsers]);
+
+  // Handler simpan master kapasitas gudang (Pipa & Coil)
+  const handleSaveCapacityConfig = async (newConfig: WarehouseCapacityConfig) => {
+    setCapacityConfig(newConfig);
+    try {
+      localStorage.setItem('spindo_warehouse_capacity_config', JSON.stringify(newConfig));
+    } catch {}
+
+    // 1. Recalculate pipeCapacities
+    setPipeCapacities((prevPipes) => {
+      if (!prevPipes || prevPipes.length === 0) return prevPipes;
+      return prevPipes.map((p) => {
+        const newCap = newConfig.pipeCapacities[p.gudang] !== undefined ? newConfig.pipeCapacities[p.gudang] : p.kapasitas;
+        const newPersen = newCap > 0 ? (p.stock / newCap) * 100 : 0;
+        const newSelisih = newCap - p.stock;
+        return {
+          ...p,
+          kapasitas: newCap,
+          persenTerisi: Number(newPersen.toFixed(1)),
+          selisih: Number(newSelisih.toFixed(1)),
+        };
+      });
+    });
+
+    // 2. Recalculate coilStripData
+    setCoilStripData((prevCoil) => {
+      if (!prevCoil || prevCoil.length === 0) return prevCoil;
+      return prevCoil.map((c) => {
+        const newCap = newConfig.coilCapacities[c.gudang] !== undefined ? newConfig.coilCapacities[c.gudang] : c.kapasitas;
+        const newArea = newConfig.areaLabels[c.gudang] || c.area;
+        const newPersen = newCap > 0 ? (c.totalTon / newCap) * 100 : 0;
+        return {
+          ...c,
+          kapasitas: newCap,
+          area: newArea,
+          persenTerisi: Number(newPersen.toFixed(1)),
+        };
+      });
+    });
+
+    // 3. Persist ke API settings (SQLite & Supabase)
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'warehouse_capacity_config',
+          value: newConfig
+        })
+      });
+    } catch (err) {
+      console.error('Failed to persist capacity config to settings API:', err);
+    }
+  };
 
   // If active tab is not allowed for current role, automatically redirect to first permitted tab
   useEffect(() => {
@@ -737,6 +927,7 @@ export default function Home() {
           if (canUploadSAP) setIsUploadOpen(true);
         }}
         onResetData={handleResetData}
+        onResetSnapshot={handleResetSnapshot}
         onSaveData={handleSaveData}
         onSelectSnapshot={loadSnapshotByKey}
         isCustomizingLayout={canCustomizeLayout ? isCustomizingLayout : false}
@@ -859,7 +1050,7 @@ export default function Home() {
             )}
 
             {/* Menu Kelola Data & Hak Akses: Mobile */}
-            {(canUploadSAP || canManageUsers) && (
+            {(canUploadSAP || canManageUsers || viewCapacitySettings) && (
               <div className="pt-3 border-t border-slate-100 space-y-1">
                 <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Pengaturan &amp; Data
@@ -880,6 +1071,33 @@ export default function Home() {
                       </div>
                       <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200/60 shrink-0">
                         Excel
+                      </span>
+                    </button>
+                  )}
+
+                  {viewCapacitySettings && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSelectTab('capacity_settings');
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all cursor-pointer",
+                        activeTab === 'capacity_settings'
+                          ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <SlidersHorizontal className={cn("h-4.5 w-4.5 shrink-0", activeTab === 'capacity_settings' ? "text-white" : "text-slate-400")} strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.8} />
+                        <span className="truncate leading-normal">Master Kapasitas</span>
+                      </div>
+                      <span className={cn(
+                        "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0",
+                        activeTab === 'capacity_settings' ? "bg-white/20 text-white border-white/20" : "bg-slate-100 text-slate-600 border-slate-200/60"
+                      )}>
+                        Master
                       </span>
                     </button>
                   )}
@@ -1061,7 +1279,7 @@ export default function Home() {
               )}
 
               {/* Menu Kelola Data & Hak Akses: Desktop */}
-              {(canUploadSAP || canManageUsers) && (
+              {(canUploadSAP || canManageUsers || viewCapacitySettings) && (
                 <div className="pt-3 border-t border-slate-100 space-y-1">
                   <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Pengaturan &amp; Data
@@ -1079,6 +1297,31 @@ export default function Home() {
                         </div>
                         <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200/60 shrink-0">
                           Excel
+                        </span>
+                      </button>
+                    )}
+
+                    {viewCapacitySettings && (
+                      <button
+                        type="button"
+                        id="sidebar-capacity-settings"
+                        onClick={() => handleSelectTab('capacity_settings')}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer group",
+                          activeTab === 'capacity_settings'
+                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                        )}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <SlidersHorizontal className={cn("h-4.5 w-4.5 shrink-0 transition-colors", activeTab === 'capacity_settings' ? "text-white" : "text-slate-400 group-hover:text-emerald-700")} strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.8} />
+                          <span className="truncate leading-normal">Master Kapasitas</span>
+                        </div>
+                        <span className={cn(
+                          "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
+                          activeTab === 'capacity_settings' ? "bg-white/20 text-white border-white/20" : "bg-slate-100 text-slate-600 border-slate-200/60"
+                        )}>
+                          Master
                         </span>
                       </button>
                     )}
@@ -1205,7 +1448,7 @@ export default function Home() {
               )}
 
               {/* Admin Tools */}
-              {(canUploadSAP || canManageUsers) && (
+              {(canUploadSAP || canManageUsers || viewCapacitySettings) && (
                 <>
                   <div className="w-6 h-[1px] bg-slate-100" />
                   <div className="space-y-1 w-full flex flex-col items-center">
@@ -1217,6 +1460,21 @@ export default function Home() {
                         title="Upload Raw Data SAP"
                       >
                         <Upload className="h-4.5 w-4.5" strokeWidth={1.8} />
+                      </button>
+                    )}
+                    {viewCapacitySettings && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTab('capacity_settings')}
+                        className={cn(
+                          "h-9 w-9 flex items-center justify-center rounded-xl transition-all cursor-pointer",
+                          activeTab === 'capacity_settings'
+                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                        )}
+                        title="Master Kapasitas Gudang (Pipa & Coil)"
+                      >
+                        <SlidersHorizontal className="h-4.5 w-4.5" strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.8} />
                       </button>
                     )}
                     {canManageUsers && (
@@ -1297,34 +1555,6 @@ export default function Home() {
               variant="blue"
             />
           </div> */}
-
-          {/* Historical Snapshot Notice Banner */}
-          {selectedSnapshotKey !== 'latest' && (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50/95 p-3.5 text-xs text-amber-950 shadow-2xs animate-in fade-in">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-md bg-amber-100 text-amber-800 shrink-0">
-                  <Clock className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-amber-900">
-                    Mode Snapshot Historis Aktif (Tanggal: {selectedSnapshotKey.replace('snap_', '')})
-                  </div>
-                  <div className="text-[11px] text-amber-800">
-                    Menampilkan data snapshot arsip per {lastUpdated}. Modifikasi data baru tidak mengubah arsip ini.
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => loadSnapshotByKey('latest')}
-                disabled={isLoadingSnapshot}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-800 hover:bg-amber-900 text-white font-bold transition-all shadow-2xs cursor-pointer text-[11px] shrink-0 disabled:opacity-50"
-              >
-                <RefreshCcw className={cn("h-3 w-3", isLoadingSnapshot && "animate-spin")} />
-                <span>Kembali ke Data Terkini</span>
-              </button>
-            </div>
-          )}
 
           {/* Global Alert Notification Banner (Hidden on Mobile) */}
           {overcapacityWh && (
@@ -1461,6 +1691,16 @@ export default function Home() {
               />
             )}
 
+            {activeTab === 'capacity_settings' && viewCapacitySettings && (
+              <CapacitySettingsView
+                currentPipeCapacities={pipeCapacities}
+                currentCoilStripData={coilStripData}
+                config={capacityConfig}
+                canEdit={canManageCapacity}
+                onSave={handleSaveCapacityConfig}
+              />
+            )}
+
             {activeTab === 'users' && canManageUsers && (
               <UserManagementView
                 currentUser={currentUser}
@@ -1478,6 +1718,7 @@ export default function Home() {
         onDataParsed={handleDataParsed}
         userPermissions={userPermissions}
         isAdmin={currentUser?.role === 'admin'}
+        capacityConfig={capacityConfig}
       />
     </div>
   );

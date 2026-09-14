@@ -219,6 +219,7 @@ export async function POST(request: Request) {
       customerBreakdown,
       lastUpdated,
       snapshotKey,
+      uploadedCategories,
     } = body;
 
     const nowStr = lastUpdated || new Date().toLocaleString('id-ID');
@@ -270,20 +271,118 @@ export async function POST(request: Request) {
       }
     }
 
-    const finalPipe = hasRealPipe(pipeCapacities) ? pipeCapacities : (hasRealPipe(prevPipe) ? prevPipe : (pipeCapacities || []));
-    const finalFastSlow = hasArray(fastSlowData) ? fastSlowData : prevFastSlow;
-    const finalCoil = hasRealCoil(coilStripData) ? coilStripData : (hasRealCoil(prevCoil) ? prevCoil : (coilStripData || []));
-    const finalNcWh = hasRealPipe(pipeCapacities) && hasArray(ncWarehouseData) ? ncWarehouseData : (hasRealPipe(prevNcWh) ? prevNcWh : (ncWarehouseData || []));
-    const finalNcItems = hasArray(ncItems) ? ncItems : prevNcItems;
-    const finalLooST = hasArray(looSTData) ? looSTData : prevLooST;
-    const finalLooLT = hasArray(looLTData) ? looLTData : prevLooLT;
-    const finalUnfifo = hasArray(unfifoData) ? unfifoData : prevUnfifo;
-    const finalUnfifoCoil = hasArray(unfifoCoilData) ? unfifoCoilData : prevUnfifoCoil;
-    const finalUnfifoPipe = hasArray(unfifoPipeData) ? unfifoPipeData : prevUnfifoPipe;
-    const finalDamagedPkg = hasArray(damagedPackagingData) ? damagedPackagingData : prevDamagedPkg;
-    const finalIncomingPkg = hasArray(incomingPackagingData) ? incomingPackagingData : prevIncomingPkg;
-    const finalNcProgress = hasArray(ncProgressData) ? ncProgressData : prevNcProgress;
-    const finalCustBreakdown = hasObject(customerBreakdown) ? customerBreakdown : prevCustBreakdown;
+    // Fallback baca data referensi dari Supabase jika SQLite kosong / parsial
+    if (!hasRealPipe(prevPipe) && isSupabaseConfigured && supabase) {
+      try {
+        let { data: supaRows } = await supabase
+          .from('warehouse_snapshots')
+          .select('*')
+          .eq('snapshot_key', dateKey)
+          .limit(1);
+
+        if (!supaRows || supaRows.length === 0) {
+          const { data: latestRows } = await supabase
+            .from('warehouse_snapshots')
+            .select('*')
+            .like('snapshot_key', 'snap_%')
+            .order('snapshot_key', { ascending: false })
+            .limit(1);
+          supaRows = latestRows;
+        }
+
+        const sRow = supaRows && supaRows.length > 0 ? supaRows[0] : null;
+        if (sRow) {
+          if (!hasRealPipe(prevPipe)) prevPipe = parseJsonSafe(sRow.pipe_capacities, []);
+          if (!hasArray(prevFastSlow)) prevFastSlow = parseJsonSafe(sRow.fast_slow_data, []);
+          if (!hasRealCoil(prevCoil)) prevCoil = parseJsonSafe(sRow.coil_strip_data, []);
+          if (!hasRealPipe(prevNcWh)) prevNcWh = parseJsonSafe(sRow.nc_warehouse_data, []);
+          if (!hasArray(prevNcItems)) prevNcItems = parseJsonSafe(sRow.nc_items, []);
+          if (!hasArray(prevLooST)) prevLooST = parseJsonSafe(sRow.loo_st_data, []);
+          if (!hasArray(prevLooLT)) prevLooLT = parseJsonSafe(sRow.loo_lt_data, []);
+          if (!hasArray(prevUnfifo)) prevUnfifo = parseJsonSafe(sRow.unfifo_data, []);
+          if (!hasArray(prevUnfifoCoil)) prevUnfifoCoil = parseJsonSafe(sRow.unfifo_coil_data, []);
+          if (!hasArray(prevUnfifoPipe)) prevUnfifoPipe = parseJsonSafe(sRow.unfifo_pipe_data, []);
+          if (!hasArray(prevDamagedPkg)) prevDamagedPkg = parseJsonSafe(sRow.damaged_packaging_data, []);
+          if (!hasArray(prevIncomingPkg)) prevIncomingPkg = parseJsonSafe(sRow.incoming_packaging_data, []);
+          if (!hasArray(prevNcProgress)) prevNcProgress = parseJsonSafe(sRow.nc_progress_data, []);
+          if (!hasObject(prevCustBreakdown)) prevCustBreakdown = parseJsonSafe(sRow.customer_breakdown, {});
+        }
+      } catch (cloudMergeErr) {
+        console.warn('Failed to query Supabase for merge fallback:', cloudMergeErr);
+      }
+    }
+
+    // Helper untuk memperkaya item LOO dengan stock pipa eksisting jika diupload parsial
+    const enrichLoo = (currentLoo: any[], referenceLoo: any[]) => {
+      if (!Array.isArray(currentLoo) || currentLoo.length === 0) return currentLoo;
+      if (!Array.isArray(referenceLoo) || referenceLoo.length === 0) return currentLoo;
+
+      const refMap = new Map<string, any>();
+      for (const item of referenceLoo) {
+        if (item.kodeMaterial) refMap.set(item.kodeMaterial, item);
+        if (item.ukuran) refMap.set(item.ukuran, item);
+      }
+
+      return currentLoo.map((item) => {
+        if ((item.totalStockTon || 0) > 0) return item;
+        const ref = refMap.get(item.kodeMaterial) || refMap.get(item.ukuran);
+        if (!ref || (ref.totalStockTon || 0) === 0) return item;
+
+        const fgTon = ref.fgTon || 0;
+        const wipTon = ref.wipTon || 0;
+        const totalStockTon = ref.totalStockTon || (fgTon + wipTon);
+        const primeTon = ref.primeTon || 0;
+        const looTon = item.looTon || 0;
+        const persenFulfillment = looTon > 0 ? (totalStockTon / looTon) * 100 : 100;
+        const primeFulfillment = looTon > 0 ? (primeTon / looTon) * 100 : 100;
+
+        return {
+          ...item,
+          fgTon,
+          wipTon,
+          totalStockTon,
+          primeTon,
+          gradeCTon: ref.gradeCTon || 0,
+          gradeETon: ref.gradeETon || 0,
+          grade: ref.grade || item.grade || 'PRIME',
+          gudang: ref.gudang || item.gudang,
+          gudangs: ref.gudangs || item.gudangs,
+          gudangBreakdown: ref.gudangBreakdown || item.gudangBreakdown,
+          fgQty: ref.fgQty || item.fgQty || 0,
+          wipQty: ref.wipQty || item.wipQty || 0,
+          totalQty: ref.totalQty || item.totalQty || 0,
+          persenFulfillment: Number(persenFulfillment.toFixed(1)),
+          primeFulfillment: Number(primeFulfillment.toFixed(1)),
+        };
+      });
+    };
+
+    const isExplicitUpload = Array.isArray(uploadedCategories) && uploadedCategories.length > 0;
+    const uploadHasPipe = isExplicitUpload ? uploadedCategories.includes('pipe') : hasRealPipe(pipeCapacities);
+    const uploadHasCoil = isExplicitUpload ? uploadedCategories.includes('coil') : hasRealCoil(coilStripData);
+    const uploadHasLoo = isExplicitUpload ? uploadedCategories.includes('loo') : (hasArray(looSTData) || hasArray(looLTData));
+    const uploadHasDamagedPkg = isExplicitUpload ? uploadedCategories.includes('damaged_pkg') : hasArray(damagedPackagingData);
+    const uploadHasIncomingPkg = isExplicitUpload ? uploadedCategories.includes('incoming_pkg') : hasArray(incomingPackagingData);
+    const uploadHasProgressNC = isExplicitUpload ? uploadedCategories.includes('progress_nc') : hasArray(ncProgressData);
+
+    const finalPipe = uploadHasPipe && hasRealPipe(pipeCapacities) ? pipeCapacities : (hasRealPipe(prevPipe) ? prevPipe : (pipeCapacities || []));
+    const finalFastSlow = uploadHasPipe && hasArray(fastSlowData) ? fastSlowData : prevFastSlow;
+    const finalCoil = uploadHasCoil && (hasRealCoil(coilStripData) || (coilStripData && coilStripData.length > 0))
+      ? coilStripData
+      : (hasRealCoil(prevCoil) ? prevCoil : (coilStripData || []));
+    const finalNcWh = uploadHasPipe && hasArray(ncWarehouseData) ? ncWarehouseData : (hasRealPipe(prevNcWh) ? prevNcWh : (ncWarehouseData || []));
+    const finalNcItems = uploadHasPipe && hasArray(ncItems) ? ncItems : prevNcItems;
+    const rawLooST = uploadHasLoo && hasArray(looSTData) ? looSTData : prevLooST;
+    const rawLooLT = uploadHasLoo && hasArray(looLTData) ? looLTData : prevLooLT;
+    const finalLooST = uploadHasPipe ? rawLooST : enrichLoo(rawLooST, prevLooST);
+    const finalLooLT = uploadHasPipe ? rawLooLT : enrichLoo(rawLooLT, prevLooLT);
+    const finalUnfifo = (uploadHasPipe || uploadHasCoil) && hasArray(unfifoData) ? unfifoData : prevUnfifo;
+    const finalUnfifoCoil = uploadHasCoil ? (unfifoCoilData || []) : (hasArray(prevUnfifoCoil) ? prevUnfifoCoil : (unfifoCoilData || []));
+    const finalUnfifoPipe = uploadHasPipe && hasArray(unfifoPipeData) ? unfifoPipeData : prevUnfifoPipe;
+    const finalDamagedPkg = uploadHasDamagedPkg && hasArray(damagedPackagingData) ? damagedPackagingData : prevDamagedPkg;
+    const finalIncomingPkg = uploadHasIncomingPkg && hasArray(incomingPackagingData) ? incomingPackagingData : prevIncomingPkg;
+    const finalNcProgress = uploadHasProgressNC && hasArray(ncProgressData) ? ncProgressData : prevNcProgress;
+    const finalCustBreakdown = uploadHasPipe && hasObject(customerBreakdown) ? customerBreakdown : prevCustBreakdown;
 
     let sqliteSaved = false;
 
@@ -435,9 +534,45 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const key = searchParams.get('key');
+    const date = searchParams.get('date');
+
+    let targetKey: string | null = null;
+    if (key && key.trim() !== '') {
+      targetKey = key.trim();
+    } else if (date && date.trim() !== '') {
+      const cleanDate = date.trim();
+      targetKey = cleanDate.startsWith('snap_') ? cleanDate : `snap_${cleanDate}`;
+    }
+
     const db = getLocalDb();
+
+    if (targetKey) {
+      // 1. Hapus snapshot spesifik dari SQLite
+      if (db) {
+        db.prepare('DELETE FROM warehouse_snapshots WHERE snapshot_key = ?').run(targetKey);
+      }
+
+      // 2. Hapus snapshot spesifik dari Supabase jika terkonfigurasi
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('warehouse_snapshots').delete().eq('snapshot_key', targetKey);
+        } catch (supErr) {
+          console.warn('Supabase delete snapshot error:', supErr);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Arsip data tanggal ${targetKey.replace('snap_', '')} berhasil dihapus.`,
+        deletedKey: targetKey
+      });
+    }
+
+    // Jika tanpa parameter key/date: Reset semua snapshot ke data awal (perilaku lama)
     if (db) {
       db.prepare('DELETE FROM warehouse_snapshots').run();
     }
@@ -450,11 +585,11 @@ export async function DELETE() {
       }
     }
 
-    return NextResponse.json({ success: true, message: 'Snapshots reset' });
+    return NextResponse.json({ success: true, message: 'Semua snapshot data berhasil di-reset.' });
   } catch (error: unknown) {
     console.error('Failed to reset warehouse snapshots:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to reset snapshots' },
+      { success: false, error: 'Gagal mereset data snapshot' },
       { status: 500 }
     );
   }

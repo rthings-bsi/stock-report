@@ -1314,22 +1314,22 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   }
                 >
                   <div className="flex flex-col justify-between h-full">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
-                        <thead className="border-b border-slate-200 bg-slate-50 text-slate-700 uppercase tracking-wider text-[11px]">
+                    <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold uppercase tracking-wider text-[11px] select-none">
                           <tr>
-                            <th className="py-3 px-3 font-bold">Gudang</th>
-                            <th className="py-3 px-3 font-bold">Kode Material</th>
-                            <th className="py-3 px-3 font-bold">Ukuran (D x T x P)</th>
-                            <th className="py-3 px-3 font-bold">Customer</th>
-                            <th className="py-3 px-3 font-bold text-amber-900">Batch</th>
-                            <th className="py-3 px-3 font-bold text-slate-600">Tgl Masuk</th>
-                            <th className="py-3 px-3 text-right font-bold text-slate-900">Qty (Btg)</th>
+                            <th className="py-3 px-3.5 font-bold">Gudang</th>
+                            <th className="py-3 px-3.5 font-bold">Kode Material</th>
+                            <th className="py-3 px-3.5 font-bold">Ukuran (D x T x P)</th>
+                            <th className="py-3 px-3.5 font-bold">Customer</th>
+                            <th className="py-3 px-3.5 font-bold text-amber-900">Batch</th>
+                            <th className="py-3 px-3.5 font-bold text-slate-600">Tgl Masuk</th>
+                            <th className="py-3 px-3.5 text-right font-bold text-slate-900">Qty (Btg)</th>
                             <th className="py-3 px-3.5 text-right font-bold text-amber-900">Tonase (Ton)</th>
-                            <th className="py-3 px-3 font-bold text-slate-900">Penyebab / Issue UNFIFO</th>
+                            <th className="py-3 px-3.5 font-bold text-slate-900">Penyebab / Issue UNFIFO</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-800">
+                        <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
                           {paginatedPipeData.length === 0 ? (
                             <tr>
                               <td colSpan={9} className="py-8 text-center text-slate-400 font-sans">
@@ -1344,16 +1344,24 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                               const issueText = pipeIssues[itemKey];
 
                               return (
-                                <tr key={`pipe-row-${itemKey}-${(currentPage - 1) * pageSize + idx}`} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">{row.gudang}</td>
-                                  <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap font-medium">{row.kodeMaterial}</td>
-                                  <td className="py-2.5 px-3 text-slate-800 font-bold whitespace-nowrap">{row.ukuran}</td>
-                                  <td className="py-2.5 px-3 text-slate-600 max-w-[160px] truncate" title={row.customer}>{row.customer || '-'}</td>
-                                  <td className="py-2.5 px-3 text-amber-900 font-bold whitespace-nowrap">{row.batch}</td>
-                                  <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{row.incDate}</td>
-                                  <td className="py-2.5 px-3 text-right font-bold text-slate-900 whitespace-nowrap tabular-nums">{formatQty(row.qtyBtg)}</td>
-                                  <td className="py-2.5 px-3.5 text-right font-bold text-amber-900 whitespace-nowrap tabular-nums">{formatTon(row.tonase)}</td>
-                                  <td className="py-2 px-3">
+                                <tr key={`pipe-row-${itemKey}-${(currentPage - 1) * pageSize + idx}`} className="hover:bg-emerald-50/30 transition-all duration-150 group">
+                                  <td className="py-3 px-3.5 font-bold whitespace-nowrap">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold font-mono shadow-2xs">
+                                      {row.gudang}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3.5 text-slate-700 whitespace-nowrap font-medium font-mono">{row.kodeMaterial}</td>
+                                  <td className="py-3 px-3.5 text-slate-900 font-bold whitespace-nowrap font-mono">{row.ukuran}</td>
+                                  <td className="py-3 px-3.5 text-slate-600 max-w-[160px] truncate" title={row.customer}>{row.customer || '-'}</td>
+                                  <td className="py-3 px-3.5 whitespace-nowrap">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200/80 text-amber-900 text-[11px] font-bold font-mono shadow-2xs">
+                                      {row.batch}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3.5 text-slate-600 whitespace-nowrap font-mono">{row.incDate}</td>
+                                  <td className="py-3 px-3.5 text-right font-bold text-slate-900 whitespace-nowrap font-mono">{formatQty(row.qtyBtg)}</td>
+                                  <td className="py-3 px-3.5 text-right font-bold text-amber-900 whitespace-nowrap font-mono">{formatTon(row.tonase)}</td>
+                                  <td className="py-2.5 px-3.5">
                                     {issueText ? (
                                       <div
                                         onClick={() => setActiveEditModal({
@@ -1369,7 +1377,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                                           unit: 'Btg',
                                           incDate: row.incDate
                                         })}
-                                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-300 text-[11px] text-amber-950 font-medium hover:bg-amber-100 transition-colors cursor-pointer max-w-[280px]"
+                                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200/80 text-[11px] text-amber-950 font-medium hover:bg-amber-100 transition-colors cursor-pointer max-w-[280px] shadow-2xs font-mono"
                                         title="Klik untuk mengubah catatan issue"
                                       >
                                         <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
@@ -1392,7 +1400,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                                           unit: 'Btg',
                                           incDate: row.incDate
                                         })}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-slate-300 text-[11px] text-slate-500 hover:text-emerald-800 hover:border-emerald-400 hover:bg-emerald-50 transition-all cursor-pointer"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-slate-300 text-[11px] text-slate-500 hover:text-emerald-800 hover:border-emerald-400 hover:bg-emerald-50 transition-all cursor-pointer shadow-2xs"
                                       >
                                         <Plus className="h-2.5 w-2.5" />
                                         <span>Catat Alasan</span>
@@ -1404,12 +1412,12 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                             })
                           )}
                         </tbody>
-                        <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-bold text-slate-900 tabular-nums">
+                        <tfoot className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-slate-50/95 font-bold text-xs text-slate-900 backdrop-blur-xs shadow-xs">
                           <tr>
-                            <td className="py-3 px-3" colSpan={6}>TOTAL PIPA UNFIFO ({selectedPipeGudang})</td>
-                            <td className="py-3 px-3 text-right">{formatQty(totalPipeUnfifoQty)}</td>
-                            <td className="py-3 px-3.5 text-right text-amber-900">{formatTon(totalPipeUnfifoTon)}</td>
-                            <td className="py-3 px-3 text-[10px] text-slate-500 font-normal">
+                            <td className="py-3 px-3.5 font-mono" colSpan={6}>TOTAL PIPA UNFIFO ({selectedPipeGudang})</td>
+                            <td className="py-3 px-3.5 text-right font-mono">{formatQty(totalPipeUnfifoQty)}</td>
+                            <td className="py-3 px-3.5 text-right text-amber-900 font-mono">{formatTon(totalPipeUnfifoTon)}</td>
+                            <td className="py-3 px-3.5 text-[10px] text-slate-500 font-normal font-mono">
                               {pipeWithIssueCount} dari {gudangFilteredPipeData.length} item tercatat issue
                             </td>
                           </tr>
@@ -1685,21 +1693,21 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   }
                 >
                   <div className="flex flex-col justify-between h-full">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
-                        <thead className="border-b border-slate-200 bg-slate-50 text-slate-700 uppercase tracking-wider text-[11px]">
+                    <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold uppercase tracking-wider text-[11px] select-none">
                           <tr>
-                            <th className="py-3 px-3 font-bold">SLOC</th>
-                            <th className="py-3 px-3 font-bold">Kode Material</th>
-                            <th className="py-3 px-3 font-bold">Spesifikasi Material</th>
-                            <th className="py-3 px-3 font-bold text-amber-900">Batch</th>
-                            <th className="py-3 px-3 font-bold text-slate-600">Tgl Masuk</th>
-                            <th className="py-3 px-3 text-right font-bold text-slate-900">Qty (Roll)</th>
+                            <th className="py-3 px-3.5 font-bold">SLOC</th>
+                            <th className="py-3 px-3.5 font-bold">Kode Material</th>
+                            <th className="py-3 px-3.5 font-bold">Spesifikasi Material</th>
+                            <th className="py-3 px-3.5 font-bold text-amber-900">Batch</th>
+                            <th className="py-3 px-3.5 font-bold text-slate-600">Tgl Masuk</th>
+                            <th className="py-3 px-3.5 text-right font-bold text-slate-900">Qty (Roll)</th>
                             <th className="py-3 px-3.5 text-right font-bold text-amber-900">Tonase (Ton)</th>
-                            <th className="py-3 px-3 font-bold text-slate-900">Penyebab / Issue UNFIFO</th>
+                            <th className="py-3 px-3.5 font-bold text-slate-900">Penyebab / Issue UNFIFO</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-800">
+                        <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
                           {paginatedCoilData.length === 0 ? (
                             <tr>
                               <td colSpan={8} className="py-8 text-center text-slate-400 font-sans">
@@ -1714,15 +1722,23 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                               const issueText = coilIssues[itemKey];
 
                               return (
-                                <tr key={`coil-row-${itemKey}-${(currentCoilPage - 1) * pageSize + idx}`} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">{row.gudang}</td>
-                                  <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap font-medium">{row.kodeMaterial}</td>
-                                  <td className="py-2.5 px-3 text-slate-800 font-bold whitespace-nowrap">{row.specification || `${row.tebal} x ${row.lebar}`}</td>
-                                  <td className="py-2.5 px-3 text-amber-900 font-bold whitespace-nowrap">{row.batch}</td>
-                                  <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{row.incDate}</td>
-                                  <td className="py-2.5 px-3 text-right font-bold text-slate-900 whitespace-nowrap tabular-nums">{formatQty(row.qtyRoll)}</td>
-                                  <td className="py-2.5 px-3.5 text-right font-bold text-amber-900 whitespace-nowrap tabular-nums">{formatTon(row.tonase)}</td>
-                                  <td className="py-2 px-3">
+                                <tr key={`coil-row-${itemKey}-${(currentCoilPage - 1) * pageSize + idx}`} className="hover:bg-emerald-50/30 transition-all duration-150 group">
+                                  <td className="py-3 px-3.5 font-bold whitespace-nowrap">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold font-mono shadow-2xs">
+                                      {row.gudang}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3.5 text-slate-700 whitespace-nowrap font-medium font-mono">{row.kodeMaterial}</td>
+                                  <td className="py-3 px-3.5 text-slate-900 font-bold whitespace-nowrap font-mono">{row.specification || `${row.tebal} x ${row.lebar}`}</td>
+                                  <td className="py-3 px-3.5 whitespace-nowrap">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200/80 text-amber-900 text-[11px] font-bold font-mono shadow-2xs">
+                                      {row.batch}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3.5 text-slate-600 whitespace-nowrap font-mono">{row.incDate}</td>
+                                  <td className="py-3 px-3.5 text-right font-bold text-slate-900 whitespace-nowrap font-mono">{formatQty(row.qtyRoll)}</td>
+                                  <td className="py-3 px-3.5 text-right font-bold text-amber-900 whitespace-nowrap font-mono">{formatTon(row.tonase)}</td>
+                                  <td className="py-2.5 px-3.5">
                                     {issueText ? (
                                       <div
                                         onClick={() => setActiveEditModal({
@@ -1737,7 +1753,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                                           unit: 'Roll',
                                           incDate: row.incDate
                                         })}
-                                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-300 text-[11px] text-amber-950 font-medium hover:bg-amber-100 transition-colors cursor-pointer max-w-[280px]"
+                                        className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200/80 text-[11px] text-amber-950 font-medium hover:bg-amber-100 transition-colors cursor-pointer max-w-[280px] shadow-2xs font-mono"
                                         title="Klik untuk mengubah catatan issue"
                                       >
                                         <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
@@ -1759,7 +1775,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                                           unit: 'Roll',
                                           incDate: row.incDate
                                         })}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-slate-300 text-[11px] text-slate-500 hover:text-emerald-800 hover:border-emerald-400 hover:bg-emerald-50 transition-all cursor-pointer"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-slate-300 text-[11px] text-slate-500 hover:text-emerald-800 hover:border-emerald-400 hover:bg-emerald-50 transition-all cursor-pointer shadow-2xs"
                                       >
                                         <Plus className="h-2.5 w-2.5" />
                                         <span>Catat Alasan</span>
@@ -1771,12 +1787,12 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                             })
                           )}
                         </tbody>
-                        <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-bold text-slate-900 tabular-nums">
+                        <tfoot className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-slate-50/95 font-bold text-xs text-slate-900 backdrop-blur-xs shadow-xs">
                           <tr>
-                            <td className="py-3 px-3" colSpan={5}>TOTAL COIL &amp; STRIP UNFIFO ({selectedCoilGudang})</td>
-                            <td className="py-3 px-3 text-right">{formatQty(totalCoilUnfifoQty)}</td>
-                            <td className="py-3 px-3.5 text-right text-amber-900">{formatTon(totalCoilUnfifoTon)}</td>
-                            <td className="py-3 px-3 text-[10px] text-slate-500 font-normal">
+                            <td className="py-3 px-3.5 font-mono" colSpan={5}>TOTAL COIL &amp; STRIP UNFIFO ({selectedCoilGudang})</td>
+                            <td className="py-3 px-3.5 text-right font-mono">{formatQty(totalCoilUnfifoQty)}</td>
+                            <td className="py-3 px-3.5 text-right text-amber-900 font-mono">{formatTon(totalCoilUnfifoTon)}</td>
+                            <td className="py-3 px-3.5 text-[10px] text-slate-500 font-normal font-mono">
                               {coilWithIssueCount} dari {gudangFilteredCoilData.length} item tercatat issue
                             </td>
                           </tr>

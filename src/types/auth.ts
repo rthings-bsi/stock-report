@@ -11,6 +11,7 @@ export interface RolePermissions {
   viewDamagedPkg: boolean;     // Data Packaging Rusak
   viewIncomingPkg: boolean;    // Input & Kelola Incoming Packaging (RTP)
   viewProgressNC?: boolean;    // Progres NC & Repair (MVT 309, 261 REP, 101 OK)
+  viewCapacitySettings?: boolean; // Master Kapasitas Gudang (Pipa & Coil)
   viewUserManagement: boolean; // Kelola Pengguna & Roles
 
   // Upload Raw Data Permissions (Pecahan Upload Data Raw SAP & Packaging)
@@ -28,6 +29,7 @@ export interface RolePermissions {
   canEditProgressNC?: boolean; // Tambah/Edit/Hapus Data Transaksi Progres NC
   canExportExcel: boolean;     // Download spreadsheet Excel
   canCustomizeLayout: boolean; // Ubah tata letak/sembunyikan card
+  canManageCapacity?: boolean; // Atur & simpan limit kapasitas gudang
   canManageUsers: boolean;     // Tambah/Edit/Hapus User & Role
   canSaveSnapshot: boolean;    // Simpan snapshot ke database
 };
@@ -74,6 +76,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   viewDamagedPkg: true,
   viewIncomingPkg: true,
   viewProgressNC: true,
+  viewCapacitySettings: true,
   viewUserManagement: true,
   canUploadSAP: true,
   canUploadPipe: true,
@@ -87,6 +90,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   canEditProgressNC: true,
   canExportExcel: true,
   canCustomizeLayout: true,
+  canManageCapacity: true,
   canManageUsers: true,
   canSaveSnapshot: true
 };
@@ -101,6 +105,7 @@ export const DEFAULT_STAFF_PERMISSIONS: RolePermissions = {
   viewDamagedPkg: true,
   viewIncomingPkg: true,
   viewProgressNC: true,
+  viewCapacitySettings: true,
   viewUserManagement: false,
   canUploadSAP: false,
   canUploadPipe: false,
@@ -114,6 +119,7 @@ export const DEFAULT_STAFF_PERMISSIONS: RolePermissions = {
   canEditProgressNC: true,
   canExportExcel: true,
   canCustomizeLayout: false,
+  canManageCapacity: false,
   canManageUsers: false,
   canSaveSnapshot: false
 };
@@ -128,6 +134,7 @@ export const DEFAULT_VIEWER_PERMISSIONS: RolePermissions = {
   viewDamagedPkg: true,
   viewIncomingPkg: true,
   viewProgressNC: true,
+  viewCapacitySettings: true,
   viewUserManagement: false,
   canUploadSAP: false,
   canUploadPipe: false,
@@ -141,6 +148,7 @@ export const DEFAULT_VIEWER_PERMISSIONS: RolePermissions = {
   canEditProgressNC: false,
   canExportExcel: true,
   canCustomizeLayout: false,
+  canManageCapacity: false,
   canManageUsers: false,
   canSaveSnapshot: false
 };

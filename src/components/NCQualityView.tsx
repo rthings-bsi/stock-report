@@ -368,24 +368,24 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     currentDir: 'asc' | 'desc',
     onSort: (f: keyof T) => void,
     align: 'left' | 'center' | 'right' = 'left',
-    colorClass: string = 'text-slate-700'
+    colorClass: string = 'text-slate-500'
   ) => {
     const isActive = currentField === field;
     return (
       <th
         onClick={() => onSort(field)}
-        className={`py-2 px-2.5 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/80 transition-colors text-${align} ${colorClass}`}
+        className={`py-3 px-3.5 font-semibold text-[11px] uppercase tracking-wider select-none cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors text-${align} ${colorClass} group/th`}
       >
-        <div className={`inline-flex items-center gap-1 ${align === 'right' ? 'justify-end w-full' : align === 'center' ? 'justify-center w-full' : ''}`}>
+        <div className={`inline-flex items-center gap-1.5 ${align === 'right' ? 'justify-end w-full' : align === 'center' ? 'justify-center w-full' : ''}`}>
           <span>{label}</span>
           {isActive ? (
             currentDir === 'asc' ? (
-              <ArrowUp className="h-3 w-3 text-emerald-800 shrink-0" />
+              <ArrowUp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             ) : (
-              <ArrowDown className="h-3 w-3 text-emerald-800 shrink-0" />
+              <ArrowDown className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             )
           ) : (
-            <ArrowUpDown className="h-2.5 w-2.5 text-slate-400 shrink-0 opacity-0 group-hover:opacity-100 hover:opacity-100" />
+            <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 shrink-0 transition-colors" />
           )}
         </div>
       </th>
@@ -424,11 +424,11 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
       .map((i) => i.id || `${i.gudang}-${i.ukuran}-${i.customer}`);
 
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
-          <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-100 text-[11px] shadow-2xs">
-            <tr className="group text-slate-700">
-              <th className="py-2.5 px-3 text-center font-bold text-slate-400 w-10">#</th>
+      <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider select-none">
+            <tr>
+              <th className="py-3 px-3.5 text-center font-bold text-slate-400 w-10">#</th>
               {renderSortHeader('Gudang', 'gudang', sortField, sortDir, handleSort, 'left')}
               {renderSortHeader('Ukuran & Customer', 'ukuran', sortField, sortDir, handleSort, 'left')}
               {renderSortHeader('Tipe', 'type', sortField, sortDir, handleSort, 'center')}
@@ -438,7 +438,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               {renderSortHeader('Remark / No NC', 'remarks', sortField, sortDir, handleSort, 'left', isGradeE ? 'text-rose-900 font-bold' : 'text-amber-900 font-bold')}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px] bg-white">
+          <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
             {sorted.map((item, idx) => {
               const itemKey = item.id || `${item.gudang}-${item.ukuran}-${item.customer}`;
               const isTop3 = top3Ids.includes(itemKey);
@@ -450,16 +450,16 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   setModalGudangFilter(selectedGudang);
                   setModalSearchQuery(item.ukuran);
                 }}
-                className={`hover:bg-slate-50/80 transition-colors cursor-pointer group ${
+                className={`hover:bg-emerald-50/30 transition-all duration-150 cursor-pointer group ${
                   isTop3
                     ? isGradeE
-                      ? 'bg-rose-50/60 border-l-[3px] border-l-rose-500'
-                      : 'bg-amber-50/60 border-l-[3px] border-l-amber-500'
+                      ? 'bg-rose-50/40 border-l-[3px] border-l-rose-500'
+                      : 'bg-amber-50/40 border-l-[3px] border-l-amber-500'
                     : ''
                 }`}
                 title="Klik untuk membuka detail rincian stock & No NC"
               >
-                <td className="py-2.5 px-3 text-center font-bold">
+                <td className="py-3 px-3.5 text-center font-bold">
                   {isTop3 ? (
                     <span className={`inline-flex items-center gap-0.5 ${isGradeE ? 'text-rose-700' : 'text-amber-700'}`}>
                       <AlertTriangle className="h-3 w-3" strokeWidth={2.2} />
@@ -469,33 +469,33 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                     <span className="text-slate-400">{idx + 1}</span>
                   )}
                 </td>
-                <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
-                  <span className="bg-slate-100 border border-slate-200 text-slate-800 px-2 py-0.5 rounded text-[11px] font-bold">
+                <td className="py-3 px-3.5 font-bold text-slate-900 whitespace-nowrap">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold font-mono shadow-2xs">
                     {item.gudang}
                   </span>
                 </td>
-                <td className="py-2.5 px-3">
-                  <span className="font-bold text-slate-900 block group-hover:text-emerald-800 transition-colors text-xs">{item.ukuran}</span>
-                  <span className="text-[10px] text-slate-500 font-sans truncate block max-w-[170px]" title={item.customer}>
+                <td className="py-3 px-3.5">
+                  <span className="font-bold text-slate-900 block group-hover:text-emerald-800 transition-colors text-xs font-mono">{item.ukuran}</span>
+                  <span className="text-[11px] text-slate-500 font-sans truncate block max-w-[170px]" title={item.customer}>
                     {item.customer}
                   </span>
                 </td>
-                <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 border border-slate-200 text-slate-700">
+                <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 border border-slate-200/80 text-slate-700">
                     {item.type}
                   </span>
                 </td>
-                <td className="py-2.5 px-3 text-right text-emerald-900 font-semibold">
+                <td className="py-3 px-3.5 text-right text-emerald-900 font-semibold font-mono">
                   {item.fgTon ? formatTon(item.fgTon) : '-'}
                 </td>
-                <td className="py-2.5 px-3 text-right text-slate-500">
+                <td className="py-3 px-3.5 text-right text-slate-500 font-mono">
                   {item.wipTon ? formatTon(item.wipTon) : '-'}
                 </td>
-                <td className={`py-2.5 px-3 text-right font-bold text-xs ${isGradeE ? 'text-rose-800 font-black' : 'text-amber-900 font-bold'}`}>
+                <td className={`py-3 px-3.5 text-right font-bold text-xs font-mono ${isGradeE ? 'text-rose-800 font-black' : 'text-amber-900 font-bold'}`}>
                   {formatTon(item.totalTon)}
                 </td>
-                <td className="py-2.5 px-3 min-w-[200px] max-w-[300px]">
-                  <div className={`inline-block px-2.5 py-1 rounded text-[11px] font-mono leading-tight break-words border ${
+                <td className="py-3 px-3.5 min-w-[200px] max-w-[300px]">
+                  <div className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-mono leading-tight break-words border shadow-2xs ${
                     isGradeE
                       ? 'bg-rose-50/80 border-rose-200/80 text-rose-950'
                       : 'bg-amber-50/80 border-amber-200/80 text-amber-950'
@@ -514,17 +514,17 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               </tr>
             )}
           </tbody>
-          <tfoot className="sticky bottom-0 border-t-2 border-slate-300 bg-slate-100/95 backdrop-blur-xs font-bold text-xs text-slate-900 shadow-[0_-3px_6px_rgba(0,0,0,0.04)]">
+          <tfoot className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-slate-50/95 font-bold text-xs text-slate-900 backdrop-blur-xs shadow-xs">
             <tr>
-              <td colSpan={4} className="py-3 px-3 text-left uppercase tracking-wider text-slate-700 text-[10px]">
+              <td colSpan={4} className="py-3 px-3.5 text-left uppercase tracking-wider text-slate-700 text-[10px] font-mono">
                 Total 10 Terbesar ({sorted.length} Item)
               </td>
-              <td className="py-3 px-3 text-right text-emerald-900">{formatTon(sumFg)}</td>
-              <td className="py-3 px-3 text-right text-slate-500">{formatTon(sumWip)}</td>
-              <td className={`py-3 px-3 text-right text-xs ${isGradeE ? 'text-rose-800 font-black' : 'text-amber-900 font-bold'}`}>
+              <td className="py-3 px-3.5 text-right text-emerald-900 font-mono">{formatTon(sumFg)}</td>
+              <td className="py-3 px-3.5 text-right text-slate-500 font-mono">{formatTon(sumWip)}</td>
+              <td className={`py-3 px-3.5 text-right text-xs font-mono ${isGradeE ? 'text-rose-800 font-black' : 'text-amber-900 font-bold'}`}>
                 {formatTon(sumTotal)}
               </td>
-              <td className="py-3 px-3 text-right">
+              <td className="py-3 px-3.5 text-right">
                 <button
                   type="button"
                   onClick={() => {
@@ -560,10 +560,10 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     const maxGradeC = Math.max(...ncWarehouseData.map((d) => d.gradeC), 1);
 
     return (
-      <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
-        <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
-          <thead className="sticky top-0 z-10 bg-slate-100 text-[10px] shadow-2xs">
-            <tr className="group text-slate-700">
+      <div className="overflow-x-auto max-h-[520px] overflow-y-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider select-none">
+            <tr>
               {renderSortHeader('Gudang', 'gudang', recapSortField, recapSortDir, handleSort, 'left')}
               {renderSortHeader('PRIME', 'prime', recapSortField, recapSortDir, handleSort, 'right', 'text-emerald-900')}
               {renderSortHeader('Grade E', 'gradeE', recapSortField, recapSortDir, handleSort, 'right', 'text-rose-900')}
@@ -571,7 +571,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               {renderSortHeader('% Grd E', 'persenGradeE', recapSortField, recapSortDir, handleSort, 'right', 'text-slate-900')}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px] bg-white">
+          <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
             {sorted.map((item) => {
               const isSelected = selectedGudang === item.gudang;
               const warehouseTotal = item.prime + item.gradeE + item.gradeC;
@@ -584,39 +584,39 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               return (
                 <tr
                   key={item.gudang}
-                  className={`transition-colors cursor-pointer border-b border-slate-100 ${
-                    isSelected ? 'bg-emerald-50/90 font-semibold' : 'hover:bg-slate-50'
+                  className={`transition-all duration-150 cursor-pointer ${
+                    isSelected ? 'bg-emerald-50/80 font-semibold' : 'hover:bg-emerald-50/30'
                   }`}
                   onClick={() => setSelectedGudang(isSelected ? 'ALL' : item.gudang)}
                 >
-                  <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
+                  <td className="py-3 px-3.5 font-bold text-slate-900 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <Warehouse className={`h-3.5 w-3.5 ${isSelected ? 'text-emerald-800' : 'text-slate-400'}`} />
-                      <span className={`px-2 py-0.5 rounded text-[11px] border ${
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold font-mono shadow-2xs ${
                         isSelected
-                          ? 'bg-emerald-800 text-white border-emerald-900'
-                          : 'bg-slate-100 text-slate-800 border-slate-200'
+                          ? 'bg-emerald-800 text-white border border-emerald-900'
+                          : 'bg-emerald-50 text-emerald-800 border border-emerald-200/80'
                       }`}>
                         {item.gudang}
                       </span>
                       {isTop3 && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs font-mono">
                           <AlertTriangle className="h-2.5 w-2.5 text-rose-600 shrink-0" />
                           Grd E
                         </span>
                       )}
                       {isTop3C && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80 shadow-2xs font-mono">
                           <AlertTriangle className="h-2.5 w-2.5 text-amber-600 shrink-0" />
                           Grd C
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="py-2.5 px-3 text-right font-medium text-emerald-900">
+                  <td className="py-3 px-3.5 text-right font-medium text-emerald-900 font-mono">
                     {formatTon(item.prime)}
                   </td>
-                  <td className="py-2.5 px-3 text-right relative">
+                  <td className="py-3 px-3.5 text-right relative font-mono">
                     <div
                       className={`absolute inset-y-1.5 right-1 rounded-xs pointer-events-none ${
                         isTop3 ? 'bg-rose-200/80' : 'bg-rose-100/40'
@@ -627,20 +627,20 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                       {formatTon(item.gradeE)}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-right relative">
+                  <td className="py-3 px-3.5 text-right relative font-mono">
                     <div
                       className={`absolute inset-y-1.5 right-1 rounded-xs pointer-events-none ${
                         isTop3C ? 'bg-amber-200/80' : 'bg-amber-100/60'
                       }`}
                       style={{ width: `${barWidthC * 0.7}%` }}
                     />
-                    <span className={`relative z-1 ${isTop3C ? 'font-black text-amber-800' : 'font-medium text-amber-900'}`}>
+                    <span className={`relative z-1 font-bold ${isTop3C ? 'text-amber-800 font-black' : 'text-amber-900'}`}>
                       {formatTon(item.gradeC)}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                  <td className="py-3 px-3.5 text-right whitespace-nowrap font-mono">
                     {isTop3 ? (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
                         {formatPercent(pctGradeE)}
                       </span>
                     ) : (
@@ -653,21 +653,21 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               );
             })}
           </tbody>
-          <tfoot className="sticky bottom-0 z-20 bg-slate-100 font-bold text-[11px] text-slate-900 shadow-[0_-2px_4px_rgba(0,0,0,0.06)]">
+          <tfoot className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-slate-50/95 font-bold text-xs text-slate-900 backdrop-blur-xs shadow-xs">
             <tr>
-              <td className="py-3 px-3 uppercase tracking-wider text-slate-700 text-[10px] bg-slate-100 border-t-2 border-slate-300">
+              <td className="py-3 px-3.5 uppercase tracking-wider text-slate-700 text-[10px] font-mono">
                 Total
               </td>
-              <td className="py-3 px-3 text-right text-emerald-900 font-bold bg-slate-100 border-t-2 border-slate-300">
+              <td className="py-3 px-3.5 text-right text-emerald-900 font-bold font-mono">
                 {formatTon(totalPrime)}
               </td>
-              <td className="py-3 px-3 text-right text-rose-800 font-black bg-slate-100 border-t-2 border-slate-300">
+              <td className="py-3 px-3.5 text-right text-rose-800 font-black font-mono">
                 {formatTon(totalGradeE)}
               </td>
-              <td className="py-3 px-3 text-right text-amber-900 font-bold bg-slate-100 border-t-2 border-slate-300">
+              <td className="py-3 px-3.5 text-right text-amber-900 font-bold font-mono">
                 {formatTon(totalGradeC)}
               </td>
-              <td className="py-3 px-3 text-right font-black text-slate-900 bg-slate-100 border-t-2 border-slate-300">
+              <td className="py-3 px-3.5 text-right font-black text-slate-900 font-mono">
                 {formatPercent(persenGradeETotal)}
               </td>
             </tr>
@@ -855,11 +855,11 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
           </div>
 
           {/* TABLE CONTAINER */}
-          <div className="flex-1 overflow-auto max-h-[58vh]">
-            <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10 bg-slate-100 text-[11px] shadow-2xs">
-                <tr className="group text-slate-700 border-b border-slate-200">
-                  <th className="py-2.5 px-3 text-center font-bold text-slate-400 w-12">#</th>
+          <div className="flex-1 overflow-auto max-h-[58vh] rounded-xl border border-slate-200/80 shadow-xs bg-white">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider select-none">
+                <tr>
+                  <th className="py-3 px-3.5 text-center font-bold text-slate-400 w-12">#</th>
                   {renderSortHeader('Gudang', 'gudang', modalSortField, modalSortDir, handleModalSort, 'left')}
                   {renderSortHeader('Ukuran', 'ukuran', modalSortField, modalSortDir, handleModalSort, 'left')}
                   {renderSortHeader('Customer', 'customer', modalSortField, modalSortDir, handleModalSort, 'left')}
@@ -872,51 +872,51 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   {renderSortHeader('Remark / No NC', 'remarks', modalSortField, modalSortDir, handleModalSort, 'left', 'text-amber-950 font-bold')}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px] bg-white">
+              <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
                 {sortedModalNCItems.map((item, idx) => {
                   const isGradeE = item.grade === 'Grade E';
                   return (
-                    <tr key={item.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-2.5 px-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
-                        <span className="bg-slate-100 border border-slate-200 text-slate-800 px-2 py-0.5 rounded text-[11px] font-bold">
+                    <tr key={item.id || idx} className="hover:bg-emerald-50/30 transition-all duration-150 group">
+                      <td className="py-3 px-3.5 text-center text-slate-400 font-bold font-mono">{idx + 1}</td>
+                      <td className="py-3 px-3.5 font-bold text-slate-900 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold font-mono shadow-2xs">
                           {item.gudang}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap text-xs">
+                      <td className="py-3 px-3.5 font-bold text-slate-900 whitespace-nowrap text-xs font-mono">
                         {item.ukuran}
                       </td>
-                      <td className="py-2.5 px-3 font-sans text-slate-700 text-xs max-w-[180px] truncate" title={item.customer}>
+                      <td className="py-3 px-3.5 font-sans text-slate-700 text-xs max-w-[180px] truncate" title={item.customer}>
                         {item.customer}
                       </td>
-                      <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap text-[10px]">
+                      <td className="py-3 px-3.5 text-slate-500 whitespace-nowrap text-[10px] font-mono">
                         {item.kodeMaterial || '-'}
                       </td>
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 border border-slate-200 text-slate-700">
+                      <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 border border-slate-200/80 text-slate-700 font-mono">
                           {item.type}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                      <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border font-mono shadow-2xs ${
                           isGradeE
-                            ? 'bg-rose-50 text-rose-700 border-rose-200'
-                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200/80'
+                            : 'bg-amber-50 text-amber-800 border-amber-200/80'
                         }`}>
                           {item.grade}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-right text-emerald-900 font-semibold">
+                      <td className="py-3 px-3.5 text-right text-emerald-900 font-semibold font-mono">
                         {item.fgTon ? formatTon(item.fgTon) : '-'}
                       </td>
-                      <td className="py-2.5 px-3 text-right text-slate-500">
+                      <td className="py-3 px-3.5 text-right text-slate-500 font-mono">
                         {item.wipTon ? formatTon(item.wipTon) : '-'}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-slate-950 text-xs bg-slate-50/40">
+                      <td className="py-3 px-3.5 text-right font-bold text-slate-950 text-xs font-mono bg-slate-50/40">
                         {formatTon(item.totalTon)}
                       </td>
-                      <td className="py-2.5 px-3 min-w-[240px] max-w-[340px]">
-                        <div className="inline-block bg-amber-50/80 border border-amber-200/80 text-amber-950 px-2.5 py-1 rounded text-[11px] font-mono leading-tight break-words" title={item.remarks}>
+                      <td className="py-3 px-3.5 min-w-[240px] max-w-[340px]">
+                        <div className="inline-block bg-amber-50/80 border border-amber-200/80 text-amber-950 px-2.5 py-1 rounded-md text-[11px] font-mono leading-tight break-words shadow-2xs" title={item.remarks}>
                           {item.remarks || item.noNC || '-'}
                         </div>
                       </td>
@@ -931,21 +931,21 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   </tr>
                 )}
               </tbody>
-              <tfoot className="sticky bottom-0 z-20 bg-slate-100 font-bold text-xs text-slate-900 shadow-[0_-3px_6px_rgba(0,0,0,0.05)] border-t-2 border-slate-300">
+              <tfoot className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-slate-50/95 font-bold text-xs text-slate-900 backdrop-blur-xs shadow-xs">
                 <tr>
-                  <td colSpan={7} className="py-3 px-3 uppercase tracking-wider text-slate-700 text-[10px]">
+                  <td colSpan={7} className="py-3 px-3.5 uppercase tracking-wider text-slate-700 text-[10px] font-mono">
                     Total ({sortedModalNCItems.length} Item NC)
                   </td>
-                  <td className="py-3 px-3 text-right text-emerald-900 font-bold">
+                  <td className="py-3 px-3.5 text-right text-emerald-900 font-bold font-mono">
                     {formatTon(modalTotalFg)}
                   </td>
-                  <td className="py-3 px-3 text-right text-slate-600 font-bold">
+                  <td className="py-3 px-3.5 text-right text-slate-600 font-bold font-mono">
                     {formatTon(modalTotalWip)}
                   </td>
-                  <td className="py-3 px-3 text-right text-slate-950 font-black text-xs bg-slate-200/60">
+                  <td className="py-3 px-3.5 text-right text-slate-950 font-black text-xs font-mono bg-slate-200/60">
                     {formatTon(modalTotalTon)}
                   </td>
-                  <td className="py-3 px-3 text-left text-slate-500 text-[10px] font-normal">
+                  <td className="py-3 px-3.5 text-left text-slate-500 text-[10px] font-normal font-mono">
                     Tonase Terdaftar
                   </td>
                 </tr>

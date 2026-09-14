@@ -14,6 +14,7 @@ import {
 import {
   buildNCProgressPipeline,
   computeNCProgressSummary,
+  classifyTransaction,
   parseNCProgressTsv,
   parseNCProgressRows,
   formatExcelDate,
@@ -31,6 +32,7 @@ import {
   Wrench,
   CheckCircle2,
   AlertTriangle,
+  XCircle,
   Search,
   Filter,
   Download,
@@ -42,7 +44,6 @@ import {
   ArrowUpRight,
   Sparkles,
   GitFork,
-  Layers,
   ChevronDown,
   Info,
   X,
@@ -59,7 +60,10 @@ import {
   ExternalLink,
   Trash2,
   Pencil,
-  Eye
+  Eye,
+  BarChart3,
+  PieChart,
+  Table2
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
@@ -69,10 +73,11 @@ interface NCProgressViewProps {
   data?: NCProgressTransaction[];
   isAdmin?: boolean;
   canEdit?: boolean;
+  isCustomizing?: boolean;
   onDataUpdate?: (newData: NCProgressTransaction[]) => void;
 }
 
-type SubTabType = 'in_nc' | 'out_repair' | 'in_prime';
+type SubTabType = 'in_nc' | 'out_repair' | 'in_prime' | 'reject_repair';
 
 interface CardState {
   id: string;
@@ -113,6 +118,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
   data = [],
   isAdmin = false,
   canEdit = true,
+  isCustomizing = false,
   onDataUpdate
 }) => {
   const [transactions, setTransactions] = useState<NCProgressTransaction[]>(data);
@@ -138,6 +144,52 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
   const [sortField, setSortField] = useState<string>('postingDate');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  // Customizable Cards & Layout state
+  const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    try {
+      const saved = localStorage.getItem('spindo_layout_nc_progress_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const validIds = new Set(DEFAULT_CARDS.map((c) => c.id));
+          const validSaved = parsed.filter((c: CardState) => validIds.has(c.id));
+          DEFAULT_CARDS.forEach((dc) => {
+            if (!validSaved.some((c: CardState) => c.id === dc.id)) {
+              validSaved.push(dc);
+            }
+          });
+          setCards(validSaved);
+        }
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    try {
+      localStorage.setItem('spindo_layout_nc_progress_v1', JSON.stringify(cards));
+    } catch {}
+  }, [cards, isMounted]);
+
+  const handleWidthChange = (id: string, newWidth: CardWidth) => {
+    setCards((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, width: newWidth } : c))
+    );
+  };
+
+  const handleMove = (index: number, direction: 'left' | 'right') => {
+    const targetIdx = direction === 'left' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= cards.length) return;
+    const newCards = [...cards];
+    const [moved] = newCards.splice(index, 1);
+    newCards.splice(targetIdx, 0, moved);
+    setCards(newCards);
+  };
+
   // Sync external props data
   useEffect(() => {
     if (data) {
@@ -155,14 +207,44 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
     } catch {}
   };
 
-  // Filter IN NC (MVT 309) & standardisasi Nomor NCR (<NO>/NCR-SKF/<BULAN>/<TAHUN>)
+  // Filter transaksi Progres NC:
+  // 1. MVT 261, 262, 101: HANYA izinkan Work Center yang diawali 'REP' (case-insensitive)
+  // 2. MVT 309: HANYA izinkan batch berakhiran 'C' atau 'E'
+  // 3. Abaikan transaksi 'OTHER'
   const cleanTransactions = useMemo(() => {
     return transactions
       .filter((t) => {
-        if (t.transactionType === 'IN_NC' || t.movementType === '309' || String(t.movementType).startsWith('309')) {
+        const m = String(t.movementType || '').trim();
+        const wc = String(t.workCenter || '').trim().toUpperCase();
+        const isRepWC = wc.startsWith('REP');
+
+        // MVT 261, 262, 101, 551, 553, 555: Wajib work center REP*
+        if (
+          m === '261' || m.startsWith('261') ||
+          m === '262' || m.startsWith('262') ||
+          m === '101' || m.startsWith('101') ||
+          m === '551' || m.startsWith('551') ||
+          m === '553' || m.startsWith('553') ||
+          m === '555' || m.startsWith('555') ||
+          t.transactionType === 'OUT_REPAIR' ||
+          t.transactionType === 'OUT_REPAIR_RETURN' ||
+          t.transactionType === 'IN_OK_PRIME' ||
+          t.transactionType === 'REJECT_REPAIR'
+        ) {
+          if (!isRepWC) return false;
+        }
+
+        // Abaikan transaksi yang bukan alur NC/Repair
+        if (t.transactionType === 'OTHER') {
+          return false;
+        }
+
+        // Filter khusus IN NC (MVT 309): Hanya ambil batch NC yang berakhiran 'C' atau 'E'
+        if (t.transactionType === 'IN_NC' || m === '309' || m.startsWith('309')) {
           const b = (t.batch || '').trim().toUpperCase();
           return b.endsWith('C') || b.endsWith('E');
         }
+
         return true;
       })
       .map((t) => {
@@ -201,19 +283,15 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
     ).sort();
   }, [cleanTransactions]);
 
-  const workCenterList = useMemo(() => {
-    return Array.from(
-      new Set(cleanTransactions.map((t) => t.workCenter).filter((w): w is string => Boolean(w && w.trim())))
-    ).sort();
-  }, [cleanTransactions]);
-
   // Filtered Raw Transactions
   const filteredTransactions = useMemo(() => {
     return cleanTransactions.filter((t) => {
       // Subtab filter
       if (activeSubTab === 'in_nc' && t.transactionType !== 'IN_NC') return false;
-      if (activeSubTab === 'out_repair' && t.transactionType !== 'OUT_REPAIR') return false;
+      if (activeSubTab === 'out_repair' && t.transactionType !== 'OUT_REPAIR' && t.transactionType !== 'OUT_REPAIR_RETURN') return false;
       if (activeSubTab === 'in_prime' && t.transactionType !== 'IN_OK_PRIME') return false;
+      // Khusus subtab reject_repair: Tampilkan mutasi repair penyusun (261, 262, 101)
+      if (activeSubTab === 'reject_repair' && t.transactionType !== 'OUT_REPAIR' && t.transactionType !== 'OUT_REPAIR_RETURN' && t.transactionType !== 'IN_OK_PRIME') return false;
 
       const g = normalizeGudang(t.storageLocation);
       const matchGudang = selectedGudang === 'ALL' || g === selectedGudang || t.storageLocation === selectedGudang;
@@ -242,6 +320,55 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
     });
   }, [cleanTransactions, activeSubTab, selectedGudang, selectedWorkCenter, searchQuery]);
 
+  // Daftar Order Repair untuk Subtab 'Reject / DG Repair' (Rumus: 261 - 262 - 101)
+  const rejectRepairPipelineItems = useMemo(() => {
+    return pipeline
+      .filter((item) => {
+        // HANYA tampilkan item yang benar-benar memiliki aktivitas repair (261, 262, atau 101) atau ada reject
+        const hasRepairActivity =
+          (item.qty261 ?? 0) > 0 ||
+          (item.qty262 ?? 0) > 0 ||
+          item.qtyOutRepair > 0 ||
+          item.qtyInPrime > 0 ||
+          item.qtyReject > 0;
+
+        // Jangan tampilkan item yang seluruh kuantitas repair-nya 0 (seperti stok NC murni yang belum direpair)
+        if (!hasRepairActivity) return false;
+
+        // Jangan tampilkan jika order '0' tanpa nomor SPK yang valid
+        if (item.order === '0' && !hasRepairActivity) return false;
+
+        const matchGudang =
+          selectedGudang === 'ALL' ||
+          item.slocNC === selectedGudang ||
+          item.slocPrime === selectedGudang ||
+          normalizeGudang(item.slocNC) === selectedGudang ||
+          normalizeGudang(item.slocPrime) === selectedGudang;
+        const matchWC = selectedWorkCenter === 'ALL' || item.workCenter === selectedWorkCenter;
+
+        const q = searchQuery.toLowerCase().trim();
+        const matchSearch =
+          q === '' ||
+          item.material.toLowerCase().includes(q) ||
+          item.materialDescription.toLowerCase().includes(q) ||
+          (item.customer && item.customer.toLowerCase().includes(q)) ||
+          (item.order && item.order.toLowerCase().includes(q)) ||
+          (item.workCenter && item.workCenter.toLowerCase().includes(q)) ||
+          (item.batchNC && item.batchNC.toLowerCase().includes(q)) ||
+          (item.batchPrime && item.batchPrime.toLowerCase().includes(q)) ||
+          (item.ncrNumber && item.ncrNumber.toLowerCase().includes(q)) ||
+          (item.problemRemark && item.problemRemark.toLowerCase().includes(q));
+
+        return matchGudang && matchWC && matchSearch;
+      })
+      .sort((a, b) => {
+        if (b.qtyReject !== a.qtyReject) {
+          return b.qtyReject - a.qtyReject;
+        }
+        return (b.lastDate || '').localeCompare(a.lastDate || '');
+      });
+  }, [pipeline, selectedGudang, selectedWorkCenter, searchQuery]);
+
   // Konsolidasi Data Gabungan per No NCR / SPK
   const groupedItems = useMemo<GroupedNCItem[]>(() => {
     const map = new Map<string, NCProgressTransaction[]>();
@@ -261,6 +388,14 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
           key = `NCR_${tx.ncrNumber.trim().toUpperCase()}`;
         } else {
           key = `MAT_${tx.material}_${tx.batch.slice(0, 7)}`;
+        }
+      } else if (activeSubTab === 'reject_repair') {
+        if (tx.order && tx.order.trim() && tx.order !== '0') {
+          key = `ORD_${tx.order.trim()}`;
+        } else if (tx.ncrNumber && tx.ncrNumber.trim()) {
+          key = `NCR_${tx.ncrNumber.trim().toUpperCase()}`;
+        } else {
+          key = `MAT_${tx.material}_${tx.batch}`;
         }
       } else {
         if (tx.order && tx.order.trim() && tx.order !== '0') {
@@ -374,30 +509,57 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
     });
   }, [groupedItems, sortField, sortDir]);
 
-  const handleDeleteSingleTxFromGroup = (txId?: string) => {
-    if (!txId) return;
-    if (window.confirm('Hapus baris dokumen transaksi ini?')) {
-      const nextList = transactions.filter((t) => t.id !== txId);
-      updateTransactionsList(nextList);
-      if (selectedGroup) {
-        const updatedTx = selectedGroup.transactions.filter((t) => t.id !== txId);
-        if (updatedTx.length === 0) {
-          setSelectedGroup(null);
-        } else {
-          const updatedTotalQty = updatedTx.reduce((acc, curr) => acc + curr.qtyInUnOfEntry, 0);
-          const updatedTotalKg = updatedTx.reduce((acc, curr) => acc + (curr.quantity || curr.kgGI || curr.kgGR || 0), 0);
-          setSelectedGroup({
-            ...selectedGroup,
-            transactions: updatedTx,
-            totalQty: updatedTotalQty,
-            totalKg: updatedTotalKg,
-            totalTon: updatedTotalKg / 1000,
-            transactionCount: updatedTx.length
-          });
-        }
-      }
+  // Sorting state khusus tabel Reject / DG Repair
+  const [rejectSortField, setRejectSortField] = useState<string>('qtyReject');
+  const [rejectSortDir, setRejectSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleToggleRejectSort = (field: string) => {
+    if (rejectSortField === field) {
+      setRejectSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setRejectSortField(field);
+      setRejectSortDir('desc');
     }
   };
+
+  const sortedRejectRepairItems = useMemo(() => {
+    return [...rejectRepairPipelineItems].sort((a, b) => {
+      let valA: string | number = a.qtyReject;
+      let valB: string | number = b.qtyReject;
+      if (rejectSortField === 'order') {
+        valA = a.order || '';
+        valB = b.order || '';
+      } else if (rejectSortField === 'material') {
+        valA = parseMaterialUkuran(a.material, a.materialDescription);
+        valB = parseMaterialUkuran(b.material, b.materialDescription);
+      } else if (rejectSortField === 'qty261') {
+        valA = a.qty261 ?? a.qtyOutRepair;
+        valB = b.qty261 ?? b.qtyOutRepair;
+      } else if (rejectSortField === 'qty262') {
+        valA = a.qty262 ?? 0;
+        valB = b.qty262 ?? 0;
+      } else if (rejectSortField === 'qtyOutRepair') {
+        valA = a.qtyOutRepair;
+        valB = b.qtyOutRepair;
+      } else if (rejectSortField === 'qtyInPrime') {
+        valA = a.qtyInPrime;
+        valB = b.qtyInPrime;
+      } else if (rejectSortField === 'qtyReject') {
+        valA = a.qtyReject;
+        valB = b.qtyReject;
+      } else if (rejectSortField === 'lastDate') {
+        valA = a.lastDate || '';
+        valB = b.lastDate || '';
+      }
+
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return rejectSortDir === 'asc' ? valA - valB : valB - valA;
+      }
+      return rejectSortDir === 'asc'
+        ? String(valA).localeCompare(String(valB))
+        : String(valB).localeCompare(String(valA));
+    });
+  }, [rejectRepairPipelineItems, rejectSortField, rejectSortDir]);
 
   const handleExportExcel = () => {
     exportNCProgressToExcel(cleanTransactions, pipeline, summary);
@@ -477,14 +639,22 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
   // Chart Data: Progres Mutasi NC per Gudang (5A* = Gd.01 s/d 5N* = Gd.14)
   const gudangProgressChartData = useMemo(() => {
-    const gdMap: Record<string, { ncIn: number; outRep: number; inPrime: number; reject: number }> = {};
+    const gdMap: Record<string, { ncInGradeC: number; ncInGradeE: number; outRep: number; inPrime: number; reject: number }> = {};
 
     cleanTransactions.forEach((tx) => {
       const g = normalizeGudang(tx.storageLocation);
-      if (!gdMap[g]) gdMap[g] = { ncIn: 0, outRep: 0, inPrime: 0, reject: 0 };
+      if (!gdMap[g]) gdMap[g] = { ncInGradeC: 0, ncInGradeE: 0, outRep: 0, inPrime: 0, reject: 0 };
       const ton = (tx.quantity || tx.kgGI || tx.kgGR || 0) / 1000;
-      if (tx.transactionType === 'IN_NC') gdMap[g].ncIn += ton;
+      if (tx.transactionType === 'IN_NC') {
+        const b = (tx.batch || '').trim().toUpperCase();
+        if (b.endsWith('E') || (!b.endsWith('C') && ((tx.text || '').toUpperCase().includes('GRADE E') || (tx.materialDescription || '').toUpperCase().includes('GRADE E')))) {
+          gdMap[g].ncInGradeE += ton;
+        } else {
+          gdMap[g].ncInGradeC += ton;
+        }
+      }
       else if (tx.transactionType === 'OUT_REPAIR') gdMap[g].outRep += ton;
+      else if (tx.transactionType === 'OUT_REPAIR_RETURN') gdMap[g].outRep = Math.max(0, gdMap[g].outRep - ton);
       else if (tx.transactionType === 'IN_OK_PRIME') gdMap[g].inPrime += ton;
     });
 
@@ -497,25 +667,33 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       labels,
       datasets: [
         {
-          label: 'IN NC (309)',
-          data: labels.map((l) => gdMap[l].ncIn),
-          backgroundColor: '#f43f5e',
-          hoverBackgroundColor: '#e11d48',
+          label: 'IN NC Grade C (309)',
+          data: labels.map((l) => gdMap[l].ncInGradeC),
+          backgroundColor: '#3b82f6', // Biru
+          hoverBackgroundColor: '#2563eb',
           borderRadius: 4,
           borderSkipped: false
         },
         {
-          label: 'OUT Repair (261)',
+          label: 'IN NC Grade E (309)',
+          data: labels.map((l) => gdMap[l].ncInGradeE),
+          backgroundColor: '#eab308', // Kuning
+          hoverBackgroundColor: '#ca8a04',
+          borderRadius: 4,
+          borderSkipped: false
+        },
+        {
+          label: 'Bahan Repair (261)',
           data: labels.map((l) => gdMap[l].outRep),
-          backgroundColor: '#f59e0b',
-          hoverBackgroundColor: '#d97706',
+          backgroundColor: '#f97316', // Orange
+          hoverBackgroundColor: '#ea580c',
           borderRadius: 4,
           borderSkipped: false
         },
         {
-          label: 'IN Prime OK (101)',
+          label: 'Hasil Repair (101)',
           data: labels.map((l) => gdMap[l].inPrime),
-          backgroundColor: '#10b981',
+          backgroundColor: '#10b981', // Hijau
           hoverBackgroundColor: '#059669',
           borderRadius: 4,
           borderSkipped: false
@@ -523,8 +701,8 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
         {
           label: 'Reject Repair',
           data: labels.map((l) => gdMap[l].reject),
-          backgroundColor: '#0ea5e9',
-          hoverBackgroundColor: '#0284c7',
+          backgroundColor: '#ef4444', // Merah
+          hoverBackgroundColor: '#dc2626',
           borderRadius: 4,
           borderSkipped: false
         }
@@ -534,52 +712,66 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
   // Chart Data: Total Akumulasi Mutasi All Gudang
   const donutChartData = useMemo(() => {
-    let totalNCInTon = 0;
+    let totalNCInGradeCTon = 0;
+    let totalNCInGradeETon = 0;
     let totalOutRepTon = 0;
     let totalInPrimeTon = 0;
 
     cleanTransactions.forEach((tx) => {
       const ton = (tx.quantity || tx.kgGI || tx.kgGR || 0) / 1000;
-      if (tx.transactionType === 'IN_NC') totalNCInTon += ton;
+      if (tx.transactionType === 'IN_NC') {
+        const b = (tx.batch || '').trim().toUpperCase();
+        if (b.endsWith('E') || (!b.endsWith('C') && ((tx.text || '').toUpperCase().includes('GRADE E') || (tx.materialDescription || '').toUpperCase().includes('GRADE E')))) {
+          totalNCInGradeETon += ton;
+        } else {
+          totalNCInGradeCTon += ton;
+        }
+      }
       else if (tx.transactionType === 'OUT_REPAIR') totalOutRepTon += ton;
+      else if (tx.transactionType === 'OUT_REPAIR_RETURN') totalOutRepTon = Math.max(0, totalOutRepTon - ton);
       else if (tx.transactionType === 'IN_OK_PRIME') totalInPrimeTon += ton;
     });
 
     const totalRejectTon = Math.max(0, totalOutRepTon - totalInPrimeTon);
-    const totalTon = totalNCInTon + totalOutRepTon + totalInPrimeTon + totalRejectTon;
+    const totalTon = totalNCInGradeCTon + totalNCInGradeETon + totalOutRepTon + totalInPrimeTon + totalRejectTon;
 
     return {
       totalTon,
-      totalNCInTon,
+      totalNCInGradeCTon,
+      totalNCInGradeETon,
       totalOutRepTon,
       totalInPrimeTon,
       totalRejectTon,
       chartData: {
         labels: [
-          'IN NC (309)',
-          'OUT Repair (261)',
-          'IN Prime OK (101)',
+          'IN NC Grade C (309)',
+          'IN NC Grade E (309)',
+          'Bahan Repair (261)',
+          'Hasil Repair (101)',
           'Reject Repair'
         ],
         datasets: [
           {
             data: [
-              parseFloat(totalNCInTon.toFixed(3)),
+              parseFloat(totalNCInGradeCTon.toFixed(3)),
+              parseFloat(totalNCInGradeETon.toFixed(3)),
               parseFloat(totalOutRepTon.toFixed(3)),
               parseFloat(totalInPrimeTon.toFixed(3)),
               parseFloat(totalRejectTon.toFixed(3))
             ],
             backgroundColor: [
-              '#f43f5e', // Rose
-              '#f59e0b', // Amber
-              '#10b981', // Emerald
-              '#0ea5e9'  // Sky
+              '#3b82f6', // Biru
+              '#eab308', // Kuning
+              '#f97316', // Orange
+              '#10b981', // Hijau
+              '#ef4444'  // Merah
             ],
             hoverBackgroundColor: [
-              '#e11d48',
-              '#d97706',
+              '#2563eb',
+              '#ca8a04',
+              '#ea580c',
               '#059669',
-              '#0284c7'
+              '#dc2626'
             ],
             borderWidth: 2,
             borderColor: '#ffffff',
@@ -595,207 +787,284 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       {/* Top Banner & Header */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex items-center justify-between">
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
             <GitFork className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
-          <h1 className="text-base font-bold text-white font-sans tracking-tight">
-            Monitoring Progres NC & Repair
-          </h1>
-        </div>
-      </div>
-
-      {/* Visual Charts Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
-        {/* Left Card: Bar Chart */}
-        <div className="lg:col-span-8 bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
           <div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                  Progres Mutasi NC per Gudang
-                </h3>
-                <p className="text-xs text-slate-500 font-normal mt-0.5">
-                  Perbandingan pergerakan material NC, repair, dan prime (Ton)
-                </p>
-              </div>
-            </div>
-
-            {/* Custom Clean Legend */}
-            <div className="flex flex-wrap items-center gap-4 mb-3">
-              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
-                <span>IN NC (309)</span>
-              </div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                <span>OUT Repair (261)</span>
-              </div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                <span>IN Prime OK (101)</span>
-              </div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
-                <span>Reject Repair</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="h-56 w-full pt-1">
-            <Bar
-              data={gudangProgressChartData}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    display: false
-                  },
-                  tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.94)',
-                    titleColor: '#f8fafc',
-                    bodyColor: '#f1f5f9',
-                    titleFont: { size: 12, weight: 'bold' },
-                    bodyFont: { size: 11 },
-                    padding: { top: 8, bottom: 8, left: 12, right: 12 },
-                    cornerRadius: 8,
-                    boxPadding: 4,
-                    usePointStyle: true,
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
-                    borderWidth: 1,
-                    callbacks: {
-                      label: (ctx) => ` ${ctx.dataset.label}: ${(ctx.parsed.y || 0).toFixed(3)} Ton`
-                    }
-                  }
-                },
-                scales: {
-                  x: {
-                    grid: { display: false },
-                    ticks: {
-                      color: '#64748b',
-                      font: { family: 'ui-monospace, monospace', size: 11, weight: 'bold' }
-                    }
-                  },
-                  y: {
-                    grid: {
-                      color: '#f1f5f9'
-                    },
-                    ticks: {
-                      color: '#94a3b8',
-                      font: { family: 'ui-monospace, monospace', size: 10 }
-                    }
-                  }
-                }
-              }}
-            />
+            <h1 className="text-base font-bold text-white font-sans tracking-tight">
+              Monitoring Progres NC & Repair
+            </h1>
+            <p className="text-xs text-emerald-300/90 font-normal mt-0.5">
+              Tracking pergerakan material NC, repair, dan prime antar gudang
+            </p>
           </div>
         </div>
 
-        {/* Right Card: Donut Chart */}
-        <div className="lg:col-span-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                Total Akumulasi
-              </h3>
-              <p className="text-xs text-slate-500 font-normal mt-0.5">
-                Seluruh gudang
-              </p>
-            </div>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
-              {formatTon(donutChartData.totalTon, { decimals: 2 })} Ton
-            </span>
-          </div>
-
-          <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto">
-            <Doughnut
-              data={donutChartData.chartData}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    display: false
-                  },
-                  tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.94)',
-                    titleColor: '#f8fafc',
-                    bodyColor: '#f1f5f9',
-                    titleFont: { size: 12, weight: 'bold' },
-                    bodyFont: { size: 11 },
-                    padding: { top: 8, bottom: 8, left: 12, right: 12 },
-                    cornerRadius: 8,
-                    boxPadding: 4,
-                    usePointStyle: true,
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
-                    borderWidth: 1,
-                    callbacks: {
-                      label: (ctx) => ` ${ctx.label}: ${(ctx.parsed || 0).toFixed(3)} Ton`
-                    }
-                  }
-                },
-                cutout: '72%'
-              }}
-            />
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
-                {formatTon(donutChartData.totalTon, { decimals: 2 })}
-              </span>
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
-                TOTAL TON
-              </span>
-            </div>
-          </div>
-
-          {/* Breakdown Pills List */}
-          <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
-            <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
-                <span className="text-[11px] font-medium text-slate-600 truncate">IN NC (309)</span>
-              </div>
-              <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                {formatTon(donutChartData.totalNCInTon, { decimals: 2 })}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                <span className="text-[11px] font-medium text-slate-600 truncate">OUT REP (261)</span>
-              </div>
-              <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                {formatTon(donutChartData.totalOutRepTon, { decimals: 2 })}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                <span className="text-[11px] font-medium text-slate-600 truncate">IN PRIME (101)</span>
-              </div>
-              <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                {formatTon(donutChartData.totalInPrimeTon, { decimals: 2 })}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
-                <span className="text-[11px] font-medium text-slate-600 truncate">Reject Repair</span>
-              </div>
-              <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                {formatTon(donutChartData.totalRejectTon, { decimals: 2 })}
-              </span>
-            </div>
-          </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            title="Ekspor data ke Excel"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 text-emerald-100 hover:text-white border border-emerald-700 text-xs font-semibold transition-all cursor-pointer shadow-xs"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Ekspor Excel</span>
+          </button>
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs & Filtering Toolbar (Compact 1 Row) */}
-      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+      {/* CUSTOMIZABLE CARDS GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {cards.map((card, index) => {
+          // CARD 1: BAR CHART (PROGRES MUTASI NC PER GUDANG)
+          if (card.id === 'chart-nc-bar') {
+            return (
+              <CustomizableCard
+                key={card.id}
+                id={card.id}
+                title="Progres Mutasi NC per Gudang"
+                subtitle="Perbandingan pergerakan material NC, repair, dan prime (Ton)"
+                icon={BarChart3}
+                width={card.width}
+                isCustomizing={isCustomizing}
+                canMoveLeft={index > 0}
+                canMoveRight={index < cards.length - 1}
+                onMoveLeft={() => handleMove(index, 'left')}
+                onMoveRight={() => handleMove(index, 'right')}
+                onWidthChange={(w) => handleWidthChange(card.id, w)}
+                badge={
+                  <span className="text-[10px] font-mono bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded border border-slate-300">
+                    Per Gudang
+                  </span>
+                }
+              >
+                {(expanded) => (
+                  <div className="flex flex-col justify-between h-full w-full">
+                    <div>
+                      {/* Custom Clean Legend */}
+                      <div className="flex flex-wrap items-center gap-4 mb-3">
+                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                          <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+                          <span>IN NC Grade C (309)</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                          <span className="h-2 w-2 rounded-full bg-yellow-500 shrink-0" />
+                          <span>IN NC Grade E (309)</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                          <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+                          <span>Bahan Repair (261)</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                          <span>Hasil Repair (101)</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                          <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
+                          <span>Reject Repair</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={cn("w-full pt-1", expanded ? "h-96" : "h-56 sm:h-64")}>
+                      <Bar
+                        data={gudangProgressChartData}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              display: false
+                            },
+                            tooltip: {
+                              backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                              titleColor: '#f8fafc',
+                              bodyColor: '#f1f5f9',
+                              titleFont: { size: 12, weight: 'bold' },
+                              bodyFont: { size: 11 },
+                              padding: { top: 8, bottom: 8, left: 12, right: 12 },
+                              cornerRadius: 8,
+                              boxPadding: 4,
+                              usePointStyle: true,
+                              borderColor: 'rgba(255, 255, 255, 0.1)',
+                              borderWidth: 1,
+                              callbacks: {
+                                label: (ctx) => ` ${ctx.dataset.label}: ${(ctx.parsed.y || 0).toFixed(3)} Ton`
+                              }
+                            }
+                          },
+                          scales: {
+                            x: {
+                              grid: { display: false },
+                              ticks: {
+                                color: '#64748b',
+                                font: { family: 'ui-monospace, monospace', size: 11, weight: 'bold' }
+                              }
+                            },
+                            y: {
+                              grid: {
+                                color: '#f1f5f9'
+                              },
+                              ticks: {
+                                color: '#94a3b8',
+                                font: { family: 'ui-monospace, monospace', size: 10 }
+                              }
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CustomizableCard>
+            );
+          }
+
+          // CARD 2: DONUT CHART (TOTAL AKUMULASI)
+          if (card.id === 'chart-nc-donut') {
+            return (
+              <CustomizableCard
+                key={card.id}
+                id={card.id}
+                title="Total Akumulasi"
+                subtitle="Seluruh gudang"
+                icon={PieChart}
+                width={card.width}
+                isCustomizing={isCustomizing}
+                canMoveLeft={index > 0}
+                canMoveRight={index < cards.length - 1}
+                onMoveLeft={() => handleMove(index, 'left')}
+                onMoveRight={() => handleMove(index, 'right')}
+                onWidthChange={(w) => handleWidthChange(card.id, w)}
+                badge={
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
+                    {formatTon(donutChartData.totalTon, { decimals: 2 })} Ton
+                  </span>
+                }
+              >
+                {(expanded) => (
+                  <div className="flex flex-col justify-between h-full w-full">
+                    <div className={cn("flex items-center justify-center relative my-auto", expanded ? "h-64 sm:h-72" : "h-40 sm:h-44")}>
+                      <Doughnut
+                        data={donutChartData.chartData}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              display: false
+                            },
+                            tooltip: {
+                              backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                              titleColor: '#f8fafc',
+                              bodyColor: '#f1f5f9',
+                              titleFont: { size: 12, weight: 'bold' },
+                              bodyFont: { size: 11 },
+                              padding: { top: 8, bottom: 8, left: 12, right: 12 },
+                              cornerRadius: 8,
+                              boxPadding: 4,
+                              usePointStyle: true,
+                              borderColor: 'rgba(255, 255, 255, 0.1)',
+                              borderWidth: 1,
+                              callbacks: {
+                                label: (ctx) => ` ${ctx.label}: ${(ctx.parsed || 0).toFixed(3)} Ton`
+                              }
+                            }
+                          },
+                          cutout: '72%'
+                        }}
+                      />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                          {formatTon(donutChartData.totalTon, { decimals: 2 })}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                          TOTAL TON
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Breakdown Pills List */}
+                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
+                      <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+                          <span className="text-[11px] font-medium text-slate-600 truncate">IN NC Grade C</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                          {formatTon(donutChartData.totalNCInGradeCTon, { decimals: 2 })}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="h-2 w-2 rounded-full bg-yellow-500 shrink-0" />
+                          <span className="text-[11px] font-medium text-slate-600 truncate">IN NC Grade E</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                          {formatTon(donutChartData.totalNCInGradeETon, { decimals: 2 })}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+                          <span className="text-[11px] font-medium text-slate-600 truncate">Bahan Repair (261)</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                          {formatTon(donutChartData.totalOutRepTon, { decimals: 2 })}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="text-[11px] font-medium text-slate-600 truncate">Hasil Repair (101)</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                          {formatTon(donutChartData.totalInPrimeTon, { decimals: 2 })}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 col-span-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
+                          <span className="text-[11px] font-medium text-slate-600 truncate">Reject Repair</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                          {formatTon(donutChartData.totalRejectTon, { decimals: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CustomizableCard>
+            );
+          }
+
+          // CARD 3: TABEL PROGRES NC & REPAIR
+          if (card.id === 'table-nc-progress') {
+            return (
+              <CustomizableCard
+                key={card.id}
+                id={card.id}
+                title="Daftar Mutasi & Dokumen NC"
+                subtitle="Data detail pergerakan dan status alur material"
+                icon={Table2}
+                width={card.width}
+                isCustomizing={isCustomizing}
+                canMoveLeft={index > 0}
+                canMoveRight={index < cards.length - 1}
+                onMoveLeft={() => handleMove(index, 'left')}
+                onMoveRight={() => handleMove(index, 'right')}
+                onWidthChange={(w) => handleWidthChange(card.id, w)}
+              >
+                {(expanded) => (
+                  <div className="space-y-3 w-full">
+                    {/* Navigation Sub-Tabs & Filtering Toolbar (Compact 1 Row) */}
+                    <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
         {/* Left: Subtabs & View Switcher */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Subtabs */}
@@ -810,7 +1079,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   : "text-slate-600 hover:text-slate-900"
               )}
             >
-              <ShieldAlert className="h-3.5 w-3.5 text-rose-600" />
+              <ShieldAlert className="h-3.5 w-3.5 text-blue-600" />
               <span>IN NC (309)</span>
             </button>
 
@@ -824,7 +1093,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   : "text-slate-600 hover:text-slate-900"
               )}
             >
-              <Wrench className="h-3.5 w-3.5 text-amber-600" />
+              <Wrench className="h-3.5 w-3.5 text-orange-600" />
               <span>OUT Repair (261)</span>
             </button>
 
@@ -841,40 +1110,19 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
               <span>IN Prime (101)</span>
             </button>
-          </div>
 
-          {/* View Mode */}
-          <div className="flex items-center gap-1 p-0.5 bg-slate-100/80 rounded-lg border border-slate-200/60 text-xs">
             <button
               type="button"
-              onClick={() => setViewMode('grouped')}
+              onClick={() => setActiveSubTab('reject_repair')}
               className={cn(
-                "px-2.5 py-1.5 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1.5",
-                viewMode === 'grouped'
+                "px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
+                activeSubTab === 'reject_repair'
                   ? "bg-white text-slate-900 shadow-2xs font-bold"
                   : "text-slate-600 hover:text-slate-900"
               )}
             >
-              <Layers className="h-3.5 w-3.5 text-slate-600" />
-              <span>Gabung</span>
-              <span className="px-1 py-0.2 rounded-full text-[10px] font-mono bg-slate-200/80 text-slate-700">
-                {groupedItems.length}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('flat')}
-              className={cn(
-                "px-2.5 py-1.5 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1.5",
-                viewMode === 'flat'
-                  ? "bg-white text-slate-900 shadow-2xs font-bold"
-                  : "text-slate-600 hover:text-slate-900"
-              )}
-            >
-              <span>Semua</span>
-              <span className="px-1 py-0.2 rounded-full text-[10px] font-mono bg-slate-200/80 text-slate-700">
-                {filteredTransactions.length}
-              </span>
+              <XCircle className="h-3.5 w-3.5 text-red-600" />
+              <span>Reject / DG Repair</span>
             </button>
           </div>
         </div>
@@ -913,18 +1161,6 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
               <option key={g} value={g}>{g}</option>
             ))}
           </select>
-
-          {/* Filter Work Center */}
-          <select
-            value={selectedWorkCenter}
-            onChange={(e) => setSelectedWorkCenter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-md border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-600 transition-all cursor-pointer"
-          >
-            <option value="ALL">Semua WC</option>
-            {workCenterList.map((w) => (
-              <option key={w} value={w}>{w}</option>
-            ))}
-          </select>
         </div>
       </div>
 
@@ -932,185 +1168,413 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           {viewMode === 'grouped' ? (
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] tracking-wider uppercase border-b border-slate-200/80 select-none">
-                  <th className="py-3 px-3.5 w-12 text-center">No</th>
-                  <th
-                    className="py-3 px-3.5 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
-                    onClick={() => handleToggleSort(activeSubTab === 'in_nc' ? 'ncrNumber' : 'order')}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span>{activeSubTab === 'in_nc' ? 'No NCR & Masalah' : 'Order'}</span>
-                      {sortField === (activeSubTab === 'in_nc' ? 'ncrNumber' : 'order') ? (
-                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    className="py-3 px-3.5 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
-                    onClick={() => handleToggleSort('material')}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span>Ukuran Material</span>
-                      {sortField === 'material' ? (
-                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
-                      )}
-                    </div>
-                  </th>
-                  <th className="py-3 px-3.5">Gudang & Batch</th>
-                  <th
-                    className="py-3 px-3.5 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
-                    onClick={() => handleToggleSort('postingDate')}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span>Tgl Posting</span>
-                      {sortField === 'postingDate' ? (
-                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    className="py-3 px-3.5 text-center cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
-                    onClick={() => handleToggleSort('transactionCount')}
-                  >
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>Jml Dokumen</span>
-                      {sortField === 'transactionCount' ? (
-                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    className="py-3 px-3.5 text-right cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
-                    onClick={() => handleToggleSort('totalQty')}
-                  >
-                    <div className="flex items-center justify-end gap-1.5">
-                      <span>Total Kuantitas</span>
-                      {sortField === 'totalQty' ? (
-                        sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
-                      )}
-                    </div>
-                  </th>
-                  <th className="py-3 px-3.5 text-center w-28">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100/90">
-                {sortedGroupedItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 font-mono text-xs">
-                      Tidak ada data yang sesuai filter.
-                    </td>
-                  </tr>
-                ) : (
-                  sortedGroupedItems.map((item, idx) => (
-                    <tr
-                      key={item.id}
-                      onClick={() => setSelectedGroup(item)}
-                      className="hover:bg-emerald-50/30 cursor-pointer transition-all duration-150 group"
-                    >
-                      <td className="py-3 px-3.5 text-center font-mono text-slate-400 text-xs font-medium">{idx + 1}</td>
-                      <td className="py-3 px-3.5 max-w-sm">
-                        {activeSubTab === 'in_nc' ? (
-                          <>
-                            {item.ncrNumber ? (
-                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50/80 border border-rose-200/70 text-rose-700 font-mono font-bold text-xs tracking-tight shadow-2xs">
-                                <span className="h-1.5 w-1.5 rounded-full bg-rose-500 ring-2 ring-rose-200 shrink-0" />
-                                <span>{item.ncrNumber}</span>
-                              </div>
-                            ) : (
-                              <div className="font-mono text-slate-500 text-xs italic">
-                                Non-NCR {item.order ? `(Order: ${item.order})` : ''}
-                              </div>
-                            )}
-                            <div className="text-xs text-slate-700 font-medium truncate mt-1" title={item.problemRemark}>
-                              {item.problemRemark || '-'}
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="font-mono font-bold text-slate-800 text-xs">
-                              {item.order || '-'}
-                            </div>
-                            {item.workCenter && (
-                              <div className="text-xs text-slate-500 font-medium truncate mt-0.5">
-                                {item.workCenter}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </td>
-                      <td className="py-3 px-3.5 max-w-xs">
-                        <div className="font-mono font-bold text-slate-900 text-xs tracking-tight">
-                          {item.ukuran}
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-400 truncate tracking-tight mt-0.5" title={item.material}>
-                          {item.material}
-                        </div>
-                      </td>
-                      <td className="py-3 px-3.5 font-mono text-xs">
-                        <div className="flex flex-wrap items-center gap-1 mb-1">
-                          {item.gudangs.map((g) => (
-                            <span key={g} className="px-2 py-0.5 rounded-md text-[11px] font-bold font-mono bg-emerald-50 text-emerald-800 border border-emerald-200/70 shadow-2xs">
-                              {g}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="text-[11px] text-slate-600 font-mono font-medium">
-                          {item.batches.length <= 2 ? (
-                            item.batches.join(', ')
+            activeSubTab === 'reject_repair' ? (
+              /* DEDICATED REJECT / DG REPAIR TABLE */
+              <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] tracking-wider uppercase border-b border-slate-200/80 select-none">
+                      <th className="py-3 px-3 w-10 text-center">No</th>
+                      <th
+                        className="py-3 px-3 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
+                        onClick={() => handleToggleRejectSort('order')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>SPK Repair & WC</span>
+                          {rejectSortField === 'order' ? (
+                            rejectSortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
                           ) : (
-                            <>
-                              <span className="font-semibold text-slate-700">{item.batches[0]}</span>{' '}
-                              <span className="text-slate-400 font-normal">(+{item.batches.length - 1} batch)</span>
-                            </>
+                            <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
                           )}
                         </div>
-                      </td>
-                      <td className="py-3 px-3.5 font-mono text-slate-600 text-xs font-medium whitespace-nowrap">
-                        {formatExcelDate(item.postingDate)}
-                      </td>
-                      <td className="py-3 px-3.5 text-center">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100/90 text-slate-700 border border-slate-200/70 font-mono group-hover:bg-emerald-50 group-hover:text-emerald-800 group-hover:border-emerald-200/80 transition-colors shadow-2xs">
-                          {item.transactionCount} Dokumen
+                      </th>
+                      <th
+                        className="py-3 px-3 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
+                        onClick={() => handleToggleRejectSort('material')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>Ukuran Material</span>
+                          {rejectSortField === 'material' ? (
+                            rejectSortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                          )}
+                        </div>
+                      </th>
+                      <th className="py-3 px-3">Batch & SLoc</th>
+                      <th
+                        className="py-3 px-3 text-right cursor-pointer hover:text-amber-900 hover:bg-amber-50/60 transition-colors group/th"
+                        onClick={() => handleToggleRejectSort('qty261')}
+                      >
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span>GI Repair (261)</span>
+                          {rejectSortField === 'qty261' ? (
+                            rejectSortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-amber-600" /> : <ArrowDown className="h-3.5 w-3.5 text-amber-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        className="py-3 px-3 text-right cursor-pointer hover:text-sky-900 hover:bg-sky-50/60 transition-colors group/th"
+                        onClick={() => handleToggleRejectSort('qty262')}
+                      >
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span>Return (262)</span>
+                          {rejectSortField === 'qty262' ? (
+                            rejectSortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-sky-600" /> : <ArrowDown className="h-3.5 w-3.5 text-sky-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        className="py-3 px-3 text-right cursor-pointer hover:text-slate-900 hover:bg-slate-100/60 transition-colors group/th"
+                        onClick={() => handleToggleRejectSort('qtyOutRepair')}
+                      >
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span>Net GI</span>
+                          {rejectSortField === 'qtyOutRepair' ? (
+                            rejectSortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-slate-700" /> : <ArrowDown className="h-3.5 w-3.5 text-slate-700" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        className="py-3 px-3 text-right cursor-pointer hover:text-emerald-950 hover:bg-emerald-50/60 transition-colors group/th"
+                        onClick={() => handleToggleRejectSort('qtyInPrime')}
+                      >
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span>Prime OK (101)</span>
+                          {rejectSortField === 'qtyInPrime' ? (
+                            rejectSortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        className="py-3 px-3 text-right bg-rose-50/90 text-rose-950 border-x border-rose-200/80 cursor-pointer hover:bg-rose-100/80 transition-colors group/th"
+                        onClick={() => handleToggleRejectSort('qtyReject')}
+                      >
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span>Reject / DG (261-262-101)</span>
+                          {rejectSortField === 'qtyReject' ? (
+                            rejectSortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-rose-600" /> : <ArrowDown className="h-3.5 w-3.5 text-rose-600" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-rose-400 group-hover/th:text-rose-600 transition-colors" />
+                          )}
+                        </div>
+                      </th>
+                      <th className="py-3 px-3 text-center">Status</th>
+                      <th className="py-3 px-3 text-center w-24">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100/90">
+                    {sortedRejectRepairItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="py-12 text-center text-slate-400 font-mono text-xs">
+                          Tidak ada data order repair yang sesuai filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedRejectRepairItems.map((item, idx) => (
+                        <tr
+                          key={item.key || idx}
+                          onClick={() => setSelectedDrilldown(item)}
+                          className="hover:bg-rose-50/30 cursor-pointer transition-all duration-150 group"
+                        >
+                          <td className="py-3 px-3 text-center font-mono text-slate-400 text-xs font-medium">{idx + 1}</td>
+                          <td className="py-3 px-3">
+                            <div className="font-mono font-bold text-slate-900 text-xs">
+                              {item.order && item.order !== '0' ? item.order : '-'}
+                            </div>
+                            <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                              {item.workCenter || '-'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 max-w-xs">
+                            <div className="font-mono font-bold text-slate-900 text-xs tracking-tight">
+                              {parseMaterialUkuran(item.material, item.materialDescription)}
+                            </div>
+                            <div className="text-[11px] font-mono text-slate-400 truncate tracking-tight mt-0.5" title={item.material}>
+                              {item.material}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 font-mono text-xs">
+                            <div className="text-[11px] text-slate-700">
+                              NC: <span className="font-semibold text-slate-900">{item.batchNC || '-'}</span> ({item.slocNC || '-'})
+                            </div>
+                            <div className="text-[11px] text-emerald-700 mt-0.5">
+                              Prime: <span className="font-semibold text-emerald-900">{item.batchPrime || '-'}</span> ({item.slocPrime || '-'})
+                            </div>
+                          </td>
+                          {/* 261 */}
+                          <td className="py-3 px-3 text-right font-mono">
+                            <div className="font-bold text-amber-700 text-xs">
+                              {formatQty(item.qty261 ?? item.qtyOutRepair)} <span className="text-[10px] font-normal text-slate-400">Btg</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {formatTon((item.kg261 ?? item.kgOutRepair) / 1000, { decimals: 3 })} T
+                            </div>
+                          </td>
+                          {/* 262 */}
+                          <td className="py-3 px-3 text-right font-mono">
+                            <div className="font-bold text-sky-700 text-xs">
+                              {(item.qty262 ?? 0) > 0 ? `-${formatQty(item.qty262!)}` : '0'} <span className="text-[10px] font-normal text-slate-400">Btg</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {formatTon((item.kg262 ?? 0) / 1000, { decimals: 3 })} T
+                            </div>
+                          </td>
+                          {/* Net GI */}
+                          <td className="py-3 px-3 text-right font-mono bg-slate-50/50">
+                            <div className="font-bold text-slate-800 text-xs">
+                              {formatQty(item.qtyOutRepair)} <span className="text-[10px] font-normal text-slate-400">Btg</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-medium">
+                              {formatTon(item.kgOutRepair / 1000, { decimals: 3 })} T
+                            </div>
+                          </td>
+                          {/* 101 Prime OK */}
+                          <td className="py-3 px-3 text-right font-mono">
+                            <div className="font-bold text-emerald-700 text-xs">
+                              {formatQty(item.qtyInPrime)} <span className="text-[10px] font-normal text-slate-400">Btg</span>
+                            </div>
+                            <div className="text-[10px] text-emerald-600">
+                              {formatTon(item.kgInPrime / 1000, { decimals: 3 })} T
+                            </div>
+                          </td>
+                          {/* Reject / DG = 261 - 262 - 101 */}
+                          <td className="py-3 px-3 text-right font-mono bg-rose-50/70 border-x border-rose-200/70">
+                            <div className={cn(
+                              "font-bold text-xs",
+                              item.qtyReject > 0 ? "text-rose-700 font-extrabold" : "text-slate-400"
+                            )}>
+                              {formatQty(item.qtyReject)} <span className="text-[10px] font-normal">Btg</span>
+                            </div>
+                            <div className={cn(
+                              "text-[10px] font-medium",
+                              item.qtyReject > 0 ? "text-rose-600" : "text-slate-400"
+                            )}>
+                              {formatTon(item.kgReject / 1000, { decimals: 3 })} T
+                            </div>
+                          </td>
+                          {/* Status */}
+                          <td className="py-3 px-3 text-center">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-full text-[10px] font-bold font-mono",
+                              item.status === 'SELESAI OK'
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                : item.status === 'PARTIAL REPAIR'
+                                ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                : "bg-blue-100 text-blue-800 border border-blue-200"
+                            )}>
+                              {item.status}
+                            </span>
+                          </td>
+                          {/* Aksi */}
+                          <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDrilldown(item)}
+                              className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white text-xs font-semibold border border-rose-200 hover:border-rose-600 shadow-2xs hover:shadow-xs transition-all duration-150 cursor-pointer"
+                              title="Lihat rincian dokumen SAP (261, 262, 101)"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              <span>Detail</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+            ) : (
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] tracking-wider uppercase border-b border-slate-200/80 select-none">
+                    <th className="py-3 px-3.5 w-12 text-center">No</th>
+                    <th
+                      className="py-3 px-3.5 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
+                      onClick={() => handleToggleSort(activeSubTab === 'in_nc' ? 'ncrNumber' : 'order')}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>
+                          {activeSubTab === 'in_nc'
+                            ? 'No NCR & Masalah'
+                            : 'Order'}
                         </span>
-                      </td>
-                      <td className="py-3 px-3.5 text-right">
-                        <div className="font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
-                          {formatQty(item.totalQty)} <span className="font-sans font-medium text-slate-500 text-[11px]">Btg</span>
-                        </div>
-                        <div className="text-[10px] font-mono text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
-                          {formatTon(item.totalTon, { decimals: 3 })} Ton
-                        </div>
-                      </td>
-                      <td className="py-3 px-3.5 text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedGroup(item)}
-                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50/90 hover:bg-emerald-600 text-emerald-700 hover:text-white text-xs font-semibold border border-emerald-200/80 hover:border-emerald-600 shadow-2xs hover:shadow-xs transition-all duration-150 cursor-pointer active:scale-95"
-                            title="Buka rincian dokumen SAP"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            <span>Detail</span>
-                          </button>
-                        </div>
+                        {sortField === (activeSubTab === 'in_nc' ? 'ncrNumber' : 'order') ? (
+                          sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="py-3 px-3.5 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
+                      onClick={() => handleToggleSort('material')}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Ukuran Material</span>
+                        {sortField === 'material' ? (
+                          sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="py-3 px-3.5">Gudang & Batch</th>
+                    <th
+                      className="py-3 px-3.5 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
+                      onClick={() => handleToggleSort('postingDate')}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Tgl Posting</span>
+                        {sortField === 'postingDate' ? (
+                          sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="py-3 px-3.5 text-center cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
+                      onClick={() => handleToggleSort('transactionCount')}
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Jml Dokumen</span>
+                        {sortField === 'transactionCount' ? (
+                          sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="py-3 px-3.5 text-right cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
+                      onClick={() => handleToggleSort('totalQty')}
+                    >
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span>Total Kuantitas</span>
+                        {sortField === 'totalQty' ? (
+                          sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="py-3 px-3.5 text-center w-28">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100/90">
+                  {sortedGroupedItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-slate-400 font-mono text-xs">
+                        Tidak ada data yang sesuai filter.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    sortedGroupedItems.map((item, idx) => (
+                      <tr
+                        key={item.id}
+                        onClick={() => setSelectedGroup(item)}
+                        className="hover:bg-emerald-50/30 cursor-pointer transition-all duration-150 group"
+                      >
+                        <td className="py-3 px-3.5 text-center font-mono text-slate-400 text-xs font-medium">{idx + 1}</td>
+                        <td className="py-3 px-3.5 max-w-sm">
+                          {activeSubTab === 'in_nc' ? (
+                            <>
+                              {item.ncrNumber ? (
+                                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50/80 border border-rose-200/70 text-rose-700 font-mono font-bold text-xs tracking-tight shadow-2xs">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500 ring-2 ring-rose-200 shrink-0" />
+                                  <span>{item.ncrNumber}</span>
+                                </div>
+                              ) : (
+                                <div className="font-mono text-slate-500 text-xs italic">
+                                  Non-NCR {item.order && item.order !== '0' ? `(Order: ${item.order})` : ''}
+                                </div>
+                              )}
+                              <div className="text-xs text-slate-700 font-medium truncate mt-1" title={item.problemRemark}>
+                                {item.problemRemark || '-'}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="font-mono font-bold text-slate-800 text-xs">
+                                {item.order && item.order !== '0' ? item.order : '-'}
+                              </div>
+                              {item.workCenter && (
+                                <div className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                                  {item.workCenter}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </td>
+                        <td className="py-3 px-3.5 max-w-xs">
+                          <div className="font-mono font-bold text-slate-900 text-xs tracking-tight">
+                            {item.ukuran}
+                          </div>
+                          <div className="text-[11px] font-mono text-slate-400 truncate tracking-tight mt-0.5" title={item.material}>
+                            {item.material}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3.5 font-mono text-xs">
+                          <div className="flex flex-wrap items-center gap-1 mb-1">
+                            {item.gudangs.map((g) => (
+                              <span key={g} className="px-2 py-0.5 rounded-md text-[11px] font-bold font-mono bg-emerald-50 text-emerald-800 border border-emerald-200/70 shadow-2xs">
+                                {g}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="text-[11px] text-slate-600 font-mono font-medium">
+                            {item.batches.length <= 2 ? (
+                              item.batches.join(', ')
+                            ) : (
+                              <>
+                                <span className="font-semibold text-slate-700">{item.batches[0]}</span>{' '}
+                                <span className="text-slate-400 font-normal">(+{item.batches.length - 1} batch)</span>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3.5 font-mono text-slate-600 text-xs font-medium whitespace-nowrap">
+                          {formatExcelDate(item.postingDate)}
+                        </td>
+                        <td className="py-3 px-3.5 text-center">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100/90 text-slate-700 border border-slate-200/70 font-mono group-hover:bg-emerald-50 group-hover:text-emerald-800 group-hover:border-emerald-200/80 transition-colors shadow-2xs">
+                            {item.transactionCount} Dokumen
+                          </span>
+                        </td>
+                        <td className="py-3 px-3.5 text-right">
+                          <div className="font-mono font-bold text-slate-900 text-xs whitespace-nowrap">
+                            {formatQty(item.totalQty)} <span className="font-sans font-medium text-slate-500 text-[11px]">Btg</span>
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
+                            {formatTon(item.totalTon, { decimals: 3 })} Ton
+                          </div>
+                        </td>
+                        <td className="py-3 px-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedGroup(item)}
+                              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50/90 hover:bg-emerald-600 text-emerald-700 hover:text-white text-xs font-semibold border border-emerald-200/80 hover:border-emerald-600 shadow-2xs hover:shadow-xs transition-all duration-150 cursor-pointer active:scale-95"
+                              title="Buka rincian dokumen SAP"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              <span>Detail</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )
           ) : (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -1121,7 +1585,11 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   <th className="py-3 px-3.5">Ukuran</th>
                   <th className="py-3 px-3.5">Batch & Gudang</th>
                   <th className="py-3 px-3.5">
-                    {activeSubTab === 'in_nc' ? 'Keterangan NC' : 'Order / Workcenter'}
+                    {activeSubTab === 'in_nc'
+                      ? 'Keterangan NC'
+                      : activeSubTab === 'reject_repair'
+                      ? 'Order / Defect Reject'
+                      : 'Order / Workcenter'}
                   </th>
                   <th className="py-3 px-3.5 text-right">Kuantitas</th>
                   <th className="py-3 px-3.5 text-center w-24">Aksi</th>
@@ -1136,18 +1604,35 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   </tr>
                 ) : (
                   filteredTransactions.map((tx, idx) => {
+                    const isTxGradeE = (tx.batch || '').trim().toUpperCase().endsWith('E') ||
+                                       (! (tx.batch || '').trim().toUpperCase().endsWith('C') &&
+                                        ((tx.text || '').toUpperCase().includes('GRADE E') || (tx.materialDescription || '').toUpperCase().includes('GRADE E')));
                     const typeBadge =
                       tx.transactionType === 'IN_NC' ? (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
-                          IN NC ({tx.movementType})
-                        </span>
+                        isTxGradeE ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-yellow-50 text-yellow-800 border border-yellow-200/80 shadow-2xs">
+                            IN NC E ({tx.movementType})
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                            IN NC C ({tx.movementType})
+                          </span>
+                        )
                       ) : tx.transactionType === 'OUT_REPAIR' ? (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-amber-50 text-amber-700 border border-amber-200/80 shadow-2xs">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-orange-50 text-orange-700 border border-orange-200/80 shadow-2xs">
                           OUT REP ({tx.movementType})
+                        </span>
+                      ) : tx.transactionType === 'OUT_REPAIR_RETURN' ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-sky-50 text-sky-700 border border-sky-200/80 shadow-2xs">
+                          RET REP ({tx.movementType})
                         </span>
                       ) : tx.transactionType === 'IN_OK_PRIME' ? (
                         <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
                           IN PRIME ({tx.movementType})
+                        </span>
+                      ) : tx.transactionType === 'REJECT_REPAIR' ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-red-50 text-red-700 border border-red-200/80 shadow-2xs">
+                          REJECT / DG ({tx.movementType})
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold font-mono bg-slate-100 text-slate-700 border border-slate-200/80 shadow-2xs">
@@ -1186,6 +1671,13 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                               )}
                               <div className="text-xs text-slate-700 font-medium truncate mt-1" title={tx.problemRemark || '-'}>
                                 {tx.problemRemark || '-'}
+                              </div>
+                            </div>
+                          ) : activeSubTab === 'reject_repair' ? (
+                            <div>
+                              <div className="font-mono text-xs text-slate-800 font-bold">{tx.order ? `Order ${tx.order}` : '-'}</div>
+                              <div className="text-[11px] text-rose-600 font-medium truncate mt-0.5" title={tx.problemRemark || tx.text || '-'}>
+                                {tx.problemRemark || tx.text || (tx.workCenter ? `WC: ${tx.workCenter}` : '-')}
                               </div>
                             </div>
                           ) : (
@@ -1231,6 +1723,8 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                                     kgOutRepair: tx.transactionType === 'OUT_REPAIR' ? (tx.quantity || tx.kgGI || tx.kgGR || 0) : 0,
                                     qtyInPrime: tx.transactionType === 'IN_OK_PRIME' ? tx.qtyInUnOfEntry : 0,
                                     kgInPrime: tx.transactionType === 'IN_OK_PRIME' ? (tx.quantity || tx.kgGI || tx.kgGR || 0) : 0,
+                                    qtyReject: tx.transactionType === 'REJECT_REPAIR' ? tx.qtyInUnOfEntry : 0,
+                                    kgReject: tx.transactionType === 'REJECT_REPAIR' ? (tx.quantity || tx.kgGI || tx.kgGR || 0) : 0,
                                     status: tx.transactionType === 'IN_OK_PRIME' ? 'SELESAI OK' : tx.transactionType === 'OUT_REPAIR' ? 'DALAM REPAIR' : 'TERDAFTAR NC',
                                     recoveryRate: 0,
                                     transactions: [tx]
@@ -1263,10 +1757,19 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
           )}
         </div>
       </div>
+                    </div>
+                  )}
+                </CustomizableCard>
+              );
+            }
+
+            return null;
+          })}
+        </div>
 
       {/* MODAL 0: DETAIL DOKUMEN PER NO NCR (GROUPED VIEW) */}
       {selectedGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-4xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-200 p-4 bg-slate-50">
@@ -1277,7 +1780,13 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-slate-900">
-                      Rincian Dokumen SAP — {activeSubTab === 'in_nc' ? (selectedGroup.ncrNumber || 'Non-NCR') : (selectedGroup.order ? `Order ${selectedGroup.order}` : 'Non-Order')}
+                      Rincian Dokumen SAP — {
+                        activeSubTab === 'in_nc'
+                          ? (selectedGroup.ncrNumber || 'Non-NCR')
+                          : activeSubTab === 'reject_repair'
+                          ? `Reject / DG ${selectedGroup.order ? `(Order ${selectedGroup.order})` : ''}`
+                          : (selectedGroup.order ? `Order ${selectedGroup.order}` : 'Non-Order')
+                      }
                     </h3>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                       {selectedGroup.transactions.length} Dokumen SAP
@@ -1302,7 +1811,9 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
               {/* Summary Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-md border border-slate-200 text-xs">
                 <div>
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">Keterangan / Alasan NC</div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase">
+                    {activeSubTab === 'in_nc' ? 'Keterangan / Alasan NC' : activeSubTab === 'reject_repair' ? 'Keterangan Reject / DG' : 'Keterangan / SPK'}
+                  </div>
                   <div className="text-xs font-semibold text-slate-800 mt-0.5">
                     {selectedGroup.problemRemark || '-'}
                   </div>
@@ -1356,7 +1867,6 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                         <th className="py-2 px-2.5 text-right">Kuantitas</th>
                         <th className="py-2 px-2.5">User</th>
                         <th className="py-2 px-2.5">Catatan</th>
-                        {canEdit && <th className="py-2 px-2.5 text-center w-10">Aksi</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-mono">
@@ -1386,18 +1896,6 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                           <td className="py-2 px-2.5 text-[10px] text-slate-600 font-sans max-w-xs truncate" title={tx.text || '-'}>
                             {tx.text || '-'}
                           </td>
-                          {canEdit && (
-                            <td className="py-2 px-2.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteSingleTxFromGroup(tx.id)}
-                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                title="Hapus baris dokumen ini"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
-                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1425,7 +1923,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
       {/* MODAL 1: DRILLDOWN DETAIL ALUR TRANSAKSI */}
       {selectedDrilldown && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-3xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-200 p-4 bg-slate-50">
@@ -1462,16 +1960,23 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                 </div>
                 <div>
                   <div className="text-[10px] font-bold text-slate-400 uppercase">SPK Repair / W.Center</div>
-                  <div className="font-mono font-bold text-slate-900 text-xs mt-0.5">{selectedDrilldown.order || '-'}</div>
-                  <div className="text-[10px] text-slate-600 mt-1">{selectedDrilldown.workCenter || 'REP-501'}</div>
+                  <div className="font-mono font-bold text-slate-900 text-xs mt-0.5">{selectedDrilldown.order && selectedDrilldown.order !== '0' ? selectedDrilldown.order : '-'}</div>
+                  <div className="text-[10px] text-slate-600 mt-1">{selectedDrilldown.workCenter || '-'}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">Recovery Rate</div>
-                  <div className="font-mono font-bold text-emerald-800 text-base mt-0.5">
-                    {selectedDrilldown.recoveryRate.toFixed(1)}%
+                  <div className="text-[10px] font-bold text-slate-400 uppercase">Hasil Repair & Rate</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="font-mono font-bold text-emerald-800 text-base">
+                      {selectedDrilldown.recoveryRate.toFixed(1)}%
+                    </span>
+                    {selectedDrilldown.qtyReject > 0 && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-rose-100 text-rose-800 border border-rose-200">
+                        {selectedDrilldown.qtyReject} Btg Reject/DG
+                      </span>
+                    )}
                   </div>
                   <div className="text-[10px] text-slate-500">
-                    {formatQty(selectedDrilldown.qtyInPrime)} / {formatQty(selectedDrilldown.qtyOutRepair || selectedDrilldown.qtyNCIn)} Btg
+                    Prime: {formatQty(selectedDrilldown.qtyInPrime)} Btg &bull; Reject: {formatQty(selectedDrilldown.qtyReject)} Btg
                   </div>
                 </div>
               </div>
@@ -1482,15 +1987,25 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   Daftar Transaksi Terkait ({selectedDrilldown.transactions.length} Dokumen SAP)
                 </h4>
                 <div className="space-y-2">
-                  {selectedDrilldown.transactions.map((tx, i) => (
+                  {selectedDrilldown.transactions.map((tx, i) => {
+                    const isTxE = (tx.batch || '').trim().toUpperCase().endsWith('E') ||
+                                  (! (tx.batch || '').trim().toUpperCase().endsWith('C') &&
+                                   ((tx.text || '').toUpperCase().includes('GRADE E') || (tx.materialDescription || '').toUpperCase().includes('GRADE E')));
+                    return (
                     <div
                       key={tx.id || i}
                       className={cn(
                         "p-3 rounded-md border text-xs flex items-start justify-between gap-3",
                         tx.transactionType === 'IN_NC'
-                          ? "bg-rose-50/50 border-rose-200"
+                          ? isTxE
+                            ? "bg-yellow-50/50 border-yellow-200"
+                            : "bg-blue-50/50 border-blue-200"
                           : tx.transactionType === 'OUT_REPAIR'
-                          ? "bg-amber-50/50 border-amber-200"
+                          ? "bg-orange-50/50 border-orange-200"
+                          : tx.transactionType === 'OUT_REPAIR_RETURN'
+                          ? "bg-sky-50/50 border-sky-200"
+                          : tx.transactionType === 'REJECT_REPAIR'
+                          ? "bg-red-50/50 border-red-200"
                           : "bg-emerald-50/50 border-emerald-200"
                       )}
                     >
@@ -1499,12 +2014,18 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                           <span className={cn(
                             "px-1.5 py-0.5 rounded text-[10px] font-bold font-mono",
                             tx.transactionType === 'IN_NC'
-                              ? "bg-rose-200 text-rose-900"
+                              ? isTxE
+                                ? "bg-yellow-200 text-yellow-900"
+                                : "bg-blue-200 text-blue-900"
                               : tx.transactionType === 'OUT_REPAIR'
-                              ? "bg-amber-200 text-amber-900"
+                              ? "bg-orange-200 text-orange-900"
+                              : tx.transactionType === 'OUT_REPAIR_RETURN'
+                              ? "bg-sky-200 text-sky-900"
+                              : tx.transactionType === 'REJECT_REPAIR'
+                              ? "bg-red-200 text-red-900"
                               : "bg-emerald-200 text-emerald-900"
                           )}>
-                            MVT {tx.movementType}
+                            MVT {tx.movementType} {tx.transactionType === 'OUT_REPAIR_RETURN' ? '(RETURN)' : tx.transactionType === 'REJECT_REPAIR' ? '(REJECT/DG)' : ''}
                           </span>
                           <span className="font-mono font-bold text-slate-800">
                             MatDoc: {tx.materialDocument} (Item {tx.materialDocItem})
@@ -1523,7 +2044,8 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                         )}
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               </div>
             </div>
@@ -1544,7 +2066,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
       {/* MODAL 2: IMPOR DATA TRANSAKSI / PASTE TSV */}
       {isImportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between border-b border-slate-200 p-4 bg-slate-50">
               <div className="flex items-center gap-2.5">
@@ -1667,7 +2189,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
       {/* MODAL 3: TAMBAH / EDIT TRANSAKSI MANUAL */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between border-b border-slate-200 p-4 bg-slate-50">
               <div className="flex items-center gap-2">
@@ -1697,13 +2219,24 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                 const wc = String(fd.get('workCenter') || '');
                 const ord = String(fd.get('order') || '');
                 const text = String(fd.get('text') || '');
+                const batch = String(fd.get('batch') || '');
                 const qtyVal = Math.abs(parseFloat(String(fd.get('qty') || '0')) || 0);
                 const kgVal = Math.abs(parseFloat(String(fd.get('kg') || '0')) || 0);
 
-                let txType: NCProgressTransaction['transactionType'] = 'OTHER';
-                if (mvt === '309') txType = 'IN_NC';
-                else if (mvt === '261') txType = 'OUT_REPAIR';
-                else if (mvt === '101') txType = 'IN_OK_PRIME';
+                const isRepWC = wc.trim().toUpperCase().startsWith('REP');
+                if (['261', '262', '101', '551', '553'].includes(mvt) && !isRepWC) {
+                  alert('Untuk MVT 261, 262, 101, dan 551/553, Work Center wajib diawali REP* (contoh: REP-501)');
+                  return;
+                }
+
+                let txType: NCProgressTransaction['transactionType'] = classifyTransaction(mvt, wc, ord, batch, text);
+                if (txType === 'OTHER') {
+                  if (mvt === '309') txType = 'IN_NC';
+                  else if (mvt === '261' && isRepWC) txType = 'OUT_REPAIR';
+                  else if (mvt === '262' && isRepWC) txType = 'OUT_REPAIR_RETURN';
+                  else if (mvt === '101' && isRepWC) txType = 'IN_OK_PRIME';
+                  else if ((mvt === '551' || mvt === '553') && isRepWC) txType = 'REJECT_REPAIR';
+                }
 
                 const newTx: NCProgressTransaction = {
                   id: `MANUAL_${Date.now()}`,
@@ -1718,7 +2251,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   workCenter: wc,
                   material: String(fd.get('material') || ''),
                   materialDescription: String(fd.get('materialDescription') || ''),
-                  batch: String(fd.get('batch') || ''),
+                  batch: batch,
                   qtyInUnOfEntry: qtyVal,
                   quantity: kgVal,
                   materialDocument: String(fd.get('materialDocument') || `DOC-${Date.now()}`),
@@ -1727,8 +2260,8 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   text: text,
                   unloadingPoint: String(fd.get('unloadingPoint') || ''),
                   salesOrder: String(fd.get('salesOrder') || ''),
-                  kgGI: mvt === '261' ? kgVal : 0,
-                  kgGR: mvt === '101' ? kgVal : 0,
+                  kgGI: (mvt === '261' || mvt === '262') ? kgVal : 0,
+                  kgGR: (mvt === '101' || mvt === '551' || mvt === '553') ? kgVal : 0,
                   transactionType: txType,
                   ...extractNCRAndRemark(text)
                 };
@@ -1748,7 +2281,10 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   >
                     <option value="309">309 - Reclassification Masuk NC</option>
                     <option value="261">261 - Goods Issue ke SPK Repair</option>
-                    <option value="101">101 - Goods Receipt Hasil Selesai (OK/Prime)</option>
+                    <option value="262">262 - Reversal / Pengembalian Stock GI Repair</option>
+                    <option value="101">101 - Goods Receipt Hasil Selesai (OK/Prime/DG)</option>
+                    <option value="551">551 - Scrap / Reject Repair (551)</option>
+                    <option value="553">553 - Scrap / Reject Repair (553)</option>
                   </select>
                 </div>
                 <div>

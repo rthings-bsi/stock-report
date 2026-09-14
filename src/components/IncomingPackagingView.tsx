@@ -540,18 +540,18 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
       <th
         rowSpan={rowSpan}
         onClick={() => handleSort(field)}
-        className={`py-2 px-2.5 font-bold uppercase tracking-wider text-${align} cursor-pointer select-none transition-colors ${customCls}`}
+        className={`py-3 px-3.5 font-semibold text-[11px] uppercase tracking-wider text-${align} cursor-pointer select-none transition-colors hover:text-emerald-950 hover:bg-slate-100/60 group/th ${customCls}`}
       >
-        <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}>
+        <div className={`flex items-center gap-1.5 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}>
           <span>{label}</span>
           {isSorted ? (
             sortDir === 'asc' ? (
-              <ArrowUp className="h-3 w-3 text-emerald-800 shrink-0" />
+              <ArrowUp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             ) : (
-              <ArrowDown className="h-3 w-3 text-emerald-800 shrink-0" />
+              <ArrowDown className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             )
           ) : (
-            <ArrowUpDown className="h-2.5 w-2.5 text-slate-400 opacity-0 group-hover:opacity-100 shrink-0" />
+            <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors shrink-0" />
           )}
         </div>
       </th>
@@ -1153,132 +1153,132 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-md border border-slate-200/90 shadow-2xs overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
             <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
-              <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
-                <thead className="sticky top-0 z-10 bg-slate-100 text-[10.5px] shadow-2xs">
-                  <tr className="group text-slate-700">
-                    <th rowSpan={2} className="py-2.5 px-3 text-center font-bold text-slate-400 w-10 border-b border-r border-slate-200 bg-slate-100">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-[11px] uppercase tracking-wider text-slate-500 font-semibold select-none">
+                  <tr className="border-b border-slate-200/80">
+                    <th rowSpan={2} className="py-3 px-3.5 text-center font-bold text-slate-400 w-10 border-r border-slate-200/80">
                       #
                     </th>
-                    {renderSortHeader('Tgl Audit', 'tglIncoming', 'center', 'border-b border-r border-slate-200 bg-slate-100 min-w-[90px]', 2)}
-                    {renderSortHeader('Customer', 'customer', 'left', 'border-b border-r border-slate-200 bg-slate-100 min-w-[180px]', 2)}
-                    {renderSortHeader('Type Box', 'type', 'left', 'border-b border-r border-slate-200 bg-slate-100 min-w-[110px]', 2)}
-                    {renderSortHeader('Stock Awal', 'stockAktualInternal', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-slate-700', 2)}
-                    {renderSortHeader('OUT', 'outQty', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-rose-700', 2)}
-                    {renderSortHeader('IN', 'inQty', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-sky-800', 2)}
-                    {renderSortHeader('Stock Akhir', 'stockSaatIni', 'right', 'border-b border-r border-slate-200 bg-slate-100 text-emerald-950 font-black', 2)}
+                    {renderSortHeader('Tgl Audit', 'tglIncoming', 'center', 'border-r border-slate-200/80 min-w-[90px]', 2)}
+                    {renderSortHeader('Customer', 'customer', 'left', 'border-r border-slate-200/80 min-w-[180px]', 2)}
+                    {renderSortHeader('Type Box', 'type', 'left', 'border-r border-slate-200/80 min-w-[110px]', 2)}
+                    {renderSortHeader('Stock Awal', 'stockAktualInternal', 'right', 'border-r border-slate-200/80 text-slate-700', 2)}
+                    {renderSortHeader('OUT', 'outQty', 'right', 'border-r border-slate-200/80 text-rose-700', 2)}
+                    {renderSortHeader('IN', 'inQty', 'right', 'border-r border-slate-200/80 text-sky-800', 2)}
+                    {renderSortHeader('Stock Akhir', 'stockSaatIni', 'right', 'border-r border-slate-200/80 text-emerald-950 font-black', 2)}
 
                     {/* Group Header: Temuan NG */}
-                    <th colSpan={4} className="py-1 px-2 text-center font-bold border-b border-r border-slate-200 bg-amber-50/80 text-amber-950 text-[10px]">
+                    <th colSpan={4} className="py-2.5 px-3 text-center font-bold border-r border-slate-200/80 border-b border-amber-200/80 bg-amber-50/80 text-amber-950 text-[10px]">
                       Detail Temuan NG (Unit)
                     </th>
 
-                    <th rowSpan={2} className="py-2.5 px-3 text-left font-bold text-slate-600 border-b border-r border-slate-200 bg-slate-100 min-w-[140px]">
+                    <th rowSpan={2} className="py-3 px-3.5 text-left font-bold text-slate-600 border-r border-slate-200/80 min-w-[140px]">
                       Keterangan
                     </th>
-                    <th rowSpan={2} className="py-2.5 px-3 text-center font-bold text-slate-400 w-20 border-b border-slate-200 bg-slate-100">
+                    <th rowSpan={2} className="py-3 px-3.5 text-center font-bold text-slate-400 w-20">
                       Aksi
                     </th>
                   </tr>
 
                   {/* Sub-header row for Detail NG */}
-                  <tr className="text-slate-600 text-[10px]">
-                    <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
+                  <tr className="text-slate-600 text-[10px] font-semibold uppercase">
+                    <th className="py-2 px-2.5 text-center border-r border-slate-200/80 bg-amber-50/40 text-rose-800">
                       Slot
                     </th>
-                    <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
+                    <th className="py-2 px-2.5 text-center border-r border-slate-200/80 bg-amber-50/40 text-rose-800">
                       Kaki
                     </th>
-                    <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
+                    <th className="py-2 px-2.5 text-center border-r border-slate-200/80 bg-amber-50/40 text-rose-800">
                       Dinding
                     </th>
-                    <th className="py-1 px-2 text-center font-semibold border-b border-r border-slate-200 bg-amber-50/40 text-rose-800">
+                    <th className="py-2 px-2.5 text-center border-r border-slate-200/80 bg-amber-50/40 text-rose-800">
                       Rangka
                     </th>
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px] bg-white">
+                <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white text-xs">
                   {sortedData.map((row, idx) => (
-                    <tr key={row.id || idx} className="hover:bg-slate-50 transition-colors group">
-                      <td className="py-2.5 px-3 text-center text-slate-400 font-bold border-r border-slate-100">
+                    <tr key={row.id || idx} className="hover:bg-emerald-50/30 transition-all duration-150 group">
+                      <td className="py-3 px-3.5 text-center text-slate-400 font-bold border-r border-slate-100/90 font-mono">
                         {idx + 1}
                       </td>
-                      <td className="py-2.5 px-3 text-center border-r border-slate-100 whitespace-nowrap text-slate-600">
+                      <td className="py-3 px-3.5 text-center border-r border-slate-100/90 whitespace-nowrap text-slate-600 font-mono">
                         {formatDisplayDate(row.tglIncoming)}
                       </td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900 border-r border-slate-100">
+                      <td className="py-3 px-3.5 font-bold text-slate-900 border-r border-slate-100/90">
                         <span>{row.customer}</span>
                       </td>
-                      <td className="py-2.5 px-3 border-r border-slate-100 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-bold border border-emerald-300/80 shadow-2xs inline-block">
+                      <td className="py-3 px-3.5 border-r border-slate-100/90 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-950 font-bold border border-emerald-200/80 shadow-2xs font-mono">
                           {row.type}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-medium text-slate-700 border-r border-slate-100">
+                      <td className="py-3 px-3.5 text-right font-medium text-slate-700 border-r border-slate-100/90 font-mono">
                         {formatQty(row.stockAktualInternal)}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-rose-700 border-r border-slate-100">
+                      <td className="py-3 px-3.5 text-right font-bold text-rose-700 border-r border-slate-100/90 font-mono">
                         {row.outQty > 0 ? formatQty(row.outQty) : <span className="text-slate-300 font-normal">-</span>}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-sky-800 border-r border-slate-100">
+                      <td className="py-3 px-3.5 text-right font-bold text-sky-800 border-r border-slate-100/90 font-mono">
                         {row.inQty > 0 ? formatQty(row.inQty) : <span className="text-slate-300 font-normal">-</span>}
                       </td>
-                      <td className="py-2.5 px-3 text-right border-r border-slate-100">
-                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-950 font-black border border-emerald-300/80 shadow-2xs inline-block">
+                      <td className="py-3 px-3.5 text-right border-r border-slate-100/90 font-mono">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-950 font-black border border-emerald-300/80 shadow-2xs">
                           {formatQty(row.stockSaatIni)}
                         </span>
                       </td>
 
                       {/* NG Details */}
-                      <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
+                      <td className="py-3 px-2 text-center border-r border-slate-100/90 font-medium">
                         {row.detailNG?.slot && row.detailNG.slot !== '-' && row.detailNG.slot !== '0' ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs font-mono">
                             {row.detailNG.slot}
                           </span>
                         ) : (
-                          <span className="text-slate-300">-</span>
+                          <span className="text-slate-300 font-mono">-</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
+                      <td className="py-3 px-2 text-center border-r border-slate-100/90 font-medium">
                         {row.detailNG?.kaki && row.detailNG.kaki !== '-' && row.detailNG.kaki !== '0' ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs font-mono">
                             {row.detailNG.kaki}
                           </span>
                         ) : (
-                          <span className="text-slate-300">-</span>
+                          <span className="text-slate-300 font-mono">-</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
+                      <td className="py-3 px-2 text-center border-r border-slate-100/90 font-medium">
                         {row.detailNG?.dinding && row.detailNG.dinding !== '-' && row.detailNG.dinding !== '0' ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs font-mono">
                             {row.detailNG.dinding}
                           </span>
                         ) : (
-                          <span className="text-slate-300">-</span>
+                          <span className="text-slate-300 font-mono">-</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-2 text-center border-r border-slate-100 font-medium">
+                      <td className="py-3 px-2 text-center border-r border-slate-100/90 font-medium">
                         {row.detailNG?.rangka && row.detailNG.rangka !== '-' && row.detailNG.rangka !== '0' ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs font-mono">
                             {row.detailNG.rangka}
                           </span>
                         ) : (
-                          <span className="text-slate-300">-</span>
+                          <span className="text-slate-300 font-mono">-</span>
                         )}
                       </td>
 
-                      <td className="py-2.5 px-3 border-r border-slate-100 text-slate-500 font-sans truncate max-w-[200px]" title={row.keterangan}>
+                      <td className="py-3 px-3.5 border-r border-slate-100/90 text-slate-500 font-sans truncate max-w-[200px]" title={row.keterangan}>
                         {row.keterangan || '-'}
                       </td>
 
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                      <td className="py-3 px-3.5 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(row)}
-                            className="p-1.5 rounded hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer shadow-2xs"
                             title="Edit Baris"
                           >
                             <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
@@ -1286,7 +1286,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setDeleteTargetId(row.id)}
-                            className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors cursor-pointer shadow-2xs"
                             title="Hapus Baris"
                           >
                             <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
@@ -1336,24 +1336,24 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                   )}
                 </tbody>
 
-                <tfoot className="sticky bottom-0 border-t-2 border-slate-300 bg-slate-100 font-bold text-[11px] text-slate-900 shadow-[0_-2px_4px_rgba(0,0,0,0.06)]">
+                <tfoot className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-slate-50/95 font-bold text-xs text-slate-900 backdrop-blur-xs shadow-xs">
                   <tr>
-                    <td colSpan={4} className="py-3 px-3 uppercase tracking-wider text-slate-700 text-[10px] bg-slate-100">
+                    <td colSpan={4} className="py-3 px-3.5 uppercase tracking-wider text-slate-700 text-[10px] font-mono">
                       TOTAL AUDIT ({sortedData.length} Baris)
                     </td>
-                    <td className="py-3 px-3 text-right text-slate-900 font-bold bg-slate-100">
+                    <td className="py-3 px-3.5 text-right text-slate-900 font-bold font-mono">
                       {formatQty(totalStockAwal)}
                     </td>
-                    <td className="py-3 px-3 text-right text-rose-700 font-bold bg-slate-100">
+                    <td className="py-3 px-3.5 text-right text-rose-700 font-bold font-mono">
                       {formatQty(totalOut)}
                     </td>
-                    <td className="py-3 px-3 text-right text-sky-800 font-bold bg-slate-100">
+                    <td className="py-3 px-3.5 text-right text-sky-800 font-bold font-mono">
                       {formatQty(totalIn)}
                     </td>
-                    <td className="py-3 px-3 text-right text-emerald-950 font-black bg-slate-100">
+                    <td className="py-3 px-3.5 text-right text-emerald-950 font-black font-mono">
                       {formatQty(totalStockSaatIni)}
                     </td>
-                    <td colSpan={6} className="py-3 px-2 text-center text-slate-600 text-[10px] bg-slate-100">
+                    <td colSpan={6} className="py-3 px-3.5 text-center text-slate-600 text-[10px] font-mono">
                       Total Temuan NG: {countNG} Box
                     </td>
                   </tr>

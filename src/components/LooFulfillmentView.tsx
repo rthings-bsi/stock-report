@@ -340,9 +340,10 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
   // Chart configuration: Clustered column chart for Top Customer + Ukuran (LOO vs WIP vs FG)
   const top15ChartData = {
     labels: top15ChartItems.map((item) => {
-      const cleanCust = item.customer.replace(/^PT\.?\s*/i, '').trim();
+      const custRaw = item?.customer || 'General Customer';
+      const cleanCust = String(custRaw).replace(/^PT\.?\s*/i, '').trim() || 'General';
       const shortCust = cleanCust.length > 20 ? cleanCust.slice(0, 20) + '...' : cleanCust;
-      return [shortCust, item.ukuran];
+      return [shortCust, item?.ukuran || '-'];
     }),
     datasets: [
       {
@@ -521,12 +522,12 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
     const renderSortIcon = (field: keyof LooTableItem) => {
       const isActive = tableSortField === field;
       if (!isActive) {
-        return <ArrowUpDown className="h-2.5 w-2.5 text-slate-400 shrink-0 opacity-0 group-hover:opacity-100 hover:opacity-100" />;
+        return <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 shrink-0 transition-colors" />;
       }
       return tableSortDir === 'asc' ? (
-        <ArrowUp className="h-3 w-3 text-emerald-800 shrink-0" />
+        <ArrowUp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
       ) : (
-        <ArrowDown className="h-3 w-3 text-emerald-800 shrink-0" />
+        <ArrowDown className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
       );
     };
 
@@ -715,20 +716,20 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
         </div>
 
         {/* Table View */}
-        <div className="overflow-x-auto max-h-[560px] overflow-y-auto border border-slate-200/90 rounded-xl shadow-2xs bg-white">
-        <table className="w-full text-left text-xs font-mono border-collapse">
-          <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-[10px] shadow-2xs">
+        <div className="overflow-x-auto max-h-[560px] overflow-y-auto border border-slate-200/80 rounded-xl shadow-xs bg-white">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-[11px] uppercase tracking-wider text-slate-500 font-semibold select-none">
             {/* Header Tier 1: Group Categories */}
-            <tr className="border-b border-slate-200 text-slate-800">
-              <th rowSpan={2} className="py-2.5 px-2 text-center font-bold text-slate-500 w-10 border-r border-slate-200 bg-slate-100/80">
+            <tr className="border-b border-slate-200/80">
+              <th rowSpan={2} className="py-3 px-3 text-center font-bold text-slate-400 w-10 border-r border-slate-200/80">
                 No.
               </th>
               <th
                 rowSpan={2}
                 onClick={() => handleSort('customer')}
-                className="py-2.5 px-3 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/70 transition-colors text-left text-slate-700 border-r border-slate-200 bg-slate-100/80"
+                className="py-3 px-3.5 font-bold uppercase tracking-wider select-none cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors text-left text-slate-700 border-r border-slate-200/80 group/th"
               >
-                <div className="inline-flex items-center gap-1">
+                <div className="inline-flex items-center gap-1.5">
                   <span>Nama Customer</span>
                   {renderSortIcon('customer')}
                 </div>
@@ -736,9 +737,9 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
               <th
                 rowSpan={2}
                 onClick={() => handleSort('ukuran')}
-                className="py-2.5 px-3 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/70 transition-colors text-left text-slate-700 border-r border-slate-200 bg-slate-100/80"
+                className="py-3 px-3.5 font-bold uppercase tracking-wider select-none cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors text-left text-slate-700 border-r border-slate-200/80 group/th"
               >
-                <div className="inline-flex items-center gap-1">
+                <div className="inline-flex items-center gap-1.5">
                   <span>Ukuran</span>
                   {renderSortIcon('ukuran')}
                 </div>
@@ -746,187 +747,187 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
               <th
                 rowSpan={2}
                 onClick={() => handleSort('kodeMaterial')}
-                className="py-2.5 px-3 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/70 transition-colors text-left text-slate-700 border-r border-slate-200 bg-slate-100/80"
+                className="py-3 px-3.5 font-bold uppercase tracking-wider select-none cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors text-left text-slate-700 border-r border-slate-200/80 group/th"
               >
-                <div className="inline-flex items-center gap-1">
+                <div className="inline-flex items-center gap-1.5">
                   <span>Kode Material</span>
                   {renderSortIcon('kodeMaterial')}
                 </div>
               </th>
-              <th colSpan={2} className="py-2 px-3 text-center font-extrabold uppercase tracking-wider text-emerald-950 bg-emerald-100/70 border-r border-slate-200 border-b border-emerald-200/90">
+              <th colSpan={2} className="py-2.5 px-3 text-center font-extrabold uppercase tracking-wider text-emerald-950 bg-emerald-100/70 border-r border-slate-200/80 border-b border-emerald-200/90">
                 Stock FG
               </th>
-              <th colSpan={2} className="py-2 px-3 text-center font-extrabold uppercase tracking-wider text-amber-950 bg-amber-100/60 border-r border-slate-200 border-b border-amber-200/90">
+              <th colSpan={2} className="py-2.5 px-3 text-center font-extrabold uppercase tracking-wider text-amber-950 bg-amber-100/60 border-r border-slate-200/80 border-b border-amber-200/90">
                 Stock WIP
               </th>
-              <th colSpan={2} className="py-2 px-3 text-center font-black uppercase tracking-wider text-slate-900 bg-slate-200/70 border-r border-slate-200 border-b border-slate-300">
+              <th colSpan={2} className="py-2.5 px-3 text-center font-black uppercase tracking-wider text-slate-900 bg-slate-200/70 border-r border-slate-200/80 border-b border-slate-300">
                 Total Stock
               </th>
-              <th colSpan={2} className="py-2 px-3 text-center font-extrabold uppercase tracking-wider text-sky-950 bg-sky-100/60 border-r border-slate-200 border-b border-sky-200/90">
+              <th colSpan={2} className="py-2.5 px-3 text-center font-extrabold uppercase tracking-wider text-sky-950 bg-sky-100/60 border-r border-slate-200/80 border-b border-sky-200/90">
                 Target LOO
               </th>
               <th
                 rowSpan={2}
                 onClick={() => handleSort('persenFulfillment')}
-                className="py-2.5 px-3 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/70 transition-colors text-right text-slate-900 bg-slate-100/80"
+                className="py-3 px-3.5 font-bold uppercase tracking-wider select-none cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors text-right text-slate-900 group/th"
               >
-                <div className="inline-flex items-center justify-end w-full gap-1">
+                <div className="inline-flex items-center justify-end w-full gap-1.5">
                   <span>% Stock vs LOO</span>
                   {renderSortIcon('persenFulfillment')}
                 </div>
               </th>
             </tr>
             {/* Header Tier 2: Qty ( Pcs ) & Tonase */}
-            <tr className="border-b border-slate-200 text-[10px]">
+            <tr className="border-b border-slate-200/80 text-[10px] uppercase font-semibold">
               <th
                 onClick={() => handleSort('fgQty')}
-                className="py-1.5 px-2.5 text-right font-bold text-emerald-950 bg-emerald-50/80 select-none cursor-pointer hover:bg-emerald-100/70 transition-colors"
+                className="py-2 px-3 text-right font-bold text-emerald-950 bg-emerald-50/80 select-none cursor-pointer hover:bg-emerald-100/70 transition-colors"
               >
                 Qty ( Pcs )
               </th>
               <th
                 onClick={() => handleSort('fgTon')}
-                className="py-1.5 px-2.5 text-right font-bold text-emerald-950 bg-emerald-50/80 border-r border-slate-200 select-none cursor-pointer hover:bg-emerald-100/70 transition-colors"
+                className="py-2 px-3 text-right font-bold text-emerald-950 bg-emerald-50/80 border-r border-slate-200/80 select-none cursor-pointer hover:bg-emerald-100/70 transition-colors"
               >
                 Tonase
               </th>
               <th
                 onClick={() => handleSort('wipQty')}
-                className="py-1.5 px-2.5 text-right font-bold text-amber-950 bg-amber-50/70 select-none cursor-pointer hover:bg-amber-100/60 transition-colors"
+                className="py-2 px-3 text-right font-bold text-amber-950 bg-amber-50/70 select-none cursor-pointer hover:bg-amber-100/60 transition-colors"
               >
                 Qty ( Pcs )
               </th>
               <th
                 onClick={() => handleSort('wipTon')}
-                className="py-1.5 px-2.5 text-right font-bold text-amber-950 bg-amber-50/70 border-r border-slate-200 select-none cursor-pointer hover:bg-amber-100/60 transition-colors"
+                className="py-2 px-3 text-right font-bold text-amber-950 bg-amber-50/70 border-r border-slate-200/80 select-none cursor-pointer hover:bg-amber-100/60 transition-colors"
               >
                 Tonase
               </th>
               <th
                 onClick={() => handleSort('totalQty')}
-                className="py-1.5 px-2.5 text-right font-bold text-slate-900 bg-slate-100 select-none cursor-pointer hover:bg-slate-200/60 transition-colors"
+                className="py-2 px-3 text-right font-bold text-slate-900 bg-slate-100 select-none cursor-pointer hover:bg-slate-200/60 transition-colors"
               >
                 Qty ( Pcs )
               </th>
               <th
                 onClick={() => handleSort('totalStockTon')}
-                className="py-1.5 px-2.5 text-right font-bold text-slate-900 bg-slate-100 border-r border-slate-200 select-none cursor-pointer hover:bg-slate-200/60 transition-colors"
+                className="py-2 px-3 text-right font-bold text-slate-900 bg-slate-100 border-r border-slate-200/80 select-none cursor-pointer hover:bg-slate-200/60 transition-colors"
               >
                 Tonase
               </th>
               <th
                 onClick={() => handleSort('looQty')}
-                className="py-1.5 px-2.5 text-right font-bold text-sky-950 bg-sky-50/80 select-none cursor-pointer hover:bg-sky-100/60 transition-colors"
+                className="py-2 px-3 text-right font-bold text-sky-950 bg-sky-50/80 select-none cursor-pointer hover:bg-sky-100/60 transition-colors"
               >
                 Qty ( Pcs )
               </th>
               <th
                 onClick={() => handleSort('looTon')}
-                className="py-1.5 px-2.5 text-right font-bold text-sky-950 bg-sky-50/80 border-r border-slate-200 select-none cursor-pointer hover:bg-sky-100/60 transition-colors"
+                className="py-2 px-3 text-right font-bold text-sky-950 bg-sky-50/80 border-r border-slate-200/80 select-none cursor-pointer hover:bg-sky-100/60 transition-colors"
               >
                 Tonase
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px]">
+          <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white text-xs">
             {sorted.map((row) => {
               const hasLoo = (row.looTon || 0) > 0 || (row.looQty || 0) > 0;
               const isFulfilled = row.persenFulfillment >= 100;
               const isDeficit = row.persenFulfillment < 50;
 
               return (
-                <tr key={`${row.no}-${row.kodeMaterial}`} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-2.5 px-2 text-center text-slate-400 font-bold border-r border-slate-100">
+                <tr key={`${row.no}-${row.kodeMaterial}`} className="hover:bg-emerald-50/30 transition-all duration-150 group">
+                  <td className="py-3 px-3 text-center text-slate-400 font-bold border-r border-slate-100/90 font-mono">
                     {row.no}
                   </td>
-                  <td className="py-2.5 px-3 font-semibold text-slate-900 border-r border-slate-100 max-w-[220px] truncate" title={row.customer}>
+                  <td className="py-3 px-3.5 font-semibold text-slate-900 border-r border-slate-100/90 max-w-[220px] truncate" title={row.customer}>
                     {row.customer}
                   </td>
-                  <td className="py-2.5 px-3 font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">
+                  <td className="py-3 px-3.5 font-bold text-slate-900 border-r border-slate-100/90 whitespace-nowrap font-mono text-xs">
                     {row.ukuran}
                   </td>
-                  <td className="py-2.5 px-3 border-r border-slate-100 whitespace-nowrap">
-                    <span className="font-mono text-[11px] font-bold text-slate-900 block">{row.kodeMaterial}</span>
+                  <td className="py-3 px-3.5 border-r border-slate-100/90 whitespace-nowrap">
+                    <span className="font-mono text-xs font-bold text-slate-900 block">{row.kodeMaterial}</span>
                     {row.gudang && (
-                      <span className="text-[9px] text-slate-400 font-mono block">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[10px] font-bold font-mono mt-0.5 shadow-2xs">
                         {row.gudang}
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right text-emerald-950 font-medium">
+                  <td className="py-3 px-3 text-right text-emerald-950 font-medium font-mono">
                     {row.fgQty ? formatQty(row.fgQty, { zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right text-emerald-950 font-bold border-r border-slate-100">
+                  <td className="py-3 px-3 text-right text-emerald-950 font-bold border-r border-slate-100/90 font-mono">
                     {row.fgTon ? formatTon(row.fgTon, { decimals: 2, zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right text-slate-600">
+                  <td className="py-3 px-3 text-right text-slate-600 font-mono">
                     {row.wipQty ? formatQty(row.wipQty, { zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right text-slate-700 font-medium border-r border-slate-100">
+                  <td className="py-3 px-3 text-right text-slate-700 font-medium border-r border-slate-100/90 font-mono">
                     {row.wipTon ? formatTon(row.wipTon, { decimals: 2, zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right font-bold text-slate-900">
+                  <td className="py-3 px-3 text-right font-bold text-slate-900 font-mono">
                     {row.totalQty ? formatQty(row.totalQty, { zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right font-black text-slate-900 border-r border-slate-100">
+                  <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-100/90 font-mono">
                     {row.totalStockTon ? formatTon(row.totalStockTon, { decimals: 2, zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right font-semibold text-slate-800">
+                  <td className="py-3 px-3 text-right font-semibold text-slate-800 font-mono">
                     {row.looQty ? formatQty(row.looQty, { zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right font-bold text-slate-900 border-r border-slate-100">
+                  <td className="py-3 px-3 text-right font-bold text-slate-900 border-r border-slate-100/90 font-mono">
                     {row.looTon ? formatTon(row.looTon, { decimals: 2, zeroAsDash: true }) : '-'}
                   </td>
-                  <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                  <td className="py-3 px-3.5 text-right whitespace-nowrap">
                     {hasLoo ? (
-                      <span className={`inline-flex items-center justify-center min-w-[54px] px-2 py-0.5 rounded-md text-[11px] font-bold border tabular-nums ${
+                      <span className={`inline-flex items-center justify-center min-w-[56px] px-2 py-0.5 rounded-md text-xs font-bold font-mono border shadow-2xs ${
                         isFulfilled
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
                           : isDeficit
-                          ? 'bg-amber-50 text-amber-900 border-amber-300 font-black shadow-2xs'
+                          ? 'bg-amber-50 text-amber-900 border-amber-300 font-black'
                           : 'bg-amber-50/60 text-amber-900 border-amber-200'
                       }`}>
                         {formatPercent(row.persenFulfillment)}
                       </span>
                     ) : (
-                      <span className="text-slate-400 font-normal">-</span>
+                      <span className="text-slate-400 font-normal font-mono">-</span>
                     )}
                   </td>
                 </tr>
               );
             })}
           </tbody>
-          <tfoot className="sticky bottom-0 z-10 border-t-2 border-slate-300 bg-slate-100/95 backdrop-blur-xs font-bold text-[11px] text-slate-900 shadow-xs">
+          <tfoot className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-slate-50/95 backdrop-blur-xs font-bold text-xs text-slate-900 shadow-xs">
             <tr>
-              <td colSpan={4} className="py-2.5 px-3 text-left uppercase tracking-wider text-slate-700 text-[10px]">
+              <td colSpan={4} className="py-3 px-3.5 text-left uppercase tracking-wider text-slate-700 text-[10px] font-mono">
                 TOTAL ({sorted.length} ITEM{selectedGudang !== 'ALL' ? ` • ${selectedGudang}` : ''}{selectedCustomer !== 'ALL' ? ` • ${selectedCustomer}` : ''})
               </td>
-              <td className="py-2.5 px-2.5 text-right text-emerald-950 font-bold">
+              <td className="py-3 px-3 text-right text-emerald-950 font-bold font-mono">
                 {formatQty(sumFgQty, { zeroAsDash: true })}
               </td>
-              <td className="py-2.5 px-2.5 text-right text-emerald-950 font-black border-r border-slate-200">
+              <td className="py-3 px-3 text-right text-emerald-950 font-black border-r border-slate-200/80 font-mono">
                 {formatTon(sumFgTon, { decimals: 2, zeroAsDash: true })}
               </td>
-              <td className="py-2.5 px-2.5 text-right text-slate-800">
+              <td className="py-3 px-3 text-right text-slate-800 font-mono">
                 {formatQty(sumWipQty, { zeroAsDash: true })}
               </td>
-              <td className="py-2.5 px-2.5 text-right text-slate-800 border-r border-slate-200">
+              <td className="py-3 px-3 text-right text-slate-800 border-r border-slate-200/80 font-mono">
                 {formatTon(sumWipTon, { decimals: 2, zeroAsDash: true })}
               </td>
-              <td className="py-2.5 px-2.5 text-right text-slate-950 font-black">
+              <td className="py-3 px-3 text-right text-slate-950 font-black font-mono">
                 {formatQty(sumTotalQty, { zeroAsDash: true })}
               </td>
-              <td className="py-2.5 px-2.5 text-right text-slate-950 font-black border-r border-slate-200">
+              <td className="py-3 px-3 text-right text-slate-950 font-black border-r border-slate-200/80 font-mono">
                 {formatTon(sumTotalTon, { decimals: 2, zeroAsDash: true })}
               </td>
-              <td className="py-2.5 px-2.5 text-right text-slate-900 font-bold">
+              <td className="py-3 px-3 text-right text-slate-900 font-bold font-mono">
                 {formatQty(sumLooQty, { zeroAsDash: true })}
               </td>
-              <td className="py-2.5 px-2.5 text-right text-slate-950 font-black border-r border-slate-200">
+              <td className="py-3 px-3 text-right text-slate-950 font-black border-r border-slate-200/80 font-mono">
                 {formatTon(sumLooTon, { decimals: 2, zeroAsDash: true })}
               </td>
-              <td className="py-2.5 px-3 text-right font-black">
-                <span className={`inline-flex items-center justify-center min-w-[56px] px-2 py-0.5 rounded-md text-[11px] border tabular-nums shadow-2xs ${
+              <td className="py-3 px-3.5 text-right font-black font-mono">
+                <span className={`inline-flex items-center justify-center min-w-[56px] px-2 py-0.5 rounded-md text-xs border font-mono shadow-2xs ${
                   overallAvgFulfill >= 100
                     ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
                     : 'bg-amber-100 text-amber-900 border-amber-300'

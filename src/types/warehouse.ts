@@ -198,7 +198,7 @@ export interface UnfifoPipeItem {
   issueNote?: string;
 }
 
-export type NCProgressTransactionType = 'IN_NC' | 'OUT_REPAIR' | 'IN_OK_PRIME' | 'OTHER';
+export type NCProgressTransactionType = 'IN_NC' | 'OUT_REPAIR' | 'OUT_REPAIR_RETURN' | 'IN_OK_PRIME' | 'REJECT_REPAIR' | 'OTHER';
 
 export interface NCProgressTransaction {
   id: string;
@@ -248,14 +248,22 @@ export interface NCProgressPipelineItem {
   problemRemark?: string;
   batchNC?: string;
   batchPrime?: string;
+  batchReject?: string;
   slocNC?: string;
   slocPrime?: string;
+  slocReject?: string;
   qtyNCIn: number;
   kgNCIn: number;
-  qtyOutRepair: number;
+  qty261?: number;
+  kg261?: number;
+  qty262?: number;
+  kg262?: number;
+  qtyOutRepair: number; // Net GI Repair: 261 - 262
   kgOutRepair: number;
-  qtyInPrime: number;
+  qtyInPrime: number;   // Hasil Prime: 101
   kgInPrime: number;
+  qtyReject: number;    // Rumus Reject / DG: 261 - 262 - 101
+  kgReject: number;
   status: 'TERDAFTAR NC' | 'DALAM REPAIR' | 'SELESAI OK' | 'PARTIAL REPAIR';
   recoveryRate: number;
   transactions: NCProgressTransaction[];
@@ -265,10 +273,16 @@ export interface NCProgressPipelineItem {
 export interface NCProgressSummary {
   totalNCInQty: number;
   totalNCInKg: number;
-  totalOutRepairQty: number;
+  total261Qty?: number;
+  total261Kg?: number;
+  total262Qty?: number;
+  total262Kg?: number;
+  totalOutRepairQty: number; // Net 261 - 262
   totalOutRepairKg: number;
-  totalInPrimeQty: number;
+  totalInPrimeQty: number;   // 101
   totalInPrimeKg: number;
+  totalRejectQty: number;    // Rumus: 261 - 262 - 101
+  totalRejectKg: number;
   outstandingRepairQty: number;
   outstandingRepairKg: number;
   wipRepairQty: number;
@@ -277,4 +291,110 @@ export interface NCProgressSummary {
   totalTransactions: number;
   totalNCRCount: number;
 }
+
+export interface WarehouseMasterCapacityItem {
+  gudang: string;
+  slocCode: string;
+  areaLabel: string;
+  pipeCapacityTon: number;
+  coilCapacityTon: number;
+  description?: string;
+  isPipeDedicated?: boolean;
+  isCoilDedicated?: boolean;
+}
+
+export interface WarehouseCapacityConfig {
+  pipeCapacities: Record<string, number>;
+  coilCapacities: Record<string, number>;
+  areaLabels: Record<string, string>;
+  notes?: Record<string, string>;
+  lastUpdated?: string;
+  updatedBy?: string;
+}
+
+export const ALL_SPINDO_GUDANGS = [
+  'Gd.01',
+  'Gd.02',
+  'Gd.03',
+  'Gd.04',
+  'Gd.05',
+  'Gd.06',
+  'Gd.07',
+  'Gd.08',
+  'Gd.09',
+  'Gd.10',
+  'Gd.11',
+  'Gd.12',
+  'Gd.13',
+  'Gd.14',
+];
+
+export const DEFAULT_PIPE_CAPACITIES: Record<string, number> = {
+  'Gd.01': 930.0,
+  'Gd.02': 755.0,
+  'Gd.03': 580.0,
+  'Gd.04': 450.0,
+  'Gd.05': 450.0,
+  'Gd.06': 0.0,
+  'Gd.07': 0.0,
+  'Gd.08': 0.0,
+  'Gd.09': 0.0,
+  'Gd.10': 350.0,
+  'Gd.11': 860.0,
+  'Gd.12': 750.0,
+  'Gd.13': 354.0,
+  'Gd.14': 255.0,
+};
+
+export const DEFAULT_COIL_CAPACITIES: Record<string, number> = {
+  'Gd.01': 7000.0,
+  'Gd.02': 7000.0,
+  'Gd.03': 7000.0,
+  'Gd.04': 7000.0,
+  'Gd.05': 7000.0,
+  'Gd.06': 8500.0,
+  'Gd.07': 8500.0,
+  'Gd.08': 8500.0,
+  'Gd.09': 8500.0,
+  'Gd.10': 7000.0,
+  'Gd.11': 7000.0,
+  'Gd.12': 7000.0,
+  'Gd.13': 7000.0,
+  'Gd.14': 7000.0,
+};
+
+export const DEFAULT_COIL_AREA_LABELS: Record<string, string> = {
+  'Gd.01': 'Area Gd.01',
+  'Gd.02': 'Area K1, K2, K3',
+  'Gd.03': 'Area K5, K6',
+  'Gd.04': 'Area Gd.04',
+  'Gd.05': 'Area Gd.05',
+  'Gd.06': 'Gd.06 (Main Coil)',
+  'Gd.07': 'Gd.07 (Main Coil)',
+  'Gd.08': 'Gd.08 (Main Coil)',
+  'Gd.09': 'Gd.09 (Main Coil)',
+  'Gd.10': 'Area K9',
+  'Gd.11': 'Area K7 & K8',
+  'Gd.12': 'Area Gd.12',
+  'Gd.13': 'Area Gd.13',
+  'Gd.14': 'Area Gd.14',
+};
+
+export const GUDANG_SLOC_CODES: Record<string, string> = {
+  'Gd.01': '5A',
+  'Gd.02': '5B',
+  'Gd.03': '5C',
+  'Gd.04': '5D',
+  'Gd.05': '5E',
+  'Gd.06': '5F',
+  'Gd.07': '5G',
+  'Gd.08': '5H',
+  'Gd.09': '5I',
+  'Gd.10': '5J',
+  'Gd.11': '5K',
+  'Gd.12': '5L',
+  'Gd.13': '5M',
+  'Gd.14': '5N',
+};
+
 

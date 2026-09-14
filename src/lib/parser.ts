@@ -12,7 +12,8 @@ import {
   UnfifoPipeItem,
   DamagedPackagingItem,
   IncomingPackagingItem,
-  NCProgressTransaction
+  NCProgressTransaction,
+  WarehouseCapacityConfig
 } from '../types/warehouse';
 
 export interface ParsedWarehouseState {
@@ -36,6 +37,12 @@ export interface ParsedWarehouseState {
   uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc')[];
 }
 
+export interface ParseExcelOptions {
+  targetDate?: string;
+  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc')[];
+  customCapacities?: WarehouseCapacityConfig;
+}
+
 const PIPE_CAPACITY_MAP: Record<string, number> = {
   'Gd.01': 930.0,
   'Gd.02': 755.0,
@@ -50,25 +57,37 @@ const PIPE_CAPACITY_MAP: Record<string, number> = {
 };
 
 const COIL_CAPACITY_MAP: Record<string, number> = {
+  'Gd.01': 7000.0,
   'Gd.02': 7000.0,
   'Gd.03': 7000.0,
+  'Gd.04': 7000.0,
+  'Gd.05': 7000.0,
   'Gd.06': 8500.0,
   'Gd.07': 8500.0,
   'Gd.08': 8500.0,
   'Gd.09': 8500.0,
   'Gd.10': 7000.0,
   'Gd.11': 7000.0,
+  'Gd.12': 7000.0,
+  'Gd.13': 7000.0,
+  'Gd.14': 7000.0,
 };
 
 const COIL_AREA_LABELS: Record<string, string> = {
+  'Gd.01': 'Area Gd.01',
   'Gd.02': 'Area K1, K2, K3',
   'Gd.03': 'Area K5, K6',
+  'Gd.04': 'Area Gd.04',
+  'Gd.05': 'Area Gd.05',
   'Gd.06': 'Gd.06 (Main Coil)',
   'Gd.07': 'Gd.07 (Main Coil)',
   'Gd.08': 'Gd.08 (Main Coil)',
   'Gd.09': 'Gd.09 (Main Coil)',
   'Gd.10': 'Area K9',
   'Gd.11': 'Area K7 & K8',
+  'Gd.12': 'Area Gd.12',
+  'Gd.13': 'Area Gd.13',
+  'Gd.14': 'Area Gd.14',
 };
 
 const DIAMETER_MAP: Record<string, string> = {
@@ -488,11 +507,206 @@ export function extractPipeDimension(
   return { dimension: descClean || matClean || 'N/A', panjangMm: parseNumber(rawPanjang) || 6000 };
 }
 
+export function isCoilOrStripRow(row: Record<string, unknown>): boolean {
+  const desc = String(
+    getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi', 'Kode Material', 'Coil Specification']) || ''
+  ).toUpperCase();
+  const mat = String(
+    getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Material', 'Kode Material', 'Material No']) || ''
+  ).toUpperCase();
+  const kategori = String(
+    getRowValue(row, [
+      'Jenis Material',
+      'Jenis_Material',
+      'JenisMaterial',
+      'Jenis',
+      'Jenis Bahan',
+      'Kategori',
+      'Category',
+      'Tipe'
+    ]) || ''
+  ).toUpperCase();
+
+  if (
+    kategori === 'COIL' ||
+    kategori === 'STRIP' ||
+    kategori === 'SLITTING' ||
+    kategori.includes('COIL') ||
+    kategori.includes('STRIP') ||
+    kategori.includes('SLIT')
+  ) {
+    return true;
+  }
+
+  // Keywords in description
+  const coilKeywords = [
+    'COIL',
+    'STRIP',
+    'SLITTING',
+    'SLIT',
+    'SPHC',
+    'SPCC',
+    'SAPH',
+    'SPHT',
+    'RAW COIL',
+    'HOT ROLLED COIL',
+    'PO COIL',
+    'HRC',
+    'CRC'
+  ];
+  if (coilKeywords.some((kw) => desc.includes(kw))) {
+    if (desc.includes('PIPA') || desc.includes('PIPE') || desc.includes('HOLLOW') || desc.includes('TUBING')) {
+      return false;
+    }
+    return true;
+  }
+
+  // Material prefix standard Spindo: C = Coil, S = Strip
+  // Contoh: C2-119P..., C1-..., S1-..., S2-..., C0012..., S0012...
+  if (/^[CS][0-9\-]/i.test(mat)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Resolusi cerdas Berat (KG) dan Kuantitas (Btg / Roll) dari baris raw data SAP.
+ * Pada SAP zppshstock / MB52:
+ * BOm = Base Unit of Measure (Satuan Dasar)
+ * EOm = Entry Unit of Measure (Satuan Input)
+ */
+export function resolveStockWeightAndQty(
+  row: Record<string, unknown>,
+  itemType: 'pipe' | 'coil' = 'coil'
+): { weightKg: number; qty: number } {
+  const explicitWeight = parseNumber(
+    getRowValue(row, [
+      'Berat',
+      'Weight',
+      'Stock (KG)',
+      'Stock(KG)',
+      'Qty (KG)',
+      'Qty(KG)',
+      'Total (KG)',
+      'Net Weight',
+      'Sum of Tonase',
+      'Tonase'
+    ])
+  );
+
+  const explicitQty = parseNumber(
+    getRowValue(row, [
+      'Unrestricted',
+      'UNRESTRICTED',
+      'Roll',
+      'Qty (Roll)',
+      'Jumlah Roll',
+      'Qty (Btg)',
+      'Qty Btg',
+      'Qty(Btg)',
+      'Batang',
+      'Btg',
+      'Pcs',
+      'Pieces',
+      'Kuantitas'
+    ])
+  );
+
+  const valBom = parseNumber(
+    getRowValue(row, [
+      'TTL STOK BOm',
+      'TTL STOK BOM',
+      'TTL STOCK BOm',
+      'TTL STOCK BOM',
+      'S.AKHIR BOm FREE',
+      'S.AWAL BOm FREE'
+    ])
+  );
+
+  const valEom = parseNumber(
+    getRowValue(row, [
+      'TTL STOCK EOm',
+      'TTL STOCK EOM',
+      'TTL STOK EOm',
+      'TTL STOK EOM',
+      'S.AKHIR EOm FREE',
+      'S.AWAL EOm FREE'
+    ])
+  );
+
+  let weightKg = 0;
+  let qty = 0;
+
+  if (explicitWeight > 0 && explicitQty > 0) {
+    weightKg = explicitWeight;
+    qty = explicitQty;
+  } else if (explicitWeight > 0) {
+    weightKg = explicitWeight;
+    const otherVal = valEom > 0 ? valEom : valBom;
+    qty = explicitQty > 0 ? explicitQty : (otherVal > 0 ? otherVal : 1);
+  } else if (explicitQty > 0) {
+    qty = explicitQty;
+    const otherVal = valBom > 0 && valBom !== explicitQty ? valBom : valEom;
+    weightKg = otherVal > 0 ? otherVal : (valBom > 0 ? valBom : valEom);
+  } else {
+    // Diambil dari pasangan BOm dan EOm
+    if (valBom > 0 && valEom > 0) {
+      if (valBom >= valEom) {
+        weightKg = valBom;
+        qty = valEom;
+      } else {
+        weightKg = valEom;
+        qty = valBom;
+      }
+    } else if (valBom > 0) {
+      weightKg = valBom;
+      qty = 1;
+    } else if (valEom > 0) {
+      weightKg = valEom;
+      qty = 1;
+    }
+  }
+
+  return {
+    weightKg,
+    qty: qty > 0 ? qty : (weightKg > 0 ? 1 : 0)
+  };
+}
+
 export function parseExcelFiles(
   pipeRows: Record<string, unknown>[],
   coilRows: Record<string, unknown>[],
-  looRows: Record<string, unknown>[]
+  looRows: Record<string, unknown>[],
+  options?: ParseExcelOptions
 ): ParsedWarehouseState {
+  const effectivePipeCapMap = options?.customCapacities?.pipeCapacities || PIPE_CAPACITY_MAP;
+  const effectiveCoilCapMap = options?.customCapacities?.coilCapacities || COIL_CAPACITY_MAP;
+  const effectiveCoilAreaLabels = options?.customCapacities?.areaLabels || COIL_AREA_LABELS;
+
+  // Pisahkan otomatis baris Coil & Strip dari baris Pipa (mendukung 1 file gabungan zppshstock maupun 2 file terpisah)
+  let effectivePipeRows: Record<string, unknown>[] = [];
+  let effectiveCoilRows: Record<string, unknown>[] = [];
+
+  pipeRows.forEach((row) => {
+    if (isCoilOrStripRow(row)) {
+      effectiveCoilRows.push(row);
+    } else {
+      effectivePipeRows.push(row);
+    }
+  });
+
+  coilRows.forEach((row) => {
+    // Jika baris di slot coil terang-terangan pipa (misal pengguna salah pilih file), alihkan ke pipa
+    const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi']) || '').toUpperCase();
+    const isExplicitPipe = desc.includes('PIPA') || desc.includes('PIPE') || desc.includes('HOLLOW') || desc.includes('TUBING');
+    if (isExplicitPipe && !isCoilOrStripRow(row)) {
+      effectivePipeRows.push(row);
+    } else {
+      effectiveCoilRows.push(row);
+    }
+  });
+
   const gudangMap: Record<string, {
     kapasitas: number;
     wipLt: number;
@@ -516,7 +730,7 @@ export function parseExcelFiles(
   const allGudangs = ['Gd.01', 'Gd.02', 'Gd.03', 'Gd.04', 'Gd.05', 'Gd.10', 'Gd.11', 'Gd.12', 'Gd.13', 'Gd.14'];
   allGudangs.forEach(g => {
     gudangMap[g] = {
-      kapasitas: PIPE_CAPACITY_MAP[g] || 500,
+      kapasitas: effectivePipeCapMap[g] ?? PIPE_CAPACITY_MAP[g] ?? 500,
       wipLt: 0,
       fgLt: 0,
       wipSt: 0,
@@ -583,26 +797,12 @@ export function parseExcelFiles(
   const unfifoPipeList: UnfifoPipeItem[] = [];
 
   // 1. Process Raw Pipe Stock
-  pipeRows.forEach((row, idx) => {
+  effectivePipeRows.forEach((row, idx) => {
     const sloc = String(getRowValue(row, ['SLOC', 'Gudang', 'Storage Location', 'SLoc', 'Sloc']) || '');
     const g = normalizeGudang(sloc);
 
-    const rawBerat = parseNumber(
-      getRowValue(row, [
-        'TTL STOCK EOm',
-        'TTL STOCK EOM',
-        'TTL STOK EOm',
-        'TTL STOK EOM',
-        'Berat',
-        'Sum of Tonase',
-        'Tonase',
-        'Weight',
-        'Stock (KG)',
-        'Qty (KG)'
-      ]) || 0
-    );
-
-    const tonase = rawBerat / 1000;
+    const { weightKg, qty: resolvedPipeQty } = resolveStockWeightAndQty(row, 'pipe');
+    const tonase = weightKg / 1000;
     if (tonase <= 0) return;
 
     const rawPanjang = String(getRowValue(row, ['PANJANG', 'Panjang', 'Length', 'Length(mm)']) || '');
@@ -722,7 +922,7 @@ export function parseExcelFiles(
     if (isST && isWIP) target.wipSt += tonase;
     if (isST && isFG) target.fgSt += tonase;
 
-    const rowQty = parseNumber(getRowValue(row, ['TTL STOK BOm', 'TTL STOK BOM', 'TTL STOCK BOm', 'Qty', 'Qty (Btg)']) || 0);
+    const rowQty = parseNumber(getRowValue(row, ['Unrestricted', 'UNRESTRICTED', 'TTL STOK BOm', 'TTL STOK BOM', 'TTL STOCK BOm', 'Qty', 'Qty (Btg)']) || 0);
 
     if (hasCustomer) {
       target.customerStock += tonase;
@@ -980,45 +1180,32 @@ export function parseExcelFiles(
   const coilAreaMap: Record<string, { coilQty: number; coilTon: number; stripQty: number; stripTon: number; kap: number }> = {};
   const unfifoCoilList: UnfifoCoilItem[] = [];
 
-  Object.keys(COIL_CAPACITY_MAP).forEach((g) => {
-    coilAreaMap[g] = { coilQty: 0, coilTon: 0, stripQty: 0, stripTon: 0, kap: COIL_CAPACITY_MAP[g] || 7000 };
+  Object.keys(effectiveCoilCapMap).forEach((g) => {
+    coilAreaMap[g] = { coilQty: 0, coilTon: 0, stripQty: 0, stripTon: 0, kap: effectiveCoilCapMap[g] || 7000 };
   });
 
-  coilRows.forEach(row => {
+  effectiveCoilRows.forEach(row => {
     const sloc = String(getRowValue(row, ['SLOC', 'Gudang', 'Storage Location', 'SLoc', 'Sloc']) || '');
     const g = normalizeGudang(sloc);
     const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi', 'Kode Material', 'Coil Specification']) || '').toUpperCase();
-    const isStrip = desc.includes('STRIP') || desc.includes('SLIT');
+    const jenisMat = String(getRowValue(row, [
+      'Jenis Material',
+      'Jenis_Material',
+      'JenisMaterial',
+      'Jenis',
+      'Jenis Bahan',
+      'Kategori',
+      'Category',
+      'Tipe'
+    ]) || '').toUpperCase();
+    const isStrip = jenisMat.includes('STRIP') || jenisMat.includes('SLIT') || desc.includes('STRIP') || desc.includes('SLIT');
 
-    const rawBeratKg = parseNumber(
-      getRowValue(row, [
-        'TTL STOK BOm',
-        'TTL STOK BOM',
-        'TTL STOCK BOm',
-        'S.AKHIR BOm FREE',
-        'S.AWAL BOm FREE',
-        'Berat',
-        'Weight',
-        'Stock (KG)'
-      ]) || 0
-    );
-
-    const tonase = rawBeratKg > 0 ? rawBeratKg / 1000 : parseNumber(getRowValue(row, ['Sum of Tonase', 'Tonase']) || 0);
-
-    const rawQty = parseNumber(
-      getRowValue(row, [
-        'TTL STOCK EOm',
-        'TTL STOCK EOM',
-        'TTL STOK EOm',
-        'TTL STOK EOM',
-        'S.AKHIR EOm FREE',
-        'Qty',
-        'Roll'
-      ]) || 1
-    );
+    const { weightKg, qty: resolvedCoilQty } = resolveStockWeightAndQty(row, 'coil');
+    const tonase = weightKg / 1000;
+    const rawQty = resolvedCoilQty;
 
     if (!coilAreaMap[g]) {
-      coilAreaMap[g] = { coilQty: 0, coilTon: 0, stripQty: 0, stripTon: 0, kap: 7500 };
+      coilAreaMap[g] = { coilQty: 0, coilTon: 0, stripQty: 0, stripTon: 0, kap: effectiveCoilCapMap[g] || 7000 };
     }
 
     const target = coilAreaMap[g];
@@ -1033,7 +1220,8 @@ export function parseExcelFiles(
     // Deteksi UNFIFO Coil: Gunakan kolom PASM (SLOW/S atau terisi status non-kosong/non-FAST) atau kolom UNFIFO
     const rawUnfifo = String(getRowValue(row, ['UNFIFO', 'Unfifo', 'STATUS UNFIFO', 'Status UNFIFO']) || '').toUpperCase().trim();
     const rawPasm = String(getRowValue(row, ['PASM', 'PASM Status', 'Status PASM']) || '').toUpperCase().trim();
-    const rawMatNum = String(getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Kode Material']) || '');
+    const rawCustRemark = String(getRowValue(row, ['CUST.REMARK', 'CUST REMARK', 'Remark', 'Remarks', 'Catatan']) || '').trim();
+    const rawMatNum = String(getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Kode Material', 'Material']) || '');
     const rawSpec = String(getRowValue(row, ['Coil Specification', 'Specification', 'Spec']) || desc);
     const rawManuf = String(getRowValue(row, ['C.MANUFAKTUR', 'Manufaktur', 'Manufacturer']) || '-');
     const rawBatch = String(getRowValue(row, ['BATCH', 'Batch', 'Lot']) || '');
@@ -1057,12 +1245,18 @@ export function parseExcelFiles(
         qtyRoll: Math.round(rawQty),
         tonase: Number(tonase.toFixed(3)),
         incDate: formattedIncDate,
-        unfifoStatus: rawPasm || rawUnfifo || 'UNFIFO'
+        unfifoStatus: rawPasm || rawUnfifo || 'UNFIFO',
+        issueNote: rawCustRemark && rawCustRemark !== '-' && rawCustRemark !== '0' ? rawCustRemark : undefined,
       });
     }
   });
 
-  const coilStripData: CoilStripArea[] = Object.keys(coilAreaMap).map(g => {
+  const coilStripData: CoilStripArea[] = Object.keys(coilAreaMap)
+    .filter(g => {
+      const d = coilAreaMap[g];
+      return d.coilTon > 0 || d.stripTon > 0 || d.coilQty > 0 || d.stripQty > 0;
+    })
+    .map(g => {
     const d = coilAreaMap[g];
     const totalQty = d.coilQty + d.stripQty;
     const totalTon = d.coilTon + d.stripTon;
@@ -1070,7 +1264,7 @@ export function parseExcelFiles(
 
     return {
       gudang: g,
-      area: COIL_AREA_LABELS[g] || `Area ${g}`,
+      area: effectiveCoilAreaLabels[g] || COIL_AREA_LABELS[g] || `Area ${g}`,
       coilQty: Math.round(d.coilQty),
       coilTon: Number(d.coilTon.toFixed(1)),
       stripQty: Math.round(d.stripQty),
@@ -1420,8 +1614,8 @@ export function parseExcelFiles(
     lastUpdated: new Date().toLocaleString('id-ID'),
   };
 
-  const hasPipe = Boolean(pipeRows && pipeRows.length > 0);
-  const hasCoil = Boolean(coilRows && coilRows.length > 0);
+  const hasPipe = Boolean(effectivePipeRows && effectivePipeRows.length > 0);
+  const hasCoil = Boolean(effectiveCoilRows && effectiveCoilRows.length > 0);
   const hasLoo = Boolean(looRows && looRows.length > 0);
 
   if (hasPipe) {
@@ -1450,7 +1644,7 @@ export function parseExcelFiles(
   return result;
 }
 
-export async function readExcelFile(file: File): Promise<Record<string, unknown>[]> {
+export async function parseWorkbookFromFile(file: File): Promise<XLSX.WorkBook> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1508,107 +1702,7 @@ export async function readExcelFile(file: File): Promise<Record<string, unknown>
           throw new Error('Workbook tidak memiliki lembar kerja (sheet).');
         }
 
-        // Cari sheet pertama yang memiliki data
-        let worksheet: XLSX.WorkSheet | null = null;
-        for (const sName of workbook.SheetNames) {
-          const ws = workbook.Sheets[sName];
-          if (ws && ws['!ref']) {
-            worksheet = ws;
-            break;
-          }
-        }
-
-        if (!worksheet) {
-          worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        }
-
-        if (!worksheet) {
-          throw new Error('Sheet kosong atau tidak ditemukan.');
-        }
-
-        // Ambil data dalam format 2D Array untuk deteksi baris header secara dinamis
-        const rawMatrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '' });
-        if (!rawMatrix || rawMatrix.length === 0) {
-          resolve([]);
-          return;
-        }
-
-        // Kata kunci penanda kolom header SAP (case-insensitive)
-        const headerKeywords = [
-          'material', 'sloc', 'storage location', 'batch', 'unrestricted', 'unrestricted use',
-          'sum of tonase', 'ttl stock', 'ttl stok', 'berat', 'weight', 'tonase', 'mvt',
-          'movement type', 'posting date', 'entry date', 'time of entry', 'order', 'package',
-          'serial', 'customer', 'name 2', 'bwart', 'deskripsi', 'description', 'kondisi',
-          'slot', 'dinding', 'segel', 'tgl', 'date', 'plant', 'werk', 'unfifo', 'fast', 'slow',
-          'ukuran', 'dimension', 'qty', 'kuantitas', 'alasan nc', 'problem', 'text'
-        ];
-
-        // Deteksi baris header dalam 30 baris pertama
-        let bestHeaderIdx = -1;
-        let maxScore = 0;
-
-        const scanLimit = Math.min(rawMatrix.length, 30);
-        for (let i = 0; i < scanLimit; i++) {
-          const rowArr = rawMatrix[i];
-          if (!Array.isArray(rowArr) || rowArr.length === 0) continue;
-
-          let score = 0;
-          let filledCols = 0;
-
-          rowArr.forEach((cell) => {
-            const strVal = String(cell || '').trim().toLowerCase();
-            if (strVal.length > 0) {
-              filledCols++;
-              if (headerKeywords.some((kw) => strVal.includes(kw) || kw.includes(strVal))) {
-                score += 3;
-              }
-            }
-          });
-
-          if (filledCols >= 2 && score > maxScore) {
-            maxScore = score;
-            bestHeaderIdx = i;
-          }
-        }
-
-        // Jika ditemukan baris header spesifik
-        if (bestHeaderIdx !== -1 && maxScore >= 3) {
-          const headerRow = rawMatrix[bestHeaderIdx] as unknown[];
-          const headers = headerRow.map((h, colIdx) => {
-            const cleanH = String(h || '').trim();
-            return cleanH || `__EMPTY_${colIdx}`;
-          });
-
-          const parsedRows: Record<string, unknown>[] = [];
-          for (let r = bestHeaderIdx + 1; r < rawMatrix.length; r++) {
-            const rowArr = rawMatrix[r] as unknown[];
-            if (!Array.isArray(rowArr)) continue;
-
-            const isAllEmpty = rowArr.every((c) => c === undefined || c === null || String(c).trim() === '');
-            if (isAllEmpty) continue;
-
-            const rowObj: Record<string, unknown> = {};
-            let hasAnyVal = false;
-            headers.forEach((hdr, colIdx) => {
-              const val = rowArr[colIdx];
-              if (val !== undefined && val !== null && String(val).trim() !== '') {
-                hasAnyVal = true;
-              }
-              rowObj[hdr] = val ?? '';
-            });
-
-            if (hasAnyVal) {
-              parsedRows.push(rowObj);
-            }
-          }
-
-          resolve(parsedRows);
-          return;
-        }
-
-        // Fallback ke standar sheet_to_json jika tidak ada header khusus terdeteksi
-        const standardJson = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
-        resolve(standardJson);
+        resolve(workbook);
       } catch (err) {
         reject(err);
       }
@@ -1616,4 +1710,145 @@ export async function readExcelFile(file: File): Promise<Record<string, unknown>
     reader.onerror = (err) => reject(new Error(`Gagal membaca berkas: ${err}`));
     reader.readAsArrayBuffer(file);
   });
+}
+
+export function extractRowsFromWorksheet(worksheet: XLSX.WorkSheet): Record<string, unknown>[] {
+  if (!worksheet || !worksheet['!ref']) return [];
+
+  const rawMatrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '' });
+  if (!rawMatrix || rawMatrix.length === 0) return [];
+
+  // Kata kunci penanda kolom header SAP (case-insensitive)
+  const headerKeywords = [
+    'material', 'sloc', 'storage location', 'batch', 'unrestricted', 'unrestricted use',
+    'sum of tonase', 'ttl stock', 'ttl stok', 'berat', 'weight', 'tonase', 'mvt',
+    'movement type', 'posting date', 'entry date', 'time of entry', 'order', 'package',
+    'serial', 'customer', 'name 2', 'bwart', 'deskripsi', 'description', 'kondisi',
+    'slot', 'dinding', 'segel', 'tgl', 'date', 'plant', 'werk', 'unfifo', 'fast', 'slow',
+    'ukuran', 'dimension', 'qty', 'kuantitas', 'alasan nc', 'problem', 'text'
+  ];
+
+  let bestHeaderIdx = -1;
+  let maxScore = 0;
+  const scanLimit = Math.min(rawMatrix.length, 30);
+
+  for (let i = 0; i < scanLimit; i++) {
+    const rowArr = rawMatrix[i];
+    if (!Array.isArray(rowArr) || rowArr.length === 0) continue;
+
+    let score = 0;
+    let filledCols = 0;
+
+    rowArr.forEach((cell) => {
+      const strVal = String(cell || '').trim().toLowerCase();
+      if (strVal.length > 0) {
+        filledCols++;
+        if (headerKeywords.some((kw) => strVal.includes(kw) || kw.includes(strVal))) {
+          score += 3;
+        }
+      }
+    });
+
+    if (filledCols >= 2 && score > maxScore) {
+      maxScore = score;
+      bestHeaderIdx = i;
+    }
+  }
+
+  if (bestHeaderIdx !== -1 && maxScore >= 3) {
+    const headerRow = rawMatrix[bestHeaderIdx] as unknown[];
+    const headers = headerRow.map((h, colIdx) => {
+      const cleanH = String(h || '').trim();
+      return cleanH || `__EMPTY_${colIdx}`;
+    });
+
+    const parsedRows: Record<string, unknown>[] = [];
+    for (let r = bestHeaderIdx + 1; r < rawMatrix.length; r++) {
+      const rowArr = rawMatrix[r] as unknown[];
+      if (!Array.isArray(rowArr)) continue;
+
+      const isAllEmpty = rowArr.every((c) => c === undefined || c === null || String(c).trim() === '');
+      if (isAllEmpty) continue;
+
+      const rowObj: Record<string, unknown> = {};
+      let hasAnyVal = false;
+      headers.forEach((hdr, colIdx) => {
+        const val = rowArr[colIdx];
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          hasAnyVal = true;
+        }
+        rowObj[hdr] = val ?? '';
+      });
+
+      if (hasAnyVal) {
+        parsedRows.push(rowObj);
+      }
+    }
+
+    return parsedRows;
+  }
+
+  return XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+}
+
+export async function readExcelFile(file: File, targetSheetName?: string): Promise<Record<string, unknown>[]> {
+  const workbook = await parseWorkbookFromFile(file);
+  let worksheet: XLSX.WorkSheet | null = null;
+
+  if (targetSheetName) {
+    const targetLower = targetSheetName.toLowerCase();
+    if (workbook.Sheets[targetSheetName] && workbook.Sheets[targetSheetName]['!ref']) {
+      worksheet = workbook.Sheets[targetSheetName];
+    } else {
+      const matchedName = workbook.SheetNames.find((name) => {
+        const nl = name.toLowerCase();
+        return nl === targetLower || nl.includes(targetLower);
+      });
+      if (matchedName && workbook.Sheets[matchedName] && workbook.Sheets[matchedName]['!ref']) {
+        worksheet = workbook.Sheets[matchedName];
+      }
+    }
+  }
+
+  if (!worksheet) {
+    // Cari sheet pertama yang berisi data (lewati sheet 'petunjuk' jika terdapat sheet data lain)
+    for (const sName of workbook.SheetNames) {
+      if (sName.toLowerCase().includes('petunjuk') && workbook.SheetNames.length > 1) continue;
+      const ws = workbook.Sheets[sName];
+      if (ws && ws['!ref']) {
+        worksheet = ws;
+        break;
+      }
+    }
+  }
+
+  if (!worksheet) {
+    worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  }
+
+  if (!worksheet) {
+    throw new Error('Sheet kosong atau tidak ditemukan.');
+  }
+
+  return extractRowsFromWorksheet(worksheet);
+}
+
+export async function readExcelWorkbookMultiSheets(
+  file: File,
+  sheetMatchers: Record<string, string[]>
+): Promise<Record<string, Record<string, unknown>[]>> {
+  const workbook = await parseWorkbookFromFile(file);
+  const result: Record<string, Record<string, unknown>[]> = {};
+
+  for (const [key, matchers] of Object.entries(sheetMatchers)) {
+    const foundSheetName = workbook.SheetNames.find((sName) => {
+      const lower = sName.toLowerCase();
+      return matchers.some((m) => lower.includes(m.toLowerCase()));
+    });
+    if (foundSheetName && workbook.Sheets[foundSheetName]) {
+      result[key] = extractRowsFromWorksheet(workbook.Sheets[foundSheetName]);
+    }
+  }
+
+  return result;
 }

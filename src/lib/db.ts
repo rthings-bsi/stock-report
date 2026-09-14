@@ -112,6 +112,32 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
           );
         `);
 
+        // Schema migrations for warehouse_snapshots
+        try {
+          const snapshotCols = new Set(
+            (db.pragma('table_info(warehouse_snapshots)') as any[]).map((c) => c.name)
+          );
+          const requiredCols: [string, string][] = [
+            ['unfifo_coil_data', 'TEXT'],
+            ['unfifo_pipe_data', 'TEXT'],
+            ['damaged_packaging_data', 'TEXT'],
+            ['incoming_packaging_data', 'TEXT'],
+            ['nc_progress_data', 'TEXT'],
+            ['customer_breakdown', 'TEXT'],
+          ];
+          for (const [colName, colType] of requiredCols) {
+            if (!snapshotCols.has(colName)) {
+              try {
+                db.exec(`ALTER TABLE warehouse_snapshots ADD COLUMN ${colName} ${colType};`);
+              } catch (alterErr) {
+                console.warn(`Migration error adding ${colName}:`, alterErr);
+              }
+            }
+          }
+        } catch (migErr) {
+          console.warn('Migration check failed:', migErr);
+        }
+
         // Seed default roles if empty
         const roleCount = db.prepare('SELECT COUNT(*) as count FROM roles').get() as { count: number };
         if (roleCount.count === 0) {

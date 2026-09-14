@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Upload,
   Calendar as CalendarIcon,
@@ -18,10 +19,18 @@ import {
   Menu,
   LogOut,
   ShieldCheck,
-  User as UserIcon
+  User as UserIcon,
+  ShieldAlert,
+  AlertTriangle,
+  AlertCircle,
+  Lock,
+  Eye,
+  EyeOff,
+  X,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { UserSession } from '@/types/auth';
+import { UserSession, StoredAccount, PRESET_ACCOUNTS } from '@/types/auth';
 
 export interface SnapshotMeta {
   snapshot_key: string;
@@ -33,6 +42,7 @@ interface NavbarProps {
   lastUpdated: string;
   onOpenUpload: () => void;
   onResetData: () => void;
+  onResetSnapshot?: (key: string) => Promise<void> | void;
   onSaveData: () => void;
   onSelectSnapshot: (key: string) => void;
   appTitle?: string;
@@ -58,6 +68,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   lastUpdated,
   onOpenUpload,
   onResetData,
+  onResetSnapshot,
   onSaveData,
   onSelectSnapshot,
   appTitle = '',
@@ -76,6 +87,114 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [snapshots, setSnapshots] = useState<SnapshotMeta[]>([]);
   const [isOpenMenu, setIsOpenMenu] = useState<boolean>(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState<boolean>(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Password confirmation modal states for critical reset
+  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
+  const [resetTarget, setResetTarget] = useState<{
+    type: 'all' | 'date';
+    key?: string;
+    label?: string;
+  }>({ type: 'all' });
+  const [resetPassword, setResetPassword] = useState<string>('');
+  const [showResetPassword, setShowResetPassword] = useState<boolean>(false);
+  const [isVerifyingReset, setIsVerifyingReset] = useState<boolean>(false);
+  const [resetError, setResetError] = useState<string>('');
+
+  // Close reset modal on Escape key
+  useEffect(() => {
+    if (!isResetModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isVerifyingReset) {
+        setIsResetModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isResetModalOpen, isVerifyingReset]);
+
+  const executeResetAction = async () => {
+    setIsResetModalOpen(false);
+    setResetPassword('');
+    if (resetTarget.type === 'date' && resetTarget.key) {
+      if (onResetSnapshot) {
+        await onResetSnapshot(resetTarget.key);
+      } else {
+        await fetch(`/api/warehouse?key=${encodeURIComponent(resetTarget.key)}`, { method: 'DELETE' });
+      }
+      await fetchSnapshots();
+    } else {
+      onResetData();
+    }
+  };
+
+  const handleVerifyAndReset = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmedPassword = resetPassword.trim();
+    if (!trimmedPassword) {
+      setResetError('Password wajib diisi untuk mengonfirmasi reset.');
+      return;
+    }
+
+    setIsVerifyingReset(true);
+    setResetError('');
+    const targetUsername = currentUser?.username || 'admin';
+
+    try {
+      // 1. Verifikasi ke Backend API
+      const res = await fetch(
+        `/api/users?username=${encodeURIComponent(targetUsername)}&password=${encodeURIComponent(trimmedPassword)}`
+      );
+      const data = await res.json();
+
+      if (res.ok && data.success && data.user) {
+        await executeResetAction();
+        return;
+      }
+
+      // 2. Fallback offline check (localStorage / PRESET_ACCOUNTS)
+      const localUsersStr = typeof window !== 'undefined' ? localStorage.getItem('spindo_users_list') : null;
+      const customUsers: StoredAccount[] = localUsersStr ? JSON.parse(localUsersStr) : [];
+      const allAccounts = [...PRESET_ACCOUNTS, ...customUsers];
+
+      const match = allAccounts.find(
+        (acc) =>
+          acc.username.trim().toLowerCase() === targetUsername.trim().toLowerCase() &&
+          acc.password === trimmedPassword
+      );
+
+      // Fallback password default admin '123'
+      if (match || (currentUser?.role === 'admin' && trimmedPassword === '123')) {
+        await executeResetAction();
+        return;
+      }
+
+      setResetError(data?.error || 'Password salah. Pastikan password akun yang Anda masukkan benar.');
+    } catch {
+      // Offline fallback
+      const localUsersStr = typeof window !== 'undefined' ? localStorage.getItem('spindo_users_list') : null;
+      const customUsers: StoredAccount[] = localUsersStr ? JSON.parse(localUsersStr) : [];
+      const allAccounts = [...PRESET_ACCOUNTS, ...customUsers];
+
+      const match = allAccounts.find(
+        (acc) =>
+          acc.username.trim().toLowerCase() === targetUsername.trim().toLowerCase() &&
+          acc.password === trimmedPassword
+      );
+
+      if (match || (currentUser?.role === 'admin' && trimmedPassword === '123')) {
+        await executeResetAction();
+      } else {
+        setResetError('Password salah. Pastikan password akun yang Anda masukkan benar.');
+      }
+    } finally {
+      setIsVerifyingReset(false);
+    }
+  };
 
   // Mini Calendar View Month & Year
   const [currentViewDate, setCurrentViewDate] = useState<Date>(() => new Date());
@@ -236,7 +355,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="hidden sm:flex items-center gap-2.5">
             <div className="h-4 w-[1px] bg-slate-200" />
             <span className="text-xs font-mono font-bold tracking-wider text-slate-700 uppercase">
-              Unit 5 Karawang
+              SPINDO 5
             </span>
           </div>
         </div>
@@ -423,45 +542,104 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {/* Snapshot History List for Direct Selection */}
                     {snapshots.length > 0 && (
                       <div className="mt-2 pt-2 border-t border-slate-100 space-y-1">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
-                          Riwayat Arsip Tanggal
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
+                          <span>Riwayat Arsip Tanggal</span>
+                          <span className="text-[9px] text-slate-400 font-normal">{snapshots.length} arsip</span>
                         </div>
-                        <div className="max-h-28 overflow-y-auto space-y-0.5 pr-0.5">
+                        <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5">
                           {snapshots.map((s, idx) => {
                             const snapDate = s.snapshot_key.replace('snap_', '');
                             const isCurrentActive = (selectedSnapshotKey === 'latest' && idx === 0) || selectedSnapshotKey === s.snapshot_key;
+                            const dateLabel = formatSnapDateLabel(snapDate);
                             return (
-                              <button
+                              <div
                                 key={s.snapshot_key}
-                                type="button"
-                                onClick={() => {
-                                  onSelectSnapshot(s.snapshot_key);
-                                  setIsOpenMenu(false);
-                                }}
-                                className={`w-full text-left px-2 py-1 rounded flex items-center justify-between text-[10.5px] transition-colors cursor-pointer ${
+                                className={`group w-full px-2 py-1 rounded flex items-center justify-between text-[10.5px] transition-colors ${
                                   isCurrentActive
                                     ? 'bg-emerald-100/90 text-emerald-950 font-bold border border-emerald-300'
                                     : 'hover:bg-slate-100 text-slate-700'
                                 }`}
                               >
-                                <div className="flex items-center gap-1.5 truncate">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onSelectSnapshot(s.snapshot_key);
+                                    setIsOpenMenu(false);
+                                  }}
+                                  className="flex items-center gap-1.5 truncate flex-1 text-left cursor-pointer min-w-0"
+                                >
                                   <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${idx === 0 ? 'bg-emerald-600' : 'bg-slate-400'}`} />
-                                  <span className="truncate">{formatSnapDateLabel(snapDate)}</span>
+                                  <span className="truncate">{dateLabel}</span>
                                   {idx === 0 && (
                                     <span className="text-[9px] bg-emerald-200/80 text-emerald-800 px-1 py-0.2 rounded font-bold shrink-0">
                                       Terbaru
                                     </span>
                                   )}
+                                </button>
+                                <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                                  <span className="text-[9px] text-slate-400 font-mono">
+                                    {s.last_updated.split(',')[1]?.trim() || ''}
+                                  </span>
+                                  {currentUser?.role === 'admin' && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setResetTarget({
+                                          type: 'date',
+                                          key: s.snapshot_key,
+                                          label: dateLabel
+                                        });
+                                        setIsOpenMenu(false);
+                                        setResetPassword('');
+                                        setResetError('');
+                                        setShowResetPassword(false);
+                                        setIsResetModalOpen(true);
+                                      }}
+                                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-100/70 transition-colors cursor-pointer"
+                                      title={`Reset / Hapus arsip tanggal ${dateLabel}`}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
                                 </div>
-                                <span className="text-[9px] text-slate-400 font-mono shrink-0 ml-1">
-                                  {s.last_updated.split(',')[1]?.trim() || ''}
-                                </span>
-                              </button>
+                              </div>
                             );
                           })}
                         </div>
                       </div>
                     )}
+
+                {/* Option to delete currently viewed archive snapshot */}
+                {currentUser?.role === 'admin' && selectedSnapshotKey && selectedSnapshotKey !== 'latest' && (
+                  <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const dateLabel = formatSnapDateLabel(selectedSnapshotKey.replace('snap_', ''));
+                        setResetTarget({
+                          type: 'date',
+                          key: selectedSnapshotKey,
+                          label: dateLabel
+                        });
+                        setIsOpenMenu(false);
+                        setResetPassword('');
+                        setResetError('');
+                        setShowResetPassword(false);
+                        setIsResetModalOpen(true);
+                      }}
+                      className="w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between bg-rose-50/60 hover:bg-rose-100/70 text-rose-800 border border-rose-200/80 transition-colors cursor-pointer text-[10.5px] font-semibold"
+                    >
+                      <div className="flex items-center gap-1.5 truncate">
+                        <Trash2 className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                        <span className="truncate">Hapus Data Tanggal Ini</span>
+                      </div>
+                      <span className="text-[9.5px] font-mono text-rose-700 bg-rose-200/60 px-1 py-0.5 rounded shrink-0">
+                        {formatSnapDateLabel(selectedSnapshotKey.replace('snap_', ''))}
+                      </span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Reset Option if custom */}
                 {currentUser?.role === 'admin' && isCustomData && (
@@ -469,8 +647,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        onResetData();
+                        setResetTarget({ type: 'all' });
                         setIsOpenMenu(false);
+                        setResetPassword('');
+                        setResetError('');
+                        setShowResetPassword(false);
+                        setIsResetModalOpen(true);
                       }}
                       className="w-full text-left px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 hover:bg-amber-50 text-amber-900 transition-colors cursor-pointer text-[11px]"
                     >
@@ -501,6 +683,179 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal Password Konfirmasi Reset ke Data Awal (Mounted via Portal) */}
+      {mounted && isResetModalOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/65 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isVerifyingReset) {
+              setIsResetModalOpen(false);
+            }
+          }}
+        >
+          <div
+            className="relative w-full max-w-[430px] my-auto bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-slate-100 bg-gradient-to-b from-rose-50/60 to-white flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 border border-rose-200/80 text-rose-600 shadow-2xs shrink-0">
+                  <ShieldAlert className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-snug">
+                      {resetTarget.type === 'date' ? 'Hapus Arsip Tanggal' : 'Reset Data Awal'}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200">
+                      {resetTarget.type === 'date' ? 'Arsip Tanggal' : 'Kritis'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                    {resetTarget.type === 'date'
+                      ? `Konfirmasi otorisasi untuk menghapus arsip snapshot tanggal ${resetTarget.label || ''}`
+                      : 'Konfirmasi otorisasi untuk eksekusi reset'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isVerifyingReset}
+                onClick={() => setIsResetModalOpen(false)}
+                className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors -mr-1 -mt-1 cursor-pointer disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleVerifyAndReset} className="p-5 sm:p-6 space-y-4">
+              {/* Warning Callout */}
+              <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-200/80 flex items-start gap-3 text-xs leading-relaxed text-amber-900 shadow-2xs">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-950 block mb-0.5">
+                    {resetTarget.type === 'date' ? 'Peringatan Penghapusan Arsip:' : 'Peringatan Penghapusan:'}
+                  </span>
+                  {resetTarget.type === 'date' ? (
+                    <>
+                      Data arsip snapshot tanggal{' '}
+                      <strong className="text-rose-700 font-bold underline">{resetTarget.label}</strong> akan
+                      dihapus secara permanen dari database. Snapshot data tanggal lain tidak akan terpengaruh.
+                    </>
+                  ) : (
+                    'Seluruh data custom/snapshot yang diunggah akan dihapus dan dikembalikan ke data awal default pabrik. Tindakan ini tidak dapat dibatalkan.'
+                  )}
+                </div>
+              </div>
+
+              {/* Info Akun Otorisasi */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-8 w-8 rounded-lg bg-slate-800 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
+                    {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'A'}
+                  </div>
+                  <div className="min-w-0 truncate">
+                    <div className="text-xs font-bold text-slate-900 truncate">
+                      {currentUser?.name || 'Administrator'}
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
+                      <span>@{currentUser?.username || 'admin'}</span>
+                      <span>•</span>
+                      <span>{currentUser?.department || 'Warehouse'}</span>
+                    </div>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider shrink-0">
+                  {currentUser?.role || 'admin'}
+                </span>
+              </div>
+
+              {/* Input Password */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Password Akun
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="h-3.5 w-3.5" />
+                  </div>
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    value={resetPassword}
+                    onChange={(e) => {
+                      setResetPassword(e.target.value);
+                      if (resetError) setResetError('');
+                    }}
+                    placeholder="Masukkan password akun Anda..."
+                    autoFocus
+                    disabled={isVerifyingReset}
+                    className="w-full pl-9 pr-10 py-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800 transition-all font-medium disabled:bg-slate-50 disabled:text-slate-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={isVerifyingReset}
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                    tabIndex={-1}
+                  >
+                    {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Error Alert */}
+              {resetError && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-medium animate-in fade-in duration-150">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                  <span>{resetError}</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  disabled={isVerifyingReset}
+                  onClick={() => setIsResetModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-200/90 rounded-xl transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isVerifyingReset || !resetPassword.trim()}
+                  className="flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-xl transition-all shadow-xs hover:shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isVerifyingReset ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin text-white" />
+                      <span>Memverifikasi...</span>
+                    </>
+                  ) : (
+                    <>
+                      {resetTarget.type === 'date' ? (
+                        <>
+                          <Trash2 className="h-3.5 w-3.5 text-rose-200" />
+                          <span>Hapus Data Arsip Tanggal</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 text-rose-200" />
+                          <span>Konfirmasi & Reset Data Awal</span>
+                        </>
+                      )}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
     </header>
   );
 };

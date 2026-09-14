@@ -52,8 +52,15 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
   const [sortField, setSortField] = useState<keyof CoilStripArea>('persenTerisi');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  // Hanya tampilkan area gudang yang memiliki stok aktual (gudang kosong disembunyikan)
   const rows = useMemo(() => {
-    return data.filter((d) => d.totalTon > 0 || d.coilTon > 0 || d.stripTon > 0 || d.kapasitas > 0);
+    return data.filter(
+      (d) =>
+        (d.totalTon || 0) > 0 ||
+        (d.totalQty || 0) > 0 ||
+        (d.coilTon || 0) > 0 ||
+        (d.stripTon || 0) > 0
+    );
   }, [data]);
 
   const isEmpty = rows.length === 0;
@@ -566,55 +573,67 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                       </span>
                     }
                   >
-                    <div className="overflow-x-auto max-h-[500px] rounded-lg border border-slate-200/80">
+                    <div className="overflow-x-auto max-h-[500px] rounded-xl border border-slate-200/80 shadow-xs bg-white">
                       <table className="w-full text-left text-xs border-collapse">
-                        <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-slate-700 text-[10px] uppercase tracking-wider shadow-2xs">
+                        <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider select-none">
                           <tr>
                             <th
                               onClick={() => handleSort('gudang')}
-                              className="py-3 px-3.5 font-bold cursor-pointer hover:bg-slate-100 transition-colors"
+                              className="py-3 px-3.5 font-bold cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
                               rowSpan={2}
                             >
                               <div className="flex items-center gap-1.5">
                                 <span>Gudang</span>
-                                {sortField === 'gudang' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3 text-slate-900" /> : <ArrowDown className="h-3 w-3 text-slate-900" />)}
+                                {sortField === 'gudang' ? (
+                                  sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                                ) : (
+                                  <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                                )}
                               </div>
                             </th>
                             <th className="py-3 px-3 font-bold" rowSpan={2}>Area Alokasi</th>
-                            <th className="py-1.5 text-center font-bold border-l border-r border-slate-200 bg-emerald-50/80 text-emerald-950" colSpan={2}>Coil</th>
-                            <th className="py-1.5 text-center font-bold bg-amber-50/80 text-amber-950 border-r border-slate-200" colSpan={2}>Strip</th>
-                            <th className="py-1.5 text-center font-bold bg-slate-100 text-slate-900 border-r border-slate-200" colSpan={2}>Total Bahan Baku</th>
+                            <th className="py-2 text-center font-bold border-l border-r border-slate-200/80 bg-emerald-50/80 text-emerald-950" colSpan={2}>Coil</th>
+                            <th className="py-2 text-center font-bold bg-amber-50/80 text-amber-950 border-r border-slate-200/80" colSpan={2}>Strip</th>
+                            <th className="py-2 text-center font-bold bg-slate-100/70 text-slate-900 border-r border-slate-200/80" colSpan={2}>Total Bahan Baku</th>
                             <th
                               onClick={() => handleSort('kapasitas')}
-                              className="py-3 px-3 text-right font-bold border-r border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors"
+                              className="py-3 px-3 text-right font-bold border-r border-slate-200/80 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
                               rowSpan={2}
                             >
                               <div className="flex items-center justify-end gap-1.5">
                                 <span>Kapasitas</span>
-                                {sortField === 'kapasitas' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3 text-slate-900" /> : <ArrowDown className="h-3 w-3 text-slate-900" />)}
+                                {sortField === 'kapasitas' ? (
+                                  sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                                ) : (
+                                  <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                                )}
                               </div>
                             </th>
                             <th
                               onClick={() => handleSort('persenTerisi')}
-                              className="py-3 px-3.5 text-right font-bold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors"
+                              className="py-3 px-3.5 text-right font-bold text-slate-900 cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors group/th"
                               rowSpan={2}
                             >
                               <div className="flex items-center justify-end gap-1.5">
                                 <span>% Terisi</span>
-                                {sortField === 'persenTerisi' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3 text-slate-900" /> : <ArrowDown className="h-3 w-3 text-slate-900" />)}
+                                {sortField === 'persenTerisi' ? (
+                                  sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-emerald-600" /> : <ArrowDown className="h-3.5 w-3.5 text-emerald-600" />
+                                ) : (
+                                  <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 transition-colors" />
+                                )}
                               </div>
                             </th>
                           </tr>
-                          <tr className="border-b border-slate-200 bg-slate-50/90 text-slate-600 text-[10px]">
-                            <th className="py-1.5 px-3 text-right font-semibold border-l border-slate-200">Roll</th>
-                            <th className="py-1.5 px-3 text-right font-semibold border-r border-slate-200">Tonase</th>
-                            <th className="py-1.5 px-3 text-right font-semibold">Roll</th>
-                            <th className="py-1.5 px-3 text-right font-semibold border-r border-slate-200">Tonase</th>
-                            <th className="py-1.5 px-3 text-right font-semibold text-slate-900">Total Roll</th>
-                            <th className="py-1.5 px-3 text-right font-semibold text-slate-900 border-r border-slate-200">Total Ton</th>
+                          <tr className="border-b border-slate-200/80 bg-slate-50/60 text-slate-500 text-[10px] uppercase font-semibold">
+                            <th className="py-2 px-3 text-right font-semibold border-l border-slate-200/80">Roll</th>
+                            <th className="py-2 px-3 text-right font-semibold border-r border-slate-200/80">Tonase</th>
+                            <th className="py-2 px-3 text-right font-semibold">Roll</th>
+                            <th className="py-2 px-3 text-right font-semibold border-r border-slate-200/80">Tonase</th>
+                            <th className="py-2 px-3 text-right font-semibold text-slate-900">Total Roll</th>
+                            <th className="py-2 px-3 text-right font-semibold text-slate-900 border-r border-slate-200/80">Total Ton</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-800 bg-white">
+                        <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
                           {sortedTableRows.map((r) => {
                             const isHigh = r.persenTerisi > 90;
                             const isWarn = r.persenTerisi > 80 && r.persenTerisi <= 90;
@@ -622,79 +641,82 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                             return (
                               <tr
                                 key={r.gudang}
-                                className={`hover:bg-slate-50/80 transition-colors ${
-                                  isHigh ? 'bg-rose-50/30' : ''
+                                className={`hover:bg-emerald-50/30 transition-all duration-150 group ${
+                                  isHigh ? 'bg-rose-50/20' : ''
                                 }`}
                               >
-                                <td className="py-2.5 px-3.5 font-bold text-slate-900 whitespace-nowrap">
-                                  {r.gudang}
+                                <td className="py-3 px-3.5 whitespace-nowrap">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold font-mono shadow-2xs">
+                                    {r.gudang}
+                                  </span>
                                 </td>
-                                <td className="py-2.5 px-3 font-medium text-slate-600 whitespace-nowrap">
+                                <td className="py-3 px-3 font-medium text-slate-600 whitespace-nowrap text-xs">
                                   {r.area}
                                 </td>
-                                <td className="py-2.5 px-3 text-right text-slate-700 font-tabular border-l border-slate-100">
+                                <td className="py-3 px-3 text-right text-slate-700 font-mono border-l border-slate-100/90">
                                   {formatQty(r.coilQty)}
                                 </td>
-                                <td className="py-2.5 px-3 text-right font-semibold text-emerald-800 font-tabular border-r border-slate-100">
+                                <td className="py-3 px-3 text-right font-semibold text-emerald-800 font-mono border-r border-slate-100/90">
                                   {formatTon(r.coilTon)}
                                 </td>
-                                <td className="py-2.5 px-3 text-right text-slate-700 font-tabular">
+                                <td className="py-3 px-3 text-right text-slate-700 font-mono">
                                   {formatQty(r.stripQty)}
                                 </td>
-                                <td className="py-2.5 px-3 text-right font-semibold text-amber-900 font-tabular border-r border-slate-100">
+                                <td className="py-3 px-3 text-right font-semibold text-amber-900 font-mono border-r border-slate-100/90">
                                   {formatTon(r.stripTon)}
                                 </td>
-                                <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-tabular">
+                                <td className="py-3 px-3 text-right font-bold text-slate-900 font-mono">
                                   {formatQty(r.totalQty)}
                                 </td>
-                                <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-tabular border-r border-slate-100">
+                                <td className="py-3 px-3 text-right font-bold text-slate-900 font-mono border-r border-slate-100/90">
                                   {formatTon(r.totalTon)}
                                 </td>
-                                <td className="py-2.5 px-3 text-right text-slate-600 font-tabular border-r border-slate-100">
+                                <td className="py-3 px-3 text-right text-slate-600 font-mono border-r border-slate-100/90">
                                   {formatTon(r.kapasitas)}
                                 </td>
-                                <td className="py-2.5 px-3.5 text-right font-bold font-tabular">
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                <td className="py-3 px-3.5 text-right font-bold font-mono">
+                                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold font-mono tracking-tight shadow-2xs ${
                                     isHigh
-                                      ? 'bg-rose-100 text-rose-800'
+                                      ? 'bg-rose-50 border border-rose-200 text-rose-700'
                                       : isWarn
-                                      ? 'bg-amber-100 text-amber-800'
-                                      : 'bg-emerald-100 text-emerald-800'
+                                      ? 'bg-amber-50 border border-amber-200 text-amber-800'
+                                      : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
                                   }`}>
-                                    {formatPercent(r.persenTerisi)}
+                                    <span className={`h-1.5 w-1.5 rounded-full ${isHigh ? 'bg-rose-500' : isWarn ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                    <span>{formatPercent(r.persenTerisi)}</span>
                                   </span>
                                 </td>
                               </tr>
                             );
                           })}
                         </tbody>
-                        <tfoot className="sticky bottom-0 border-t-2 border-slate-200 bg-slate-100/95 font-bold text-slate-900 backdrop-blur-xs shadow-xs">
+                        <tfoot className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-slate-50/95 font-bold text-xs text-slate-900 backdrop-blur-xs shadow-xs">
                           <tr>
-                            <td className="py-3 px-3.5 uppercase text-slate-900 tracking-wide" colSpan={2}>
+                            <td className="py-3 px-3.5 uppercase font-mono text-slate-900 tracking-wide" colSpan={2}>
                               TOTAL ({sortedTableRows.length} GUDANG)
                             </td>
-                            <td className="py-3 px-3 text-right text-emerald-900 font-tabular border-l border-slate-200">
+                            <td className="py-3 px-3 text-right text-emerald-900 font-mono border-l border-slate-200/80">
                               {formatQty(totalCoilQty)}
                             </td>
-                            <td className="py-3 px-3 text-right text-emerald-900 font-tabular border-r border-slate-200">
+                            <td className="py-3 px-3 text-right text-emerald-900 font-mono border-r border-slate-200/80">
                               {formatTon(totalCoilTon)}
                             </td>
-                            <td className="py-3 px-3 text-right text-amber-950 font-tabular">
+                            <td className="py-3 px-3 text-right text-amber-950 font-mono">
                               {formatQty(totalStripQty)}
                             </td>
-                            <td className="py-3 px-3 text-right text-amber-950 font-tabular border-r border-slate-200">
+                            <td className="py-3 px-3 text-right text-amber-950 font-mono border-r border-slate-200/80">
                               {formatTon(totalStripTon)}
                             </td>
-                            <td className="py-3 px-3 text-right text-slate-950 font-tabular">
+                            <td className="py-3 px-3 text-right text-slate-950 font-mono">
                               {formatQty(grandTotalQty)}
                             </td>
-                            <td className="py-3 px-3 text-right text-slate-950 font-tabular border-r border-slate-200">
+                            <td className="py-3 px-3 text-right text-slate-950 font-mono border-r border-slate-200/80">
                               {formatTon(grandTotalTon)}
                             </td>
-                            <td className="py-3 px-3 text-right font-tabular border-r border-slate-200">
+                            <td className="py-3 px-3 text-right font-mono border-r border-slate-200/80">
                               {formatTon(grandKapasitas)}
                             </td>
-                            <td className="py-3 px-3.5 text-right text-slate-950 font-tabular">
+                            <td className="py-3 px-3.5 text-right font-mono text-slate-950">
                               {formatPercent(grandPersen)}
                             </td>
                           </tr>

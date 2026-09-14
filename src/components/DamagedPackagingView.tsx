@@ -430,24 +430,24 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
     label: string,
     field: keyof DamagedPackagingItem,
     align: 'left' | 'center' | 'right' = 'left',
-    colorClass: string = 'text-slate-700'
+    colorClass: string = 'text-slate-500'
   ) => {
     const isActive = sortField === field;
     return (
       <th
         onClick={() => handleSort(field)}
-        className={`py-2 px-2.5 font-bold uppercase tracking-wider select-none cursor-pointer hover:bg-slate-200/80 transition-colors text-${align} ${colorClass}`}
+        className={`py-3 px-3.5 font-semibold text-[11px] uppercase tracking-wider select-none cursor-pointer hover:text-emerald-950 hover:bg-slate-100/60 transition-colors text-${align} ${colorClass} group/th`}
       >
-        <div className={`inline-flex items-center gap-1 ${align === 'right' ? 'justify-end w-full' : align === 'center' ? 'justify-center w-full' : ''}`}>
+        <div className={`inline-flex items-center gap-1.5 ${align === 'right' ? 'justify-end w-full' : align === 'center' ? 'justify-center w-full' : ''}`}>
           <span>{label}</span>
           {isActive ? (
             sortDir === 'asc' ? (
-              <ArrowUp className="h-3 w-3 text-emerald-800 shrink-0" />
+              <ArrowUp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             ) : (
-              <ArrowDown className="h-3 w-3 text-emerald-800 shrink-0" />
+              <ArrowDown className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             )
           ) : (
-            <ArrowUpDown className="h-2.5 w-2.5 text-slate-400 shrink-0 opacity-0 group-hover:opacity-100" />
+            <ArrowUpDown className="h-3 w-3 text-slate-300 group-hover/th:text-slate-500 shrink-0 transition-colors" />
           )}
         </div>
       </th>
@@ -677,11 +677,11 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
                   </span>
                 }
               >
-                <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
-                  <table className="w-full text-left text-xs font-mono">
-                    <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-100 text-[10px] shadow-2xs">
-                      <tr className="group">
-                        <th className="py-2 px-2 text-center font-bold text-slate-500 w-8">#</th>
+                <div className="overflow-x-auto max-h-[560px] overflow-y-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-[11px] uppercase tracking-wider text-slate-500 font-semibold select-none">
+                      <tr>
+                        <th className="py-3 px-3.5 text-center font-bold text-slate-400 w-10">#</th>
                         {renderSortHeader('Package No.', 'packageNo', 'left')}
                         {renderSortHeader('Serial No.', 'serialNo', 'left')}
                         {renderSortHeader('Plant', 'plant', 'left')}
@@ -690,57 +690,61 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
                         {renderSortHeader('Tgl Scan In', 'tglScanIn', 'left')}
                         {renderSortHeader('Jam Scan In', 'jamScanIn', 'left')}
                         {renderSortHeader('Kondisi', 'kondisi', 'center')}
-                        <th className="py-2 px-2 font-bold uppercase tracking-wider text-slate-700 text-left">Slot</th>
-                        <th className="py-2 px-2 font-bold uppercase tracking-wider text-slate-700 text-left">Kaki</th>
-                        <th className="py-2 px-2 font-bold uppercase tracking-wider text-slate-700 text-left">Rangka</th>
-                        <th className="py-2 px-2 font-bold uppercase tracking-wider text-slate-700 text-left">Pengait</th>
-                        <th className="py-2 px-2 font-bold uppercase tracking-wider text-slate-700 text-left">Dinding</th>
-                        <th className="py-2 px-2 font-bold uppercase tracking-wider text-slate-700 text-left">Label Item</th>
-                        <th className="py-2 px-2 font-bold uppercase tracking-wider text-slate-700 text-left">Limbah</th>
+                        <th className="py-3 px-3 font-semibold uppercase tracking-wider text-slate-500 text-left">Slot</th>
+                        <th className="py-3 px-3 font-semibold uppercase tracking-wider text-slate-500 text-left">Kaki</th>
+                        <th className="py-3 px-3 font-semibold uppercase tracking-wider text-slate-500 text-left">Rangka</th>
+                        <th className="py-3 px-3 font-semibold uppercase tracking-wider text-slate-500 text-left">Pengait</th>
+                        <th className="py-3 px-3 font-semibold uppercase tracking-wider text-slate-500 text-left">Dinding</th>
+                        <th className="py-3 px-3 font-semibold uppercase tracking-wider text-slate-500 text-left">Label Item</th>
+                        <th className="py-3 px-3 font-semibold uppercase tracking-wider text-slate-500 text-left">Limbah</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px]">
+                    <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white text-xs">
                       {sortedData.length === 0 ? (
                         <tr>
-                          <td colSpan={16} className="py-8 text-center text-slate-500 font-sans">
+                          <td colSpan={16} className="py-8 text-center text-slate-400 font-sans">
                             Tidak ada data packaging rusak yang sesuai filter.
                           </td>
                         </tr>
                       ) : (
                         sortedData.map((row, idx) => (
-                          <tr key={row.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-2 px-2 text-center text-slate-400 font-bold">{idx + 1}</td>
-                            <td className="py-2 px-2 font-bold text-slate-900 whitespace-nowrap">{row.packageNo}</td>
-                            <td className="py-2 px-2 font-semibold text-slate-700 whitespace-nowrap">{row.serialNo}</td>
-                            <td className="py-2 px-2 text-slate-600 whitespace-nowrap">{row.plant}</td>
-                            <td className="py-2 px-2 font-medium text-slate-900 max-w-[180px] truncate" title={row.customer}>
+                          <tr key={row.id || idx} className="hover:bg-emerald-50/30 transition-all duration-150 group">
+                            <td className="py-3 px-3.5 text-center text-slate-400 font-bold font-mono">{idx + 1}</td>
+                            <td className="py-3 px-3.5 font-bold text-slate-900 whitespace-nowrap">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold font-mono shadow-2xs">
+                                {row.packageNo}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3.5 font-semibold text-slate-700 whitespace-nowrap font-mono">{row.serialNo}</td>
+                            <td className="py-3 px-3.5 text-slate-600 whitespace-nowrap font-mono">{row.plant}</td>
+                            <td className="py-3 px-3.5 font-medium text-slate-900 max-w-[180px] truncate" title={row.customer}>
                               {row.customer}
                             </td>
-                            <td className="py-2 px-2 text-slate-600 whitespace-nowrap">{row.userScan}</td>
-                            <td className="py-2 px-2 text-slate-800 whitespace-nowrap font-medium">{formatExcelDate(row.tglScanIn)}</td>
-                            <td className="py-2 px-2 text-slate-500 whitespace-nowrap">{formatExcelTime(row.jamScanIn)}</td>
-                            <td className="py-2 px-2 text-center whitespace-nowrap">
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                            <td className="py-3 px-3.5 text-slate-600 whitespace-nowrap">{row.userScan}</td>
+                            <td className="py-3 px-3.5 text-slate-800 whitespace-nowrap font-medium font-mono">{formatExcelDate(row.tglScanIn)}</td>
+                            <td className="py-3 px-3.5 text-slate-500 whitespace-nowrap font-mono">{formatExcelTime(row.jamScanIn)}</td>
+                            <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs font-mono">
                                 {row.kondisi}
                               </span>
                             </td>
-                            <td className="py-2 px-2 text-amber-900 whitespace-nowrap font-medium">{row.slot || '-'}</td>
-                            <td className="py-2 px-2 text-slate-600 whitespace-nowrap">{row.kaki || '-'}</td>
-                            <td className="py-2 px-2 text-amber-900 whitespace-nowrap font-medium">{row.rangka || '-'}</td>
-                            <td className="py-2 px-2 text-slate-600 whitespace-nowrap">{row.pengait || '-'}</td>
-                            <td className="py-2 px-2 text-rose-900 whitespace-nowrap font-medium">{row.dinding || '-'}</td>
-                            <td className="py-2 px-2 text-slate-600 whitespace-nowrap">{row.labelItem || '-'}</td>
-                            <td className="py-2 px-2 text-slate-600 whitespace-nowrap">{row.limbah || '-'}</td>
+                            <td className="py-3 px-3 text-amber-900 whitespace-nowrap font-medium font-mono">{row.slot || '-'}</td>
+                            <td className="py-3 px-3 text-slate-600 whitespace-nowrap font-mono">{row.kaki || '-'}</td>
+                            <td className="py-3 px-3 text-amber-900 whitespace-nowrap font-medium font-mono">{row.rangka || '-'}</td>
+                            <td className="py-3 px-3 text-slate-600 whitespace-nowrap font-mono">{row.pengait || '-'}</td>
+                            <td className="py-3 px-3 text-rose-900 whitespace-nowrap font-medium font-mono">{row.dinding || '-'}</td>
+                            <td className="py-3 px-3 text-slate-600 whitespace-nowrap font-mono">{row.labelItem || '-'}</td>
+                            <td className="py-3 px-3 text-slate-600 whitespace-nowrap font-mono">{row.limbah || '-'}</td>
                           </tr>
                         ))
                       )}
                     </tbody>
-                    <tfoot className="sticky bottom-0 border-t-2 border-slate-300 bg-slate-100/95 backdrop-blur-xs font-bold text-[11px] text-slate-900">
+                    <tfoot className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-slate-50/95 backdrop-blur-xs font-bold text-xs text-slate-900 shadow-xs">
                       <tr>
-                        <td colSpan={4} className="py-2 px-2 text-left uppercase tracking-wider text-slate-600 text-[10px]">
+                        <td colSpan={4} className="py-3 px-3.5 text-left uppercase tracking-wider text-slate-600 text-[10px] font-mono">
                           Total: {sortedData.length} Item
                         </td>
-                        <td colSpan={12} className="py-2 px-2 text-right text-slate-600 text-[10px]">
+                        <td colSpan={12} className="py-3 px-3.5 text-right text-slate-600 text-[10px] font-mono">
                           Slot: {sortedData.filter(s => s.slot).length} | Dinding: {sortedData.filter(s => s.dinding).length} | Rangka: {sortedData.filter(s => s.rangka).length}
                         </td>
                       </tr>

@@ -671,125 +671,125 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
           </div>
 
           {/* MAIN USERS TABLE */}
-          <div className="rounded-lg border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
-            <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
-              <table className="w-full text-left text-xs font-mono border-separate border-spacing-0">
-                <thead className="sticky top-0 z-10 shadow-2xs">
-                  <tr className="bg-slate-100 text-slate-700 text-[10px] font-bold border-b border-slate-200">
-                    <th className="py-2.5 px-3 text-center border-r border-slate-200/80 bg-slate-100 w-10">#</th>
-                    <th className="py-2.5 px-3 border-r border-slate-200/80 bg-slate-100">Username</th>
-                    <th className="py-2.5 px-3 border-r border-slate-200/80 bg-slate-100">Nama Lengkap</th>
-                    <th className="py-2.5 px-3 border-r border-slate-200/80 bg-slate-100 text-center">Hak Akses (Role)</th>
-                    <th className="py-2.5 px-3 border-r border-slate-200/80 bg-slate-100">Departemen</th>
-                    <th className="py-2.5 px-3 border-r border-slate-200/80 bg-slate-100">Unit Kerja</th>
-                    <th className="py-2.5 px-3 text-center bg-slate-100 text-slate-700 w-28">Aksi</th>
+          <div className="overflow-x-auto max-h-[640px] overflow-y-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-[11px] uppercase tracking-wider text-slate-500 font-semibold select-none">
+                <tr>
+                  <th className="py-3 px-3.5 text-center w-10">#</th>
+                  <th className="py-3 px-3.5">Username</th>
+                  <th className="py-3 px-3.5">Nama Lengkap</th>
+                  <th className="py-3 px-3.5 text-center">Hak Akses (Role)</th>
+                  <th className="py-3 px-3.5">Departemen</th>
+                  <th className="py-3 px-3.5">Unit Kerja</th>
+                  <th className="py-3 px-3.5 text-center w-28">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white text-xs">
+                {isLoadingUsers ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-slate-400 font-sans">
+                      Memuat daftar pengguna...
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px] bg-white">
-                  {isLoadingUsers ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 font-sans">
-                        Memuat daftar pengguna...
-                      </td>
-                    </tr>
-                  ) : filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-500 font-sans">
-                        <div className="space-y-2">
-                          <p>Tidak ada data pengguna yang sesuai filter pencarian.</p>
-                          <button
-                            type="button"
-                            onClick={handleOpenCreateUser}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-800 text-white font-bold text-xs shadow-2xs hover:bg-emerald-900 cursor-pointer"
-                          >
-                            <UserPlus className="h-3.5 w-3.5 text-emerald-200" />
-                            <span>Tambah User Baru</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map((user, idx) => {
-                      const isMasterAdmin = user.username === 'admin';
-                      const isCurrentSessionUser = user.username === currentUser.username;
-                      const badgeClass = getRoleBadgeClasses(user.role);
-                      const roleName = getRoleDisplayName(user.role);
+                ) : filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-slate-500 font-sans">
+                      <div className="space-y-2">
+                        <p>Tidak ada data pengguna yang sesuai filter pencarian.</p>
+                        <button
+                          type="button"
+                          onClick={handleOpenCreateUser}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-800 text-white font-bold text-xs shadow-2xs hover:bg-emerald-900 cursor-pointer"
+                        >
+                          <UserPlus className="h-3.5 w-3.5 text-emerald-200" />
+                          <span>Tambah User Baru</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((user, idx) => {
+                    const isMasterAdmin = user.username === 'admin';
+                    const isCurrentSessionUser = user.username === currentUser.username;
+                    const badgeClass = getRoleBadgeClasses(user.role);
+                    const roleName = getRoleDisplayName(user.role);
 
-                      return (
-                        <tr key={user.id || user.username} className="hover:bg-slate-50/90 transition-colors group">
-                          <td className="py-2.5 px-3 text-center text-slate-400 font-bold border-r border-slate-100">
-                            {idx + 1}
-                          </td>
-                          <td className="py-2.5 px-3 font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono">{user.username}</span>
-                              {isCurrentSessionUser && (
-                                <span className="text-[9px] bg-emerald-100 text-emerald-900 font-bold px-1.5 py-0.2 rounded border border-emerald-200">
-                                  Anda
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3 font-semibold text-slate-800 border-r border-slate-100">
-                            {user.name}
-                          </td>
-                          <td className="py-2.5 px-3 text-center border-r border-slate-100 whitespace-nowrap">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold border shadow-2xs ${badgeClass}`}>
-                              {user.role === 'admin' ? (
-                                <ShieldCheck className="h-3 w-3" />
-                              ) : (
-                                <UserCheck className="h-3 w-3" />
-                              )}
-                              <span>{roleName}</span>
+                    return (
+                      <tr key={user.id || user.username} className="hover:bg-emerald-50/30 transition-all duration-150 group">
+                        <td className="py-3 px-3.5 text-center text-slate-400 font-bold font-mono">
+                          {idx + 1}
+                        </td>
+                        <td className="py-3 px-3.5 font-bold text-slate-900 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold font-mono shadow-2xs">
+                              {user.username}
                             </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100">
-                            {user.department || '-'}
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-600 border-r border-slate-100 whitespace-nowrap">
-                            {user.unit || 'Unit 5 - Spindo'}
-                          </td>
-                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditUser(user)}
-                                className="p-1 rounded hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer"
-                                title="Edit User & Role"
-                              >
-                                <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={isMasterAdmin || isCurrentSessionUser}
-                                onClick={() => {
-                                  setDeleteError('');
-                                  setDeleteUserTarget(user);
-                                }}
-                                className={`p-1 rounded transition-colors ${
-                                  isMasterAdmin || isCurrentSessionUser
-                                    ? 'text-slate-300 cursor-not-allowed'
-                                    : 'text-slate-400 hover:bg-rose-50 hover:text-rose-700 cursor-pointer'
-                                }`}
-                                title={
-                                  isMasterAdmin
-                                    ? 'User master tidak dapat dihapus'
-                                    : isCurrentSessionUser
-                                    ? 'Tidak dapat menghapus akun sendiri yang sedang aktif'
-                                    : 'Hapus User'
-                                }
-                              >
-                                <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                            {isCurrentSessionUser && (
+                              <span className="text-[10px] bg-emerald-100 text-emerald-900 font-bold px-1.5 py-0.5 rounded border border-emerald-200 font-mono shadow-2xs">
+                                Anda
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3.5 font-semibold text-slate-800">
+                          {user.name}
+                        </td>
+                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold border shadow-2xs font-mono ${badgeClass}`}>
+                            {user.role === 'admin' ? (
+                              <ShieldCheck className="h-3 w-3" />
+                            ) : (
+                              <UserCheck className="h-3 w-3" />
+                            )}
+                            <span>{roleName}</span>
+                          </span>
+                        </td>
+                        <td className="py-3 px-3.5 text-slate-600">
+                          {user.department || '-'}
+                        </td>
+                        <td className="py-3 px-3.5 text-slate-600 whitespace-nowrap font-mono">
+                          {user.unit || 'Unit 5 - Spindo'}
+                        </td>
+                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditUser(user)}
+                              className="p-1.5 rounded-md hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer shadow-2xs"
+                              title="Edit User & Role"
+                            >
+                              <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isMasterAdmin || isCurrentSessionUser}
+                              onClick={() => {
+                                setDeleteError('');
+                                setDeleteUserTarget(user);
+                              }}
+                              className={`p-1.5 rounded-md transition-colors shadow-2xs ${
+                                isMasterAdmin || isCurrentSessionUser
+                                  ? 'text-slate-300 cursor-not-allowed'
+                                  : 'text-slate-400 hover:bg-rose-50 hover:text-rose-700 cursor-pointer'
+                              }`}
+                              title={
+                                isMasterAdmin
+                                  ? 'User master tidak dapat dihapus'
+                                  : isCurrentSessionUser
+                                  ? 'Tidak dapat menghapus akun sendiri yang sedang aktif'
+                                  : 'Hapus User'
+                              }
+                            >
+                              <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -1351,10 +1351,12 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                     { key: 'viewFastSlow', label: 'Fast vs Slow Moving', desc: 'Analisis PASM & Pergerakan Pipa' },
                     { key: 'viewCoilStrip', label: 'Coil & Strip', desc: 'Monitoring Bahan Baku Induk' },
                     { key: 'viewNC', label: 'Stock NC Quality', desc: 'Data Pipa Grade E & Mutu C' },
+                    { key: 'viewProgressNC', label: 'Progres NC & Repair', desc: 'Tracking Mutasi Alur NC & Status Repair' },
                     { key: 'viewUnfifo', label: 'UNFIFO Audit', desc: 'Audit Alur Pengeluaran Barang' },
                     { key: 'viewLoo', label: 'Stock Pipa vs LOO', desc: 'Pemenuhan Target Order Terbuka' },
                     { key: 'viewDamagedPkg', label: 'Data Packaging Rusak', desc: 'Temuan Kerusakan & Status Repack' },
                     { key: 'viewIncomingPkg', label: 'Audit Harian Packaging (RTP)', desc: 'Pencatatan Audit Harian & Mutasi Stock RTP' },
+                    { key: 'viewCapacitySettings', label: 'Master Kapasitas Gudang', desc: 'Konfigurasi Limit Kapasitas Pipa & Coil' },
                     { key: 'viewUserManagement', label: 'Menu Kelola Pengguna & Roles', desc: 'Akses Tab Manajemen User/Roles' }
                   ].map((item) => {
                     const isChecked = Boolean(roleFormData.permissions[item.key as keyof RolePermissions]);
@@ -1400,7 +1402,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                     { key: 'canUploadCoil', label: 'Upload Raw Stock Coil & Strip', desc: 'File master stock bahan baku SAP' },
                     { key: 'canUploadLoo', label: 'Upload Raw Order LOO', desc: 'File open order delivery LOO SAP' },
                     { key: 'canUploadDamagedPkg', label: 'Upload Raw Packaging Rusak', desc: 'File spreadsheet temuan packaging rusak (NG)' },
-                    { key: 'canUploadIncomingPkg', label: 'Upload Raw Incoming RTP', desc: 'File audit harian mutasi incoming packaging' }
+                    { key: 'canUploadIncomingPkg', label: 'Upload Raw Incoming RTP', desc: 'File audit harian mutasi incoming packaging' },
+                    { key: 'canUploadProgressNC', label: 'Upload Raw Progres NC & Repair', desc: 'File export transaksi SAP MB51 / ZMM Progres NC' }
                   ].map((item) => {
                     const isChecked = Boolean(roleFormData.permissions[item.key as keyof RolePermissions]);
                     return (
@@ -1443,6 +1446,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                   {[
                     { key: 'canEditIncomingPkg', label: 'Tambah & Edit Data RTP', desc: 'Input / ubah data mutasi packaging' },
                     { key: 'canEditDamagedPkg', label: 'Ubah Status Repack Packaging', desc: 'Update status perbaikan fisik' },
+                    { key: 'canEditProgressNC', label: 'Tambah & Edit Transaksi NC', desc: 'Input & modifikasi data alur repair NC' },
+                    { key: 'canManageCapacity', label: 'Atur & Simpan Kapasitas Gudang', desc: 'Mengubah limit kapasitas pipa & coil per gudang' },
                     { key: 'canExportExcel', label: 'Export Data Spreadsheet Excel', desc: 'Download laporan ke Excel (.xlsx)' },
                     { key: 'canCustomizeLayout', label: 'Kustomisasi Layout Dashboard', desc: 'Mengatur urutan kartu & widget' },
                     { key: 'canManageUsers', label: 'Kelola Akun User & Roles', desc: 'Menambah & mengubah akses user' },
