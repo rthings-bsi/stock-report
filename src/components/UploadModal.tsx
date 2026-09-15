@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Upload, FileSpreadsheet, X, CheckCircle2, AlertCircle, Loader2, Calendar, Clock, Download } from 'lucide-react';
-import { readExcelFile, parseExcelFiles, ParsedWarehouseState } from '../lib/parser';
+import { Upload, FileSpreadsheet, X, CheckCircle2, AlertCircle, Loader2, Calendar, Clock } from 'lucide-react';
+import { readExcelFile, readExcelFileRawMatrix, parseExcelFiles, ParsedWarehouseState } from '../lib/parser';
 import { parseDamagedPackagingFile } from '../lib/parseDamagedPackaging';
 import { parseIncomingPackagingFile } from '../lib/parseIncomingPackaging';
 import { parseNCProgressRows } from '../lib/parseNCProgress';
-import { downloadAllTemplates, downloadZppshstockTemplate } from '../lib/generateExcelTemplates';
+import { parseStockOpnameFile } from '../lib/parseStockOpname';
 import { RolePermissions } from '../types/auth';
 import { WarehouseCapacityConfig } from '../types/warehouse';
 
@@ -22,7 +22,6 @@ interface UploadModalProps {
 interface UploadItemRowProps {
   canUpload: boolean;
   title: string;
-  subtitle: string;
   file: File | null;
   onFileChange: (file: File | null) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -32,7 +31,6 @@ interface UploadItemRowProps {
 const UploadItemRow: React.FC<UploadItemRowProps> = ({
   canUpload,
   title,
-  subtitle,
   file,
   onFileChange,
   inputRef,
@@ -64,12 +62,9 @@ const UploadItemRow: React.FC<UploadItemRowProps> = ({
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <span className="text-xs font-semibold text-slate-800 block truncate leading-tight">
+            <span className="text-xs font-semibold text-slate-800 block truncate">
               {title}
             </span>
-            <p className="text-[10.5px] text-slate-400 font-normal truncate leading-tight mt-0.5">
-              {subtitle}
-            </p>
           </div>
         </div>
 
@@ -147,6 +142,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [packagingFile, setPackagingFile] = useState<File | null>(null);
   const [incomingFile, setIncomingFile] = useState<File | null>(null);
   const [ncProgressFile, setNcProgressFile] = useState<File | null>(null);
+  const [stoFile, setStoFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -156,7 +152,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const canUploadDamagedPkg = isAdmin || Boolean(userPermissions?.canUploadDamagedPkg ?? userPermissions?.canUploadSAP ?? true);
   const canUploadIncomingPkg = isAdmin || Boolean(userPermissions?.canUploadIncomingPkg ?? userPermissions?.canUploadSAP ?? true);
   const canUploadProgressNC = isAdmin || Boolean(userPermissions?.canUploadProgressNC ?? userPermissions?.canUploadSAP ?? true);
-  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg || canUploadProgressNC;
+  const canUploadSTO = isAdmin || Boolean(userPermissions?.canUploadSTO ?? userPermissions?.canUploadSAP ?? true);
+  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg || canUploadProgressNC || canUploadSTO;
 
   const pipeInputRef = useRef<HTMLInputElement>(null);
   const coilInputRef = useRef<HTMLInputElement>(null);
@@ -164,6 +161,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const packagingInputRef = useRef<HTMLInputElement>(null);
   const incomingInputRef = useRef<HTMLInputElement>(null);
   const ncProgressInputRef = useRef<HTMLInputElement>(null);
+  const stoInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -176,10 +174,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   })();
 
   const isBackdate = targetDate !== todayStr;
-  const selectedCount = [pipeFile, coilFile, looFile, packagingFile, incomingFile, ncProgressFile].filter(Boolean).length;
+  const selectedCount = [pipeFile, coilFile, looFile, packagingFile, incomingFile, ncProgressFile, stoFile].filter(Boolean).length;
 
   const handleProcessFiles = async () => {
-    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile && !ncProgressFile) {
+    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile && !ncProgressFile && !stoFile) {
       setErrorMsg('Silakan pilih minimal satu file spreadsheet export SAP (.xlsx / .xls).');
       return;
     }
@@ -194,6 +192,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       let packagingRows: Record<string, unknown>[] = [];
       let incomingRows: Record<string, unknown>[] = [];
       let ncProgressRows: Record<string, unknown>[] = [];
+      let stoRawMatrix: unknown[][] = [];
 
       // 1. Baca tiap file secara terisolasi agar error spesifik file terlihat jelas
       if (pipeFile && canUploadPipe) {
@@ -278,6 +277,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         }
       }
 
+      if (stoFile && canUploadSTO) {
+        try {
+          stoRawMatrix = await readExcelFileRawMatrix(stoFile);
+        } catch (e: unknown) {
+          const m = e instanceof Error ? e.message : 'Format file tidak dapat dibaca';
+          throw new Error(`File Data Stock Opname (${stoFile.name}): ${m}`);
+        }
+      }
+
       // 2. Parse struktur data (otomatis segregasi pipe vs coil jika 1 file zppshstock diupload di slot pipa)
       let parsedResult: ParsedWarehouseState;
       try {
@@ -287,7 +295,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         throw new Error(`Gagal memproses data Stock / LOO: ${m}`);
       }
 
-      const uploadedCategories: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc')[] = [];
+      const uploadedCategories: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto')[] = [];
 
       if (pipeFile && pipeRows.length > 0) {
         const pipeStockTotal = (parsedResult.pipeCapacities || []).reduce((acc, c) => acc + (c.stock || 0), 0);
@@ -343,6 +351,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         } catch (e: unknown) {
           const m = e instanceof Error ? e.message : 'Format kolom Progres NC tidak sesuai';
           throw new Error(`Gagal memproses Progres NC: ${m}`);
+        }
+      }
+
+      if (stoFile && canUploadSTO && stoRawMatrix.length > 0) {
+        try {
+          parsedResult.stoData = parseStockOpnameFile(stoRawMatrix);
+          uploadedCategories.push('sto');
+        } catch (e: unknown) {
+          const m = e instanceof Error ? e.message : 'Format kolom Stock Opname tidak sesuai';
+          throw new Error(`Gagal memproses Data Stock Opname: ${m}`);
         }
       }
 
@@ -446,47 +464,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             </div>
           )}
 
-          {/* Download Template Banner - 1 File zppshstock */}
-          <div className="flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl bg-emerald-50/70 border border-emerald-200/70 shadow-2xs">
-            <div className="flex items-center gap-2 min-w-0">
-              <FileSpreadsheet className="h-4 w-4 text-emerald-700 shrink-0" />
-              <div className="min-w-0">
-                <span className="text-[11px] font-bold text-emerald-950 block leading-tight truncate">
-                  Template SAP zppshstock (1 File)
-                </span>
-                <span className="text-[10px] text-emerald-700/90 block leading-tight truncate mt-0.5">
-                  1 file memuat Pipa, Coil/Strip, NC & UNFIFO
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => downloadZppshstockTemplate()}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-2xs transition-all cursor-pointer shrink-0"
-                title="Unduh 1 template terpadu SAP zppshstock"
-              >
-                <Download className="h-3 w-3 text-white" />
-                <span>Template zppshstock</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => downloadAllTemplates()}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-emerald-100/70 text-emerald-800 text-[10.5px] font-semibold border border-emerald-300/80 shadow-2xs transition-all cursor-pointer shrink-0"
-                title="Unduh seluruh kategori template"
-              >
-                <span>Semua</span>
-              </button>
-            </div>
-          </div>
-
           {/* Unified Clean List Container */}
           <div className="rounded-xl border border-slate-200/80 bg-white divide-y divide-slate-100 overflow-hidden shadow-2xs">
             {/* 1. Raw Stock Pipa */}
             <UploadItemRow
               canUpload={canUploadPipe}
               title="Data Stock Pipa (zppshstock)"
-              subtitle="SAP MB52 / zppshstock (Pipa NC, Slow & UNFIFO)"
               file={pipeFile}
               onFileChange={setPipeFile}
               inputRef={pipeInputRef}
@@ -496,7 +479,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             <UploadItemRow
               canUpload={canUploadCoil}
               title="Data Stock Coil & Strip (Bahan Baku)"
-              subtitle="SAP zppshstock / ZMM_COIL (Bisa dari 1 file zppshstock)"
               file={coilFile}
               onFileChange={setCoilFile}
               inputRef={coilInputRef}
@@ -506,7 +488,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             <UploadItemRow
               canUpload={canUploadLoo}
               title="Data LOO (Delivery Order)"
-              subtitle="Export SAP Open Order Delivery"
               file={looFile}
               onFileChange={setLooFile}
               inputRef={looInputRef}
@@ -516,7 +497,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             <UploadItemRow
               canUpload={canUploadDamagedPkg}
               title="Data Packaging Rusak (RTP NG)"
-              subtitle="File spreadsheet / CSV temuan RTP rusak"
               file={packagingFile}
               onFileChange={setPackagingFile}
               inputRef={packagingInputRef}
@@ -527,7 +507,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             <UploadItemRow
               canUpload={canUploadIncomingPkg}
               title="Data Incoming & Mutasi Packaging (RTP)"
-              subtitle="File audit harian & mutasi penerimaan packaging"
               file={incomingFile}
               onFileChange={setIncomingFile}
               inputRef={incomingInputRef}
@@ -538,10 +517,18 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             <UploadItemRow
               canUpload={canUploadProgressNC}
               title="Data Transaksi Progres NC & Repair"
-              subtitle="Export SAP MB51 / ZMM (MVT 309, 261 REP, 101 REP)"
               file={ncProgressFile}
               onFileChange={setNcProgressFile}
               inputRef={ncProgressInputRef}
+            />
+
+            {/* 7. Data Stock Opname (Fisik vs SAP) */}
+            <UploadItemRow
+              canUpload={canUploadSTO}
+              title="Data Stock Opname (Fisik vs SAP)"
+              file={stoFile}
+              onFileChange={setStoFile}
+              inputRef={stoInputRef}
             />
           </div>
         </div>

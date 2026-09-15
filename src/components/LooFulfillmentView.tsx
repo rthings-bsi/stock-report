@@ -11,7 +11,7 @@ import {
   WarehousePipeCapacity,
   LooWarehouseRecap
 } from '../types/warehouse';
-import { formatTon, formatQty, formatPercent } from '@/lib/utils';
+import { formatTon, formatQty, formatPercent, cn } from '@/lib/utils';
 import {
   TrendingUp,
   Table2,
@@ -509,7 +509,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
 
   // Render Exact Stock vs LOO Table according to User Specification:
   // No. | Nama Customer | Ukuran | Kode Material | [Stock FG: Qty (Pcs) | Tonase] | [Stock WIP: Qty (Pcs) | Tonase] | [Total Stock: Qty (Pcs) | Tonase] | [Target LOO: Qty (Pcs) | Tonase] | % Stock vs LOO
-  const renderStockVsLooTable = () => {
+  const renderStockVsLooTable = (isExpanded: boolean = false) => {
     const handleSort = (field: keyof LooTableItem) => {
       if (tableSortField === field) {
         setTableSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -637,7 +637,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
     }
 
     return (
-      <div className="flex flex-col space-y-3">
+      <div className={cn("flex flex-col space-y-3", isExpanded && "flex-1 h-full")}>
         {/* Table Filter & Search Controls */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3 sm:px-4 sm:py-3 rounded-xl border border-slate-200/90 shadow-2xs text-xs">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -716,7 +716,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
         </div>
 
         {/* Table View */}
-        <div className="overflow-x-auto max-h-[560px] overflow-y-auto border border-slate-200/80 rounded-xl shadow-xs bg-white">
+        <div className={cn("overflow-x-auto border border-slate-200/80 rounded-xl shadow-xs bg-white", isExpanded ? "flex-1 overflow-auto max-h-none" : "max-h-[560px] overflow-y-auto")}>
         <table className="w-full text-left text-xs border-collapse">
           <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-[11px] uppercase tracking-wider text-slate-500 font-semibold select-none">
             {/* Header Tier 1: Group Categories */}
@@ -1060,14 +1060,12 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                   }
                 >
                   {(expanded) => (
-                    <div className="flex flex-col h-full w-full gap-4">
-                      <div className={expanded ? 'h-[500px] w-full' : 'h-80 w-full'}>
-                        <Bar
-                          data={top15ChartData}
-                          options={top15ChartOptions}
-                          plugins={[top15DataLabelsPlugin]}
-                        />
-                      </div>
+                    <div className={cn("w-full pt-1", expanded ? "flex-1 min-h-[440px]" : "h-80")}>
+                      <Bar
+                        data={top15ChartData}
+                        options={top15ChartOptions}
+                        plugins={[top15DataLabelsPlugin]}
+                      />
                     </div>
                   )}
                 </CustomizableCard>
@@ -1097,7 +1095,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
                     </span>
                   }
                 >
-                  {renderStockVsLooTable()}
+                  {(expanded) => renderStockVsLooTable(expanded)}
                 </CustomizableCard>
               );
             }

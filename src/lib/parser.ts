@@ -13,7 +13,8 @@ import {
   DamagedPackagingItem,
   IncomingPackagingItem,
   NCProgressTransaction,
-  WarehouseCapacityConfig
+  WarehouseCapacityConfig,
+  StockOpnameItem
 } from '../types/warehouse';
 
 export interface ParsedWarehouseState {
@@ -30,16 +31,17 @@ export interface ParsedWarehouseState {
   damagedPackagingData?: DamagedPackagingItem[];
   incomingPackagingData?: IncomingPackagingItem[];
   ncProgressData?: NCProgressTransaction[];
+  stoData?: StockOpnameItem[];
   customerBreakdown?: Record<string, Array<{ customer: string; qty: number; tonase: number }>>;
   lastUpdated: string;
   snapshotKey?: string;
   targetDate?: string;
-  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc')[];
+  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto')[];
 }
 
 export interface ParseExcelOptions {
   targetDate?: string;
-  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc')[];
+  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto')[];
   customCapacities?: WarehouseCapacityConfig;
 }
 
@@ -508,6 +510,19 @@ export function extractPipeDimension(
 }
 
 export function isCoilOrStripRow(row: Record<string, unknown>): boolean {
+  const past = String(
+    getRowValue(row, ['PAST', 'Past', 'Jenis Stock', 'Kategori Stock', 'Status Barang']) || ''
+  ).toUpperCase().trim();
+
+  // Jika kolom PAST secara eksplisit menandakan pipa (misal: "3. STOCK PIPA", "STOCK PIPA", "PIPA")
+  if (past.includes('PIPA') || past.includes('PIPE')) {
+    return false;
+  }
+  // Jika kolom PAST secara eksplisit menandakan coil/strip (misal: "1. STOCK COIL", "COIL", "STRIP", "RAW MATERIAL")
+  if (past.includes('COIL') || past.includes('STRIP') || past.includes('RAW')) {
+    return true;
+  }
+
   const desc = String(
     getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi', 'Kode Material', 'Coil Specification']) || ''
   ).toUpperCase();
@@ -643,28 +658,28 @@ export function resolveStockWeightAndQty(
     qty = explicitQty;
   } else if (explicitWeight > 0) {
     weightKg = explicitWeight;
-    const otherVal = valEom > 0 ? valEom : valBom;
-    qty = explicitQty > 0 ? explicitQty : (otherVal > 0 ? otherVal : 1);
+    qty = explicitQty > 0 ? explicitQty : (valBom > 0 ? valBom : 1);
   } else if (explicitQty > 0) {
     qty = explicitQty;
-    const otherVal = valBom > 0 && valBom !== explicitQty ? valBom : valEom;
-    weightKg = otherVal > 0 ? otherVal : (valBom > 0 ? valBom : valEom);
+    weightKg = valEom > 0 ? valEom : (explicitWeight > 0 ? explicitWeight : 0);
   } else {
-    // Diambil dari pasangan BOm dan EOm
-    if (valBom > 0 && valEom > 0) {
-      if (valBom >= valEom) {
-        weightKg = valBom;
-        qty = valEom;
-      } else {
-        weightKg = valEom;
-        qty = valBom;
-      }
-    } else if (valBom > 0) {
-      weightKg = valBom;
-      qty = 1;
+    // Diambil dari pasangan BOm dan EOm pada SAP zppshstock:
+    // BOm (Base UoM) = Batang / Pcs (Pipa) atau Roll (Coil) -> Kuantitas / QTY
+    // EOm (Entry UoM) = Kilogram (KG) -> Berat / WEIGHT
+    if (valEom > 0 && valBom > 0) {
+      weightKg = valEom;
+      qty = valBom;
     } else if (valEom > 0) {
       weightKg = valEom;
-      qty = 1;
+      qty = valBom > 0 ? valBom : 1;
+    } else if (valBom > 0) {
+      if (itemType === 'coil' && valBom > 100) {
+        weightKg = valBom;
+        qty = 1;
+      } else {
+        qty = valBom;
+        weightKg = 0;
+      }
     }
   }
 
@@ -922,7 +937,9 @@ export function parseExcelFiles(
     if (isST && isWIP) target.wipSt += tonase;
     if (isST && isFG) target.fgSt += tonase;
 
-    const rowQty = parseNumber(getRowValue(row, ['Unrestricted', 'UNRESTRICTED', 'TTL STOK BOm', 'TTL STOK BOM', 'TTL STOCK BOm', 'Qty', 'Qty (Btg)']) || 0);
+    const rowQty = resolvedPipeQty > 0
+      ? resolvedPipeQty
+      : parseNumber(getRowValue(row, ['Unrestricted', 'UNRESTRICTED', 'TTL STOK BOm', 'TTL STOK BOM', 'TTL STOCK BOm', 'Qty', 'Qty (Btg)']) || 0);
 
     if (hasCustomer) {
       target.customerStock += tonase;
@@ -1070,7 +1087,9 @@ export function parseExcelFiles(
 
     const rawIncDate = getRowValue(row, ['Inc.Date', 'Posting Date', 'TPTP Inc.Date', 'Prod. Year']);
     const formattedDate = formatSapDate(rawIncDate, rawBatch);
-    const qty = parseNumber(row['TTL STOK BOm'] || row['TTL STOK BOM'] || row['Qty'] || 1);
+    const qty = resolvedPipeQty > 0
+      ? resolvedPipeQty
+      : parseNumber(row['TTL STOK BOm'] || row['TTL STOK BOM'] || row['Qty'] || 1);
     stockByMaterial[baseKodeMat].batches.push({
       batch: rawBatch,
       date: formattedDate,
@@ -1852,3 +1871,22 @@ export async function readExcelWorkbookMultiSheets(
 
   return result;
 }
+
+export async function readExcelFileRawMatrix(file: File): Promise<unknown[][]> {
+  const workbook = await parseWorkbookFromFile(file);
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!worksheet) return [];
+  return XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '' });
+}
+
+export {
+  parseStockOpnameFile,
+  parseSapNumber,
+  parseSapWeight,
+  normalizeSLocGudang,
+  calculateSTOSummary,
+  calculateSTOGudangRecap,
+  calculateSTOSLocRecap,
+  generateMockStockOpnameData,
+} from './parseStockOpname';
+

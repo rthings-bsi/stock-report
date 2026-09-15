@@ -124,6 +124,7 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
             ['incoming_packaging_data', 'TEXT'],
             ['nc_progress_data', 'TEXT'],
             ['customer_breakdown', 'TEXT'],
+            ['sto_data', 'TEXT'],
           ];
           for (const [colName, colType] of requiredCols) {
             if (!snapshotCols.has(colName)) {
@@ -149,27 +150,36 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
           const adminPerms = JSON.stringify({
             viewCapacity: true, viewFastSlow: true, viewCoilStrip: true, viewNC: true,
             viewUnfifo: true, viewLoo: true, viewDamagedPkg: true, viewIncomingPkg: true,
+            viewProgressNC: true, viewCapacitySettings: true, viewSTO: true,
             viewUserManagement: true, canUploadSAP: true,
             canUploadPipe: true, canUploadCoil: true, canUploadLoo: true, canUploadDamagedPkg: true, canUploadIncomingPkg: true,
-            canEditIncomingPkg: true, canEditDamagedPkg: true, canExportExcel: true, canCustomizeLayout: true,
+            canUploadProgressNC: true, canUploadSTO: true,
+            canEditIncomingPkg: true, canEditDamagedPkg: true, canEditProgressNC: true, canEditSTO: true,
+            canExportExcel: true, canCustomizeLayout: true, canManageCapacity: true,
             canManageUsers: true, canSaveSnapshot: true
           });
 
           const staffPerms = JSON.stringify({
             viewCapacity: true, viewFastSlow: true, viewCoilStrip: true, viewNC: true,
             viewUnfifo: true, viewLoo: true, viewDamagedPkg: true, viewIncomingPkg: true,
+            viewProgressNC: true, viewCapacitySettings: true, viewSTO: true,
             viewUserManagement: false, canUploadSAP: false,
             canUploadPipe: false, canUploadCoil: false, canUploadLoo: false, canUploadDamagedPkg: false, canUploadIncomingPkg: false,
-            canEditIncomingPkg: true, canEditDamagedPkg: false, canExportExcel: true, canCustomizeLayout: false,
+            canUploadProgressNC: false, canUploadSTO: false,
+            canEditIncomingPkg: true, canEditDamagedPkg: false, canEditProgressNC: true, canEditSTO: false,
+            canExportExcel: true, canCustomizeLayout: false, canManageCapacity: false,
             canManageUsers: false, canSaveSnapshot: false
           });
 
           const viewerPerms = JSON.stringify({
             viewCapacity: true, viewFastSlow: true, viewCoilStrip: true, viewNC: true,
             viewUnfifo: true, viewLoo: true, viewDamagedPkg: true, viewIncomingPkg: true,
+            viewProgressNC: true, viewCapacitySettings: true, viewSTO: true,
             viewUserManagement: false, canUploadSAP: false,
             canUploadPipe: false, canUploadCoil: false, canUploadLoo: false, canUploadDamagedPkg: false, canUploadIncomingPkg: false,
-            canEditIncomingPkg: false, canEditDamagedPkg: false, canExportExcel: true, canCustomizeLayout: false,
+            canUploadProgressNC: false, canUploadSTO: false,
+            canEditIncomingPkg: false, canEditDamagedPkg: false, canEditProgressNC: false, canEditSTO: false,
+            canExportExcel: true, canCustomizeLayout: false, canManageCapacity: false,
             canManageUsers: false, canSaveSnapshot: false
           });
 

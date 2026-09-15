@@ -7,7 +7,7 @@ import {
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { CoilStripArea } from '../types/warehouse';
-import { formatTon, formatPercent, formatQty } from '@/lib/utils';
+import { formatTon, formatPercent, formatQty, cn } from '@/lib/utils';
 import {
   Disc,
   Table2,
@@ -482,9 +482,11 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                       </span>
                     }
                   >
-                    <div className="h-64 w-full pt-1">
-                      <Bar data={chartData} options={chartOptions} />
-                    </div>
+                    {(expanded) => (
+                      <div className={cn("w-full pt-1", expanded ? "flex-1 min-h-[440px]" : "h-64")}>
+                        <Bar data={chartData} options={chartOptions} />
+                      </div>
+                    )}
                   </CustomizableCard>
                 );
               }
@@ -511,42 +513,44 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                       </span>
                     }
                   >
-                    <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
-                      <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto min-w-0">
-                        <Doughnut data={donutData} options={donutOptions} />
-                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                          <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
-                            {formatTon(grandTotalTon, { decimals: 2 })}
-                          </span>
-                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
-                            TOTAL TON
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Breakdown Pills List */}
-                      <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
-                        <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                            <span className="text-[11px] font-medium text-slate-600 truncate">Coil ({totalCoilQty} Roll)</span>
+                    {(expanded) => (
+                      <div className={cn("flex flex-col justify-between font-mono p-1", expanded ? "flex-1 h-full max-w-2xl mx-auto w-full space-y-6 justify-center" : "h-full space-y-3")}>
+                        <div className={cn("flex items-center justify-center relative my-auto min-w-0", expanded ? "h-72 sm:h-80" : "h-40 sm:h-44")}>
+                          <Doughnut data={donutData} options={donutOptions} />
+                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span className={cn("font-bold font-mono text-slate-900 tracking-tight", expanded ? "text-3xl sm:text-4xl" : "text-2xl")}>
+                              {formatTon(grandTotalTon, { decimals: 2 })}
+                            </span>
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                              TOTAL TON
+                            </span>
                           </div>
-                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                            {formatTon(totalCoilTon, { decimals: 2 })}
-                          </span>
                         </div>
 
-                        <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                            <span className="text-[11px] font-medium text-slate-600 truncate">Strip ({totalStripQty} Roll)</span>
+                        {/* Breakdown Pills List */}
+                        <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2 shrink-0">
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50/80 border border-slate-100">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" />
+                              <span className="text-xs font-medium text-slate-600 truncate">Coil ({totalCoilQty} Roll)</span>
+                            </div>
+                            <span className="text-xs font-mono font-bold text-slate-800 ml-1 shrink-0">
+                              {formatTon(totalCoilTon, { decimals: 2 })}
+                            </span>
                           </div>
-                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                            {formatTon(totalStripTon, { decimals: 2 })}
-                          </span>
+
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50/80 border border-slate-100">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
+                              <span className="text-xs font-medium text-slate-600 truncate">Strip ({totalStripQty} Roll)</span>
+                            </div>
+                            <span className="text-xs font-mono font-bold text-slate-800 ml-1 shrink-0">
+                              {formatTon(totalStripTon, { decimals: 2 })}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </CustomizableCard>
                 );
               }
@@ -573,7 +577,8 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                       </span>
                     }
                   >
-                    <div className="overflow-x-auto max-h-[500px] rounded-xl border border-slate-200/80 shadow-xs bg-white">
+                    {(expanded) => (
+                      <div className={cn("overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white", expanded ? "flex-1 overflow-auto max-h-none" : "max-h-[500px]")}>
                       <table className="w-full text-left text-xs border-collapse">
                         <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider select-none">
                           <tr>
@@ -723,9 +728,10 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
                         </tfoot>
                       </table>
                     </div>
-                  </CustomizableCard>
-                );
-              }
+                  )}
+                </CustomizableCard>
+              );
+            }
 
               return null;
             })}

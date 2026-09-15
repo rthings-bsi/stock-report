@@ -7,7 +7,7 @@ import {
 } from 'chart.js';
 import { Chart, Doughnut } from 'react-chartjs-2';
 import { PipeNCWarehouse, PipeNCItem } from '../types/warehouse';
-import { formatTon, formatPercent } from '@/lib/utils';
+import { formatTon, formatPercent, cn } from '@/lib/utils';
 import {
   ShieldAlert,
   Table2,
@@ -399,7 +399,8 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     sortField: keyof PipeNCItem,
     sortDir: 'asc' | 'desc',
     setSortField: React.Dispatch<React.SetStateAction<keyof PipeNCItem>>,
-    setSortDir: React.Dispatch<React.SetStateAction<'asc' | 'desc'>>
+    setSortDir: React.Dispatch<React.SetStateAction<'asc' | 'desc'>>,
+    isExpanded: boolean = false
   ) => {
     const handleSort = (field: keyof PipeNCItem) => {
       if (sortField === field) {
@@ -424,7 +425,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
       .map((i) => i.id || `${i.gudang}-${i.ukuran}-${i.customer}`);
 
     return (
-      <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+      <div className={cn("overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white", isExpanded ? "flex-1 overflow-auto max-h-none" : "max-h-[480px] overflow-y-auto")}>
         <table className="w-full text-left text-xs border-collapse">
           <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider select-none">
             <tr>
@@ -545,7 +546,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
   };
 
   // Render Table for Warehouse Recap (Tonase Pipa NC Per Gudang)
-  const renderWarehouseRecapTable = () => {
+  const renderWarehouseRecapTable = (isExpanded: boolean = false) => {
     const handleSort = (field: keyof PipeNCWarehouse) => {
       if (recapSortField === field) {
         setRecapSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -560,7 +561,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     const maxGradeC = Math.max(...ncWarehouseData.map((d) => d.gradeC), 1);
 
     return (
-      <div className="overflow-x-auto max-h-[520px] overflow-y-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+      <div className={cn("overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white", isExpanded ? "flex-1 overflow-auto max-h-none" : "max-h-[520px] overflow-y-auto")}>
         <table className="w-full text-left text-xs border-collapse">
           <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider select-none">
             <tr>
@@ -1055,7 +1056,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                     ) : undefined
                   }
                 >
-                  {renderWarehouseRecapTable()}
+                  {(expanded) => renderWarehouseRecapTable(expanded)}
                 </CustomizableCard>
               );
             }
@@ -1083,10 +1084,8 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   }
                 >
                   {(expanded) => (
-                    <div className="flex flex-col h-full w-full gap-4">
-                      <div className={expanded ? 'h-96 w-full' : 'h-64 w-full'}>
-                        <Chart type="bar" data={chartData} options={chartOptions} />
-                      </div>
+                    <div className={cn("w-full pt-1", expanded ? "flex-1 min-h-[440px]" : "h-64")}>
+                      <Chart type="bar" data={chartData} options={chartOptions} />
                     </div>
                   )}
                 </CustomizableCard>
@@ -1116,11 +1115,11 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   }
                 >
                   {(expanded) => (
-                    <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
-                      <div className={`relative ${expanded ? 'h-72 w-full' : 'h-40 sm:h-44 w-full'} flex items-center justify-center min-w-0 my-auto`}>
+                    <div className={cn("flex flex-col justify-between font-mono p-1", expanded ? "flex-1 h-full max-w-2xl mx-auto w-full space-y-6 justify-center" : "h-full space-y-3")}>
+                      <div className={cn("flex items-center justify-center relative my-auto min-w-0", expanded ? "h-72 sm:h-80" : "h-40 sm:h-44")}>
                         <Doughnut data={donutData} options={donutOptions} />
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                          <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                          <span className={cn("font-bold font-mono text-slate-900 tracking-tight", expanded ? "text-3xl sm:text-4xl" : "text-2xl")}>
                             {formatTon(donutTotal, { decimals: 2 })}
                           </span>
                           <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
@@ -1130,7 +1129,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                       </div>
 
                       {/* Breakdown Pills List */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-3 border-t border-slate-100 mt-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-3 border-t border-slate-100 mt-2 shrink-0">
                         <div
                           onClick={() => {
                             setSelectedNCModalGrade('ALL');
@@ -1189,7 +1188,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                           setSelectedNCModalGrade('ALL');
                           setModalGudangFilter(selectedGudang);
                         }}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-slate-100 hover:bg-emerald-50 hover:text-emerald-950 text-slate-700 text-xs font-bold border border-slate-300 hover:border-emerald-400 transition-all cursor-pointer shadow-2xs font-mono"
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-slate-100 hover:bg-emerald-50 hover:text-emerald-950 text-slate-700 text-xs font-bold border border-slate-300 hover:border-emerald-400 transition-all cursor-pointer shadow-2xs font-mono shrink-0"
                       >
                         <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
                         <span>Lihat Detail Stock NC &amp; No NC ({filteredItems.length} Item)</span>
@@ -1222,7 +1221,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                     </span>
                   }
                 >
-                  {renderTop10Table(top10GradeE, 'Grade E', eSortField, eSortDir, setESortField, setESortDir)}
+                  {(expanded) => renderTop10Table(top10GradeE, 'Grade E', eSortField, eSortDir, setESortField, setESortDir, expanded)}
                 </CustomizableCard>
               );
             }
@@ -1249,7 +1248,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                     </span>
                   }
                 >
-                  {renderTop10Table(top10GradeC, 'Grade C', cSortField, cSortDir, setCSortField, setCSortDir)}
+                  {(expanded) => renderTop10Table(top10GradeC, 'Grade C', cSortField, cSortDir, setCSortField, setCSortDir, expanded)}
                 </CustomizableCard>
               );
             }

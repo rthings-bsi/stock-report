@@ -120,6 +120,7 @@ export async function GET(request: Request) {
               damagedPackagingData: parseJsonSafe(row.damaged_packaging_data, []),
               incomingPackagingData: parseJsonSafe(row.incoming_packaging_data, []),
               ncProgressData: parseJsonSafe(row.nc_progress_data, []),
+              stoData: parseJsonSafe(row.sto_data, []),
               customerBreakdown: parseJsonSafe(row.customer_breakdown, {}),
               createdAt: row.created_at,
             };
@@ -179,6 +180,7 @@ export async function GET(request: Request) {
           damagedPackagingData: parseJsonSafe(row.damaged_packaging_data, []),
           incomingPackagingData: parseJsonSafe(row.incoming_packaging_data, []),
           ncProgressData: parseJsonSafe(row.nc_progress_data, []),
+          stoData: parseJsonSafe(row.sto_data, []),
           customerBreakdown: parseJsonSafe(row.customer_breakdown, {}),
           createdAt: row.created_at,
         };
@@ -216,6 +218,7 @@ export async function POST(request: Request) {
       damagedPackagingData,
       incomingPackagingData,
       ncProgressData,
+      stoData,
       customerBreakdown,
       lastUpdated,
       snapshotKey,
@@ -241,6 +244,7 @@ export async function POST(request: Request) {
     let prevDamagedPkg: any[] = [];
     let prevIncomingPkg: any[] = [];
     let prevNcProgress: any[] = [];
+    let prevStoData: any[] = [];
     let prevCustBreakdown: Record<string, any> = {};
 
     if (db) {
@@ -264,6 +268,7 @@ export async function POST(request: Request) {
           prevDamagedPkg = parseJsonSafe(existingRow.damaged_packaging_data, []);
           prevIncomingPkg = parseJsonSafe(existingRow.incoming_packaging_data, []);
           prevNcProgress = parseJsonSafe(existingRow.nc_progress_data, []);
+          prevStoData = parseJsonSafe(existingRow.sto_data, []);
           prevCustBreakdown = parseJsonSafe(existingRow.customer_breakdown, {});
         }
       } catch (err) {
@@ -305,6 +310,7 @@ export async function POST(request: Request) {
           if (!hasArray(prevDamagedPkg)) prevDamagedPkg = parseJsonSafe(sRow.damaged_packaging_data, []);
           if (!hasArray(prevIncomingPkg)) prevIncomingPkg = parseJsonSafe(sRow.incoming_packaging_data, []);
           if (!hasArray(prevNcProgress)) prevNcProgress = parseJsonSafe(sRow.nc_progress_data, []);
+          if (!hasArray(prevStoData)) prevStoData = parseJsonSafe(sRow.sto_data, []);
           if (!hasObject(prevCustBreakdown)) prevCustBreakdown = parseJsonSafe(sRow.customer_breakdown, {});
         }
       } catch (cloudMergeErr) {
@@ -364,6 +370,7 @@ export async function POST(request: Request) {
     const uploadHasDamagedPkg = isExplicitUpload ? uploadedCategories.includes('damaged_pkg') : hasArray(damagedPackagingData);
     const uploadHasIncomingPkg = isExplicitUpload ? uploadedCategories.includes('incoming_pkg') : hasArray(incomingPackagingData);
     const uploadHasProgressNC = isExplicitUpload ? uploadedCategories.includes('progress_nc') : hasArray(ncProgressData);
+    const uploadHasSTO = isExplicitUpload ? uploadedCategories.includes('sto') : hasArray(stoData);
 
     const finalPipe = uploadHasPipe && hasRealPipe(pipeCapacities) ? pipeCapacities : (hasRealPipe(prevPipe) ? prevPipe : (pipeCapacities || []));
     const finalFastSlow = uploadHasPipe && hasArray(fastSlowData) ? fastSlowData : prevFastSlow;
@@ -382,6 +389,7 @@ export async function POST(request: Request) {
     const finalDamagedPkg = uploadHasDamagedPkg && hasArray(damagedPackagingData) ? damagedPackagingData : prevDamagedPkg;
     const finalIncomingPkg = uploadHasIncomingPkg && hasArray(incomingPackagingData) ? incomingPackagingData : prevIncomingPkg;
     const finalNcProgress = uploadHasProgressNC && hasArray(ncProgressData) ? ncProgressData : prevNcProgress;
+    const finalStoData = uploadHasSTO && hasArray(stoData) ? stoData : prevStoData;
     const finalCustBreakdown = uploadHasPipe && hasObject(customerBreakdown) ? customerBreakdown : prevCustBreakdown;
 
     let sqliteSaved = false;
@@ -406,6 +414,7 @@ export async function POST(request: Request) {
             damaged_packaging_data,
             incoming_packaging_data,
             nc_progress_data,
+            sto_data,
             customer_breakdown
           ) VALUES (
             @snapshotKey,
@@ -423,6 +432,7 @@ export async function POST(request: Request) {
             @damagedPackagingData,
             @incomingPackagingData,
             @ncProgressData,
+            @stoData,
             @customerBreakdown
           )
           ON CONFLICT(snapshot_key) DO UPDATE SET
@@ -440,6 +450,7 @@ export async function POST(request: Request) {
             damaged_packaging_data = excluded.damaged_packaging_data,
             incoming_packaging_data = excluded.incoming_packaging_data,
             nc_progress_data = excluded.nc_progress_data,
+            sto_data = excluded.sto_data,
             customer_breakdown = excluded.customer_breakdown,
             created_at = CURRENT_TIMESTAMP;
         `);
@@ -460,6 +471,7 @@ export async function POST(request: Request) {
           damagedPackagingData: JSON.stringify(finalDamagedPkg),
           incomingPackagingData: JSON.stringify(finalIncomingPkg),
           ncProgressData: JSON.stringify(finalNcProgress),
+          stoData: JSON.stringify(finalStoData),
           customerBreakdown: JSON.stringify(finalCustBreakdown),
         });
         sqliteSaved = true;
@@ -487,6 +499,7 @@ export async function POST(request: Request) {
           damaged_packaging_data: finalDamagedPkg,
           incoming_packaging_data: finalIncomingPkg,
           nc_progress_data: finalNcProgress,
+          sto_data: finalStoData,
           customer_breakdown: finalCustBreakdown,
         };
 
@@ -494,10 +507,11 @@ export async function POST(request: Request) {
           .from('warehouse_snapshots')
           .upsert(payload, { onConflict: 'snapshot_key' });
 
-        // Fallback jika kolom nc_progress_data belum ada di schema Supabase
-        if (supaErr && supaErr.message?.includes('nc_progress_data')) {
+        // Fallback jika kolom nc_progress_data atau sto_data belum ada di schema Supabase
+        if (supaErr && (supaErr.message?.includes('nc_progress_data') || supaErr.message?.includes('sto_data'))) {
           const fallbackPayload = { ...payload };
           delete (fallbackPayload as any).nc_progress_data;
+          delete (fallbackPayload as any).sto_data;
           const retry = await supabase
             .from('warehouse_snapshots')
             .upsert(fallbackPayload, { onConflict: 'snapshot_key' });

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   GripVertical,
   ChevronLeft,
@@ -72,34 +72,56 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
+  useEffect(() => {
+    if (!isExpanded) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsExpanded(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isExpanded]);
+
   if (isExpanded) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 lg:p-8 animate-in fade-in duration-150">
-        <div className="flex flex-col w-full h-full max-w-7xl rounded-md border border-slate-300 bg-white shadow-xl overflow-hidden">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 lg:p-6 animate-in fade-in duration-150">
+        <div className="flex flex-col w-full h-full max-w-7xl rounded-xl border border-slate-300 bg-white shadow-2xl overflow-hidden">
           {/* Expanded Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 p-4 bg-slate-50">
-            <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50 shrink-0 gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
               {Icon && (
-                <div className="p-1.5 rounded bg-emerald-100 text-emerald-800">
+                <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800 shrink-0">
                   <Icon className="h-4 w-4" />
                 </div>
               )}
-              <div>
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">{title}</h3>
-                {subtitle && <p className="text-xs text-slate-500 font-mono">{subtitle}</p>}
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900 truncate">
+                  {title}
+                </h3>
+                {subtitle && (
+                  <p className="text-xs text-slate-500 font-mono truncate mt-0.5">
+                    {subtitle}
+                  </p>
+                )}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsExpanded(false)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-            >
-              <Minimize2 className="h-3.5 w-3.5 text-slate-500" />
-              <span>Tutup Layar Penuh</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {badge}
+              {headerAction}
+              <button
+                type="button"
+                onClick={() => setIsExpanded(false)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer shadow-2xs transition-all"
+                title="Tutup mode layar penuh (Esc)"
+              >
+                <Minimize2 className="h-3.5 w-3.5 text-slate-500" />
+                <span>Tutup Layar Penuh</span>
+              </button>
+            </div>
           </div>
           {/* Expanded Body */}
-          <div className="flex-1 p-6 overflow-auto flex flex-col">
+          <div className="flex-1 p-5 sm:p-6 overflow-auto flex flex-col min-h-0 bg-white">
             {typeof children === 'function' ? children(true) : children}
           </div>
         </div>

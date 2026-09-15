@@ -9,7 +9,6 @@ import {
   ShieldAlert,
   TrendingUp,
   RefreshCcw,
-  AlertTriangle,
   LayoutDashboard,
   Boxes,
   PackageX,
@@ -25,7 +24,8 @@ import {
   UserCog,
   X,
   GitFork,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ClipboardCheck
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { LoginPage } from '@/components/LoginPage';
@@ -42,6 +42,7 @@ import { FastSlowView } from '@/components/FastSlowView';
 import { CoilStripView } from '@/components/CoilStripView';
 import { NCQualityView } from '@/components/NCQualityView';
 import { NCProgressView } from '@/components/NCProgressView';
+import { StockOpnameView } from '@/components/StockOpnameView';
 import { LooFulfillmentView } from '@/components/LooFulfillmentView';
 import { UnfifoView } from '@/components/UnfifoView';
 import { DamagedPackagingView } from '@/components/DamagedPackagingView';
@@ -75,6 +76,7 @@ import {
   DamagedPackagingItem,
   IncomingPackagingItem,
   NCProgressTransaction,
+  StockOpnameItem,
   WarehouseCapacityConfig,
   DEFAULT_PIPE_CAPACITIES,
   DEFAULT_COIL_CAPACITIES,
@@ -89,6 +91,7 @@ const VALID_TABS = [
   'coilstrip',
   'nc',
   'nc_progress',
+  'sto',
   'loo',
   'unfifo',
   'packaging',
@@ -121,6 +124,7 @@ export default function Home() {
   const [damagedPackagingData, setDamagedPackagingData] = useState<DamagedPackagingItem[]>(initialDamagedPackagingData);
   const [incomingPackagingData, setIncomingPackagingData] = useState<IncomingPackagingItem[]>(initialIncomingPackagingData);
   const [ncProgressData, setNcProgressData] = useState<NCProgressTransaction[]>(initialNCProgressData);
+  const [stoData, setStoData] = useState<StockOpnameItem[]>([]);
   const [customerBreakdown, setCustomerBreakdown] = useState<Record<string, Array<{ customer: string; qty: number; tonase: number }>>>({});
 
   // Application State
@@ -308,6 +312,7 @@ export default function Home() {
         setDamagedPackagingData(d.damagedPackagingData || []);
         setIncomingPackagingData(d.incomingPackagingData || []);
         setNcProgressData(d.ncProgressData || []);
+        setStoData(d.stoData || []);
         setCustomerBreakdown(d.customerBreakdown || {});
         setLastUpdated(d.lastUpdated || '');
         setIsCustomData(true);
@@ -352,6 +357,7 @@ export default function Home() {
           if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
           if (d.incomingPackagingData?.length > 0) setIncomingPackagingData(d.incomingPackagingData);
           if (d.ncProgressData?.length > 0) setNcProgressData(d.ncProgressData);
+          if (d.stoData?.length > 0) setStoData(d.stoData);
           if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
           if (d.lastUpdated) setLastUpdated(d.lastUpdated);
           setIsCustomData(true);
@@ -400,6 +406,7 @@ export default function Home() {
               if (d.unfifoPipeData?.length > 0) setUnfifoPipeData(d.unfifoPipeData);
               if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
               if (d.ncProgressData?.length > 0) setNcProgressData(d.ncProgressData);
+              if (d.stoData?.length > 0) setStoData(d.stoData);
               if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
               if (d.lastUpdated) setLastUpdated(d.lastUpdated);
               setIsCustomData(true);
@@ -441,6 +448,7 @@ export default function Home() {
       damagedPackagingData,
       incomingPackagingData,
       ncProgressData,
+      stoData,
       customerBreakdown,
       lastUpdated: new Date().toLocaleString('id-ID'),
     };
@@ -500,6 +508,9 @@ export default function Home() {
     const hasProgressNC = newState.uploadedCategories
       ? newState.uploadedCategories.includes('progress_nc')
       : Boolean(newState.ncProgressData && newState.ncProgressData.length > 0);
+    const hasSTO = newState.uploadedCategories
+      ? newState.uploadedCategories.includes('sto')
+      : Boolean(newState.stoData && newState.stoData.length > 0);
 
     // Helper untuk memperkaya item LOO dengan data stock eksisting jika hanya LOO yang diunggah
     const enrichLooWithExistingStock = (
@@ -569,6 +580,7 @@ export default function Home() {
     const nextDamagedPackagingData = hasDamagedPkg ? newState.damagedPackagingData! : (damagedPackagingData.length > 0 ? damagedPackagingData : (currentSaved.damagedPackagingData || []));
     const nextIncomingPackagingData = hasIncomingPkg ? newState.incomingPackagingData! : (incomingPackagingData.length > 0 ? incomingPackagingData : (currentSaved.incomingPackagingData || []));
     const nextNcProgressData = hasProgressNC ? newState.ncProgressData! : (ncProgressData.length > 0 ? ncProgressData : (currentSaved.ncProgressData || []));
+    const nextStoData = hasSTO ? newState.stoData! : (stoData.length > 0 ? stoData : (currentSaved.stoData || []));
 
     const snapshotKey = newState.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
     const nowStr = newState.lastUpdated || new Date().toLocaleString('id-ID');
@@ -601,6 +613,9 @@ export default function Home() {
     if (hasProgressNC) {
       setNcProgressData(nextNcProgressData);
     }
+    if (hasSTO) {
+      setStoData(nextStoData);
+    }
 
     setLastUpdated(nowStr);
     setIsCustomData(true);
@@ -621,6 +636,7 @@ export default function Home() {
       damagedPackagingData: nextDamagedPackagingData,
       incomingPackagingData: nextIncomingPackagingData,
       ncProgressData: nextNcProgressData,
+      stoData: nextStoData,
       customerBreakdown: nextCustomerBreakdown,
       lastUpdated: nowStr,
       snapshotKey: snapshotKey,
@@ -750,9 +766,6 @@ export default function Home() {
     return Array.from(set).filter(Boolean).sort();
   }, [customerBreakdown, ncItems, looSTData, looLTData, unfifoPipeData, damagedPackagingData, incomingPackagingData]);
 
-  // Dynamic overcapacity detection
-  const overcapacityWh = pipeCapacities.find((p) => p.persenTerisi > 100);
-
   // Evaluate user role permissions dynamically
   const userPermissions: RolePermissions = useMemo(() => {
     if (!currentUser) return DEFAULT_STAFF_PERMISSIONS;
@@ -790,6 +803,7 @@ export default function Home() {
       userPermissions.canUploadDamagedPkg ||
       userPermissions.canUploadIncomingPkg ||
       userPermissions.canUploadProgressNC ||
+      userPermissions.canUploadSTO ||
       userPermissions.canUploadSAP
     );
   const canCustomizeLayout = currentUser?.role === 'admin' || Boolean(userPermissions.canCustomizeLayout);
@@ -807,6 +821,7 @@ export default function Home() {
     { id: 'coilstrip', label: 'Coil & Strip', icon: Disc, desc: 'Bahan Baku Induk', permKey: 'viewCoilStrip' },
     { id: 'nc', label: 'Stock NC', icon: ShieldAlert, desc: 'Grade E & Mutu C', permKey: 'viewNC' },
     { id: 'nc_progress', label: 'Progres NC & Repair', icon: GitFork, desc: 'MVT 309, 261 & 101', permKey: 'viewProgressNC' },
+    { id: 'sto', label: 'Stock Opname (STO)', icon: ClipboardCheck, desc: 'Rekonsiliasi Fisik vs SAP', permKey: 'viewSTO' },
     { id: 'unfifo', label: 'UNFIFO', icon: RefreshCcw, desc: 'Audit Alur Pengeluaran', permKey: 'viewUnfifo' },
     { id: 'loo', label: 'Stock Pipa vs LOO', icon: TrendingUp, desc: 'Pemenuhan Target LOO', permKey: 'viewLoo' },
     { id: 'packaging', label: 'Data Packaging Rusak', icon: PackageX, desc: 'Temuan & Status Repack', permKey: 'viewDamagedPkg' },
@@ -1556,17 +1571,6 @@ export default function Home() {
             />
           </div> */}
 
-          {/* Global Alert Notification Banner (Hidden on Mobile) */}
-          {overcapacityWh && (
-            <div className="hidden sm:flex items-center gap-3 rounded-md border border-amber-300 bg-amber-50/90 p-3.5 text-xs text-amber-900 shadow-2xs">
-              <AlertTriangle className="h-5 w-5 text-amber-700 shrink-0" />
-              <div className="flex-1">
-                <span className="font-bold">Peringatan Kapasitas Terisi Melebihi Batas: </span>
-                {overcapacityWh.gudang} saat ini mencapai <strong>{formatPercent(overcapacityWh.persenTerisi)}</strong> ({formatTon(overcapacityWh.stock, { showUnit: true })} / Kapasitas {formatTon(overcapacityWh.kapasitas, { showUnit: true })}). Disarankan evaluasi relokasi atau percepatan pengiriman order.
-              </div>
-            </div>
-          )}
-
           {/* Active Tab View */}
           <div className="space-y-6">
             {activeTab === 'capacity' && (currentUser.role === 'admin' || userPermissions.viewCapacity) && (
@@ -1622,6 +1626,31 @@ export default function Home() {
                     });
                   } catch (err) {
                     console.error('Failed to sync NC progress data:', err);
+                  }
+                }}
+              />
+            )}
+
+            {activeTab === 'sto' && (currentUser.role === 'admin' || userPermissions.viewSTO) && (
+              <StockOpnameView
+                data={stoData}
+                isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
+                targetDate={lastUpdated}
+                onDataUpdate={async (newData) => {
+                  setStoData(newData);
+                  setIsCustomData(true);
+                  try {
+                    const localSaved = localStorage.getItem('spindo_warehouse_saved_state');
+                    const prev = localSaved ? JSON.parse(localSaved) : {};
+                    const updatedState = { ...prev, stoData: newData };
+                    localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(updatedState));
+                    await fetch('/api/warehouse', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(updatedState),
+                    });
+                  } catch (err) {
+                    console.error('Failed to sync STO data:', err);
                   }
                 }}
               />

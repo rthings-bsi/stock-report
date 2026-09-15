@@ -7,7 +7,7 @@ import {
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { FastSlowPipe, UnfifoPipeItem } from '../types/warehouse';
-import { formatTon, formatQty, formatPercent } from '@/lib/utils';
+import { formatTon, formatQty, formatPercent, cn } from '@/lib/utils';
 import {
   Clock,
   PieChart,
@@ -391,7 +391,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
   };
 
   // Render Table for Top Slow Moving Items
-  const renderTopSlowTable = (itemsList: TopSlowItem[], targetLimit: number) => {
+  const renderTopSlowTable = (itemsList: TopSlowItem[], targetLimit: number, isExpanded: boolean = false) => {
     const handleSort = (field: keyof TopSlowItem) => {
       if (topSlowSortField === field) {
         setTopSlowSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -417,7 +417,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     }
 
     return (
-      <div className="overflow-x-auto max-h-[480px] overflow-y-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+      <div className={cn("overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white", isExpanded ? "flex-1 overflow-auto max-h-none" : "max-h-[480px] overflow-y-auto")}>
         <table className="w-full text-left text-xs border-collapse">
           <thead className="sticky top-0 z-10 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider border-b border-slate-200/80 select-none">
             <tr className="group">
@@ -1036,50 +1036,52 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                   </span>
                 }
               >
-                <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
-                  <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto min-w-0">
-                    <Doughnut data={doughnutData} options={doughnutOptions} />
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
-                        {formatTon(activeGrandTotal, { decimals: 2 })}
-                      </span>
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
-                        TOTAL TON
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Breakdown Pills List */}
-                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
-                    <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                        <span className="text-[11px] font-medium text-slate-600 truncate">Fast Moving ({formatPercent(activeFastPct)})</span>
+                {(expanded) => (
+                  <div className={cn("flex flex-col justify-between font-mono p-1", expanded ? "flex-1 h-full max-w-2xl mx-auto w-full space-y-6 justify-center" : "h-full space-y-3")}>
+                    <div className={cn("flex items-center justify-center relative my-auto min-w-0", expanded ? "h-72 sm:h-80" : "h-40 sm:h-44")}>
+                      <Doughnut data={doughnutData} options={doughnutOptions} />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className={cn("font-bold font-mono text-slate-900 tracking-tight", expanded ? "text-3xl sm:text-4xl" : "text-2xl")}>
+                          {formatTon(activeGrandTotal, { decimals: 2 })}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                          TOTAL TON
+                        </span>
                       </div>
-                      <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                        {formatTon(activeFastTon, { decimals: 2 })}
-                      </span>
                     </div>
 
-                    <div
-                      onClick={() => {
-                        setModalYearGudang(selectedGudang);
-                        setSelectedDrilldownYear(null);
-                        setShowYearModal(true);
-                      }}
-                      className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-amber-50/80 transition-colors"
-                      title="Klik untuk melihat rincian tonase Slow Moving per tahun"
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                        <span className="text-[11px] font-medium text-slate-600 truncate">Slow Moving ({formatPercent(activeSlowPct)})</span>
+                    {/* Breakdown Pills List */}
+                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2 shrink-0">
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50/80 border border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="text-xs font-medium text-slate-600 truncate">Fast Moving ({formatPercent(activeFastPct)})</span>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-slate-800 ml-1 shrink-0">
+                          {formatTon(activeFastTon, { decimals: 2 })}
+                        </span>
                       </div>
-                      <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                        {formatTon(activeSlowTon, { decimals: 2 })}
-                      </span>
+
+                      <div
+                        onClick={() => {
+                          setModalYearGudang(selectedGudang);
+                          setSelectedDrilldownYear(null);
+                          setShowYearModal(true);
+                        }}
+                        className="flex items-center justify-between p-2 rounded-lg bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-amber-50/80 transition-colors shadow-2xs"
+                        title="Klik untuk melihat rincian tonase Slow Moving per tahun"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
+                          <span className="text-xs font-medium text-slate-600 truncate">Slow Moving ({formatPercent(activeSlowPct)})</span>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-slate-800 ml-1 shrink-0">
+                          {formatTon(activeSlowTon, { decimals: 2 })}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </CustomizableCard>
             );
           }
@@ -1115,7 +1117,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                   </span>
                 }
               >
-                {renderTopSlowTable(topSlowItems, 10)}
+                {(expanded) => renderTopSlowTable(topSlowItems, 10, expanded)}
               </CustomizableCard>
             );
           }
@@ -1142,80 +1144,82 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                   </span>
                 }
               >
-                <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider select-none">
-                        <th className="py-3 px-3.5 font-bold" rowSpan={2}>Gudang</th>
-                        <th className="py-2 text-center font-bold border-l border-r border-slate-200/80 bg-slate-100/50" colSpan={2}>Fast Moving</th>
-                        <th className="py-2 text-center font-bold bg-slate-100/50" colSpan={2}>Slow Moving</th>
-                        <th className="py-3 px-3.5 text-right font-bold border-l border-slate-200/80 text-slate-900" rowSpan={2}>Total (Ton)</th>
-                      </tr>
-                      <tr className="border-b border-slate-200/80 bg-slate-50/60 text-slate-500 text-[10px] uppercase font-semibold">
-                        <th className="py-2 px-3 text-right font-bold border-l border-slate-200/80">Tonase</th>
-                        <th className="py-2 px-3 text-right font-bold border-r border-slate-200/80">% Fast</th>
-                        <th className="py-2 px-3 text-right font-bold">Tonase</th>
-                        <th className="py-2 px-3 text-right font-bold">% Slow</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
-                      {safeData.map((item) => {
-                        const isHighSlow = item.slowPersen > 15;
-                        const isSelected = selectedGudang === item.gudang;
-                        return (
-                          <tr
-                            key={item.gudang}
-                            onClick={() => setSelectedGudang(isSelected ? 'ALL' : item.gudang)}
-                            className={`cursor-pointer transition-all duration-150 group ${
-                              isSelected
-                                ? 'bg-emerald-50/80 font-semibold'
-                                : 'hover:bg-emerald-50/30'
-                            }`}
-                          >
-                            <td className="py-3 px-3.5 font-bold text-slate-900 flex items-center gap-2">
-                              <Warehouse className={`h-3.5 w-3.5 ${isSelected ? 'text-emerald-800' : 'text-slate-400'}`} />
-                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold font-mono border shadow-2xs ${
+                {(expanded) => (
+                  <div className={cn("overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white", expanded && "flex-1 overflow-auto max-h-none")}>
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider select-none">
+                          <th className="py-3 px-3.5 font-bold" rowSpan={2}>Gudang</th>
+                          <th className="py-2 text-center font-bold border-l border-r border-slate-200/80 bg-slate-100/50" colSpan={2}>Fast Moving</th>
+                          <th className="py-2 text-center font-bold bg-slate-100/50" colSpan={2}>Slow Moving</th>
+                          <th className="py-3 px-3.5 text-right font-bold border-l border-slate-200/80 text-slate-900" rowSpan={2}>Total (Ton)</th>
+                        </tr>
+                        <tr className="border-b border-slate-200/80 bg-slate-50/60 text-slate-500 text-[10px] uppercase font-semibold">
+                          <th className="py-2 px-3 text-right font-bold border-l border-slate-200/80">Tonase</th>
+                          <th className="py-2 px-3 text-right font-bold border-r border-slate-200/80">% Fast</th>
+                          <th className="py-2 px-3 text-right font-bold">Tonase</th>
+                          <th className="py-2 px-3 text-right font-bold">% Slow</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
+                        {safeData.map((item) => {
+                          const isHighSlow = item.slowPersen > 15;
+                          const isSelected = selectedGudang === item.gudang;
+                          return (
+                            <tr
+                              key={item.gudang}
+                              onClick={() => setSelectedGudang(isSelected ? 'ALL' : item.gudang)}
+                              className={`cursor-pointer transition-all duration-150 group ${
                                 isSelected
-                                  ? 'bg-emerald-800 text-white border-emerald-900'
-                                  : 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
-                              }`}>
-                                {item.gudang}
-                              </span>
-                              {isHighSlow && (
-                                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 ring-2 ring-amber-200" title="Slow moving > 15%"></span>
-                              )}
-                            </td>
-                            <td className="py-3 px-3 text-right font-mono font-semibold text-emerald-800 border-l border-slate-100/90">
-                              {formatTon(item.fastTon)}
-                            </td>
-                            <td className="py-3 px-3 text-right font-mono text-emerald-900 font-bold border-r border-slate-100/90">
-                              {formatPercent(item.fastPersen)}
-                            </td>
-                            <td className={`py-3 px-3 text-right font-mono font-semibold ${item.slowTon > 0 ? 'text-amber-800' : 'text-slate-400'}`}>
-                              {formatTon(item.slowTon)}
-                            </td>
-                            <td className={`py-3 px-3 text-right font-mono font-bold ${isHighSlow ? 'text-amber-700' : 'text-slate-600'}`}>
-                              {formatPercent(item.slowPersen)}
-                            </td>
-                            <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-900 border-l border-slate-100/90">
-                              {formatTon(item.totalTon)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot className="border-t border-slate-200/80 bg-slate-50/90 font-bold text-xs text-slate-900">
-                      <tr>
-                        <td className="py-3 px-3.5 uppercase font-mono text-slate-900">TOTAL</td>
-                        <td className="py-3 px-3 text-right font-mono text-emerald-900 border-l border-slate-200/80">{formatTon(totalFast)}</td>
-                        <td className="py-3 px-3 text-right font-mono text-emerald-900 border-r border-slate-200/80">{formatPercent(overallFastPct)}</td>
-                        <td className="py-3 px-3 text-right font-mono text-amber-900">{formatTon(totalSlow)}</td>
-                        <td className="py-3 px-3 text-right font-mono text-amber-900">{formatPercent(overallSlowPct)}</td>
-                        <td className="py-3 px-3.5 text-right font-mono border-l border-slate-200/80 text-slate-950">{formatTon(grandTotal)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                                  ? 'bg-emerald-50/80 font-semibold'
+                                  : 'hover:bg-emerald-50/30'
+                              }`}
+                            >
+                              <td className="py-3 px-3.5 font-bold text-slate-900 flex items-center gap-2">
+                                <Warehouse className={`h-3.5 w-3.5 ${isSelected ? 'text-emerald-800' : 'text-slate-400'}`} />
+                                <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold font-mono border shadow-2xs ${
+                                  isSelected
+                                    ? 'bg-emerald-800 text-white border-emerald-900'
+                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
+                                }`}>
+                                  {item.gudang}
+                                </span>
+                                {isHighSlow && (
+                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 ring-2 ring-amber-200" title="Slow moving > 15%"></span>
+                                )}
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono font-semibold text-emerald-800 border-l border-slate-100/90">
+                                {formatTon(item.fastTon)}
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono text-emerald-900 font-bold border-r border-slate-100/90">
+                                {formatPercent(item.fastPersen)}
+                              </td>
+                              <td className={`py-3 px-3 text-right font-mono font-semibold ${item.slowTon > 0 ? 'text-amber-800' : 'text-slate-400'}`}>
+                                {formatTon(item.slowTon)}
+                              </td>
+                              <td className={`py-3 px-3 text-right font-mono font-bold ${isHighSlow ? 'text-amber-700' : 'text-slate-600'}`}>
+                                {formatPercent(item.slowPersen)}
+                              </td>
+                              <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-900 border-l border-slate-100/90">
+                                {formatTon(item.totalTon)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="border-t border-slate-200/80 bg-slate-50/90 font-bold text-xs text-slate-900">
+                        <tr>
+                          <td className="py-3 px-3.5 uppercase font-mono text-slate-900">TOTAL</td>
+                          <td className="py-3 px-3 text-right font-mono text-emerald-900 border-l border-slate-200/80">{formatTon(totalFast)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-emerald-900 border-r border-slate-200/80">{formatPercent(overallFastPct)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-amber-900">{formatTon(totalSlow)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-amber-900">{formatPercent(overallSlowPct)}</td>
+                          <td className="py-3 px-3.5 text-right font-mono border-l border-slate-200/80 text-slate-950">{formatTon(grandTotal)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
               </CustomizableCard>
             );
           }
@@ -1227,6 +1231,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 key={card.id}
                 id={card.id}
                 title="Rincian Slow Moving: FG vs WIP"
+                subtitle="Komposisi Finished Goods dan Work in Progress pada kategori Slow Moving per gudang"
                 icon={ListOrdered}
                 width={card.width}
                 isCustomizing={isCustomizing}
@@ -1241,74 +1246,76 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                   </span>
                 }
               >
-                <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-50/80 backdrop-blur-sm text-slate-500 text-[11px] font-semibold border-b border-slate-200/80 uppercase tracking-wider select-none">
-                      <tr>
-                        <th className="py-3 px-3.5 font-bold">Gudang</th>
-                        <th className="py-3 px-3 text-right font-bold text-emerald-800">FG LT</th>
-                        <th className="py-3 px-3 text-right font-bold text-emerald-800">FG ST</th>
-                        <th className="py-3 px-3 text-right font-bold text-amber-800">WIP LT</th>
-                        <th className="py-3 px-3 text-right font-bold text-amber-800">WIP ST</th>
-                        <th className="py-3 px-3.5 text-right font-bold text-slate-900">Total Slow</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100/90 text-slate-700 bg-white">
-                      {safeData.map((r) => {
-                        const rowSlowTotal = (r.fgLtSlow || 0) + (r.fgStSlow || 0) + (r.wipLtSlow || 0) + (r.wipStSlow || 0);
-                        const isSelected = selectedGudang === r.gudang;
-                        return (
-                          <tr
-                            key={`slow-detail-${r.gudang}`}
-                            onClick={() => setSelectedGudang(isSelected ? 'ALL' : r.gudang)}
-                            className={`cursor-pointer transition-all duration-150 group ${
-                              isSelected
-                                ? 'bg-amber-50/80 font-semibold'
-                                : 'hover:bg-emerald-50/30'
-                            }`}
-                          >
-                            <td className="py-3 px-3.5 font-bold text-slate-900 flex items-center gap-2">
-                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold font-mono border shadow-2xs ${
+                {(expanded) => (
+                  <div className={cn("overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white", expanded && "flex-1 overflow-auto max-h-none")}>
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50/80 backdrop-blur-sm text-slate-500 text-[11px] font-semibold border-b border-slate-200/80 uppercase tracking-wider select-none">
+                        <tr>
+                          <th className="py-3 px-3.5 font-bold">Gudang</th>
+                          <th className="py-3 px-3 text-right font-bold text-emerald-800">FG LT</th>
+                          <th className="py-3 px-3 text-right font-bold text-emerald-800">FG ST</th>
+                          <th className="py-3 px-3 text-right font-bold text-amber-800">WIP LT</th>
+                          <th className="py-3 px-3 text-right font-bold text-amber-800">WIP ST</th>
+                          <th className="py-3 px-3.5 text-right font-bold text-slate-900">Total Slow</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100/90 text-slate-700 bg-white">
+                        {safeData.map((r) => {
+                          const rowSlowTotal = (r.fgLtSlow || 0) + (r.fgStSlow || 0) + (r.wipLtSlow || 0) + (r.wipStSlow || 0);
+                          const isSelected = selectedGudang === r.gudang;
+                          return (
+                            <tr
+                              key={`slow-detail-${r.gudang}`}
+                              onClick={() => setSelectedGudang(isSelected ? 'ALL' : r.gudang)}
+                              className={`cursor-pointer transition-all duration-150 group ${
                                 isSelected
-                                  ? 'bg-amber-800 text-white border-amber-900'
-                                  : 'bg-amber-50 text-amber-900 border-amber-200/80'
-                              }`}>
-                                {r.gudang}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-right font-mono">{r.fgLtSlow ? r.fgLtSlow.toFixed(2) : '-'}</td>
-                            <td className="py-3 px-3 text-right font-mono">{r.fgStSlow ? r.fgStSlow.toFixed(2) : '-'}</td>
-                            <td className="py-3 px-3 text-right font-mono">{r.wipLtSlow ? r.wipLtSlow.toFixed(2) : '-'}</td>
-                            <td className="py-3 px-3 text-right font-mono">{r.wipStSlow ? r.wipStSlow.toFixed(2) : '-'}</td>
-                            <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-900">
-                              {rowSlowTotal > 0 ? rowSlowTotal.toFixed(2) : '-'}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot className="border-t border-slate-200/80 bg-slate-50/90 font-bold text-xs text-slate-900">
-                      <tr>
-                        <td className="py-3 px-3.5 font-mono">TOTAL</td>
-                        <td className="py-3 px-3 text-right font-mono text-emerald-900">
-                          {safeData.reduce((acc, c) => acc + (c.fgLtSlow || 0), 0).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono text-emerald-900">
-                          {safeData.reduce((acc, c) => acc + (c.fgStSlow || 0), 0).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono text-amber-900">
-                          {safeData.reduce((acc, c) => acc + (c.wipLtSlow || 0), 0).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono text-amber-900">
-                          {safeData.reduce((acc, c) => acc + (c.wipStSlow || 0), 0).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-950">
-                          {totalSlow.toFixed(2)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                                  ? 'bg-amber-50/80 font-semibold'
+                                  : 'hover:bg-emerald-50/30'
+                              }`}
+                            >
+                              <td className="py-3 px-3.5 font-bold text-slate-900 flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold font-mono border shadow-2xs ${
+                                  isSelected
+                                    ? 'bg-amber-800 text-white border-amber-900'
+                                    : 'bg-amber-50 text-amber-900 border-amber-200/80'
+                                }`}>
+                                  {r.gudang}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono">{r.fgLtSlow ? r.fgLtSlow.toFixed(2) : '-'}</td>
+                              <td className="py-3 px-3 text-right font-mono">{r.fgStSlow ? r.fgStSlow.toFixed(2) : '-'}</td>
+                              <td className="py-3 px-3 text-right font-mono">{r.wipLtSlow ? r.wipLtSlow.toFixed(2) : '-'}</td>
+                              <td className="py-3 px-3 text-right font-mono">{r.wipStSlow ? r.wipStSlow.toFixed(2) : '-'}</td>
+                              <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-900">
+                                {rowSlowTotal > 0 ? rowSlowTotal.toFixed(2) : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="border-t border-slate-200/80 bg-slate-50/90 font-bold text-xs text-slate-900">
+                        <tr>
+                          <td className="py-3 px-3.5 font-mono">TOTAL</td>
+                          <td className="py-3 px-3 text-right font-mono text-emerald-900">
+                            {safeData.reduce((acc, c) => acc + (c.fgLtSlow || 0), 0).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-emerald-900">
+                            {safeData.reduce((acc, c) => acc + (c.fgStSlow || 0), 0).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-amber-900">
+                            {safeData.reduce((acc, c) => acc + (c.wipLtSlow || 0), 0).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-amber-900">
+                            {safeData.reduce((acc, c) => acc + (c.wipStSlow || 0), 0).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-950">
+                            {totalSlow.toFixed(2)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
               </CustomizableCard>
             );
           }

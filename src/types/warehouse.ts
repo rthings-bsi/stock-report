@@ -397,4 +397,85 @@ export const GUDANG_SLOC_CODES: Record<string, string> = {
   'Gd.14': '5N',
 };
 
+// ==========================================
+// STOCK OPNAME (STO) TYPES
+// ==========================================
+
+export type STODifferenceStatus = 'SESUAI' | 'SELISIH_MINUS' | 'SELISIH_PLUS';
+
+export interface StockOpnameItem {
+  id: string;
+  labelId: string;
+  plant: string;
+  sloc: string;
+  gudang: string;               // Hasil normalisasi SLoc: Gd.01 - Gd.14
+  material: string;
+  materialDescription?: string;
+  ukuran?: string;              // Ekstraksi dimensi pipa (tebal, dia, panjang)
+  batch: string;
+  sapInitialQty: number;        // Buku awal (kolom SAP awal)
+  uom: string;                  // Satuan (Eom / BTG / PCS)
+  qtySTO: number;               // Fisik awal (Qty STO)
+  kgSTO: number;                // Berat fisik awal (KG STO)
+  additionalSTO: number;        // Susulan fisik (Additional STO)
+  kgAdditionalSTO: number;      // Berat susulan (KG Additional STO)
+  kgDifference: number;         // Selisih KG awal (KG Difference)
+  differencesQty: number;       // Selisih Qty awal (Differences)
+  qtyIn: number;                // Mutasi IN saat STO
+  kgIn: number;                 // Berat IN saat STO
+  qtyOut: number;               // Mutasi OUT saat STO
+  kgOut: number;                // Berat OUT saat STO
+  sapFinalQty: number;          // Buku final rekonsiliasi (SAP final)
+  actualFinalQty: number;       // Fisik final rekonsiliasi (Actual final)
+  differencesFinalQty: number;  // Selisih Qty final (Differences final)
+  diffSign: string;             // '+' / '-' / '0'
+  kgDiffFinal: number;          // Estimasi selisih berat final (KG)
+  tonDiffFinal: number;         // Estimasi selisih berat final (Ton)
+  status: STODifferenceStatus;
+  remarks?: string;
+}
+
+export interface StockOpnameSummary {
+  totalItems: number;
+  matchingItems: number;
+  minusItems: number;
+  plusItems: number;
+  accuracyRate: number;         // (matchingItems / totalItems) * 100
+  totalSapQty: number;
+  totalActualQty: number;
+  netVarianceQty: number;       // totalActualQty - totalSapQty
+  totalSapTon: number;
+  totalActualTon: number;
+  netVarianceTon: number;
+  totalMinusTon: number;
+  totalPlusTon: number;
+}
+
+export interface StockOpnameGudangRecap {
+  gudang: string;
+  itemCount: number;
+  matchingCount: number;
+  minusCount: number;
+  plusCount: number;
+  accuracyRate: number;
+  sapQty: number;
+  actualQty: number;
+  varianceQty: number;
+  sapTon: number;
+  actualTon: number;
+  varianceTon: number;
+}
+
+export interface StockOpnameSLocRecap {
+  sloc: string;
+  gudang: string;
+  itemCount: number;
+  matchingCount: number;
+  minusCount: number;
+  plusCount: number;
+  varianceQty: number;
+  varianceTon: number;
+}
+
+
 

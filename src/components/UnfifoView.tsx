@@ -31,7 +31,7 @@ import {
   Clock,
   PieChart
 } from 'lucide-react';
-import { formatTon, formatQty } from '@/lib/utils';
+import { formatTon, formatQty, cn } from '@/lib/utils';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
 ChartJS.register(...registerables);
@@ -1105,9 +1105,11 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveRight={() => handleMovePipe(index, 'right')}
                   onWidthChange={(w) => handleWidthChangePipe(card.id, w)}
                 >
-                  <div className="h-64 sm:h-72 w-full min-w-0 p-1">
-                    <Bar data={pipeBarChartData} options={pipeBarChartOptions} />
-                  </div>
+                  {(expanded) => (
+                    <div className={cn("w-full pt-1 min-w-0 p-1", expanded ? "flex-1 min-h-[440px]" : "h-64 sm:h-72")}>
+                      <Bar data={pipeBarChartData} options={pipeBarChartOptions} />
+                    </div>
+                  )}
                 </CustomizableCard>
               );
             }
@@ -1133,37 +1135,39 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                     </span>
                   }
                 >
-                  <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
-                    <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto min-w-0">
-                      <Doughnut data={pipeSummaryDonutData} options={pipeSummaryDonutOptions} />
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
-                          {formatTon(totalPipeUnfifoTon, { decimals: 2 })}
-                        </span>
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
-                          TOTAL TON
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Breakdown Pills List */}
-                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
-                      {pipeDonutBreakdown.map((item) => (
-                        <div
-                          key={item.label}
-                          className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100"
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                            <span className="text-[11px] font-medium text-slate-600 truncate">{item.label}</span>
-                          </div>
-                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                            {formatTon(item.value, { decimals: 2 })}
+                  {(expanded) => (
+                    <div className={cn("flex flex-col justify-between font-mono p-1", expanded ? "flex-1 h-full max-w-2xl mx-auto w-full space-y-6 justify-center" : "h-full space-y-3")}>
+                      <div className={cn("flex items-center justify-center relative my-auto min-w-0", expanded ? "h-72 sm:h-80" : "h-40 sm:h-44")}>
+                        <Doughnut data={pipeSummaryDonutData} options={pipeSummaryDonutOptions} />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className={cn("font-bold font-mono text-slate-900 tracking-tight", expanded ? "text-3xl sm:text-4xl" : "text-2xl")}>
+                            {formatTon(totalPipeUnfifoTon, { decimals: 2 })}
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                            TOTAL TON
                           </span>
                         </div>
-                      ))}
+                      </div>
+
+                      {/* Breakdown Pills List */}
+                      <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2 shrink-0">
+                        {pipeDonutBreakdown.map((item) => (
+                          <div
+                            key={item.label}
+                            className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100"
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                              <span className="text-[11px] font-medium text-slate-600 truncate">{item.label}</span>
+                            </div>
+                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                              {formatTon(item.value, { decimals: 2 })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </CustomizableCard>
               );
             }
@@ -1192,68 +1196,70 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                     ) : undefined
                   }
                 >
-                  {pipeCausesSummary.length === 0 ? (
-                    <div className="py-8 px-4 text-center font-mono">
-                      <AlertTriangle className="h-7 w-7 text-slate-300 mx-auto mb-2" />
-                      <p className="text-xs font-bold text-slate-700">Belum Ada Catatan Alasan / Issue Pipa</p>
-                      <p className="text-[11px] text-slate-400 font-sans mt-0.5">
-                        Klik tombol <span className="text-emerald-700 font-bold font-mono">&quot;+ Catat Alasan&quot;</span> pada tabel di bawah untuk mengisi kendala aktual di lapangan.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-1 items-start">
-                      {/* Vertical Bar Chart */}
-                      <div className="lg:col-span-7 xl:col-span-7 h-64 sm:h-72 w-full min-w-0">
-                        <Bar data={pipeCausesBarData} options={pipeCausesBarOptions} />
+                  {(expanded) => (
+                    pipeCausesSummary.length === 0 ? (
+                      <div className="py-8 px-4 text-center font-mono">
+                        <AlertTriangle className="h-7 w-7 text-slate-300 mx-auto mb-2" />
+                        <p className="text-xs font-bold text-slate-700">Belum Ada Catatan Alasan / Issue Pipa</p>
+                        <p className="text-[11px] text-slate-400 font-sans mt-0.5">
+                          Klik tombol <span className="text-emerald-700 font-bold font-mono">&quot;+ Catat Alasan&quot;</span> pada tabel di bawah untuk mengisi kendala aktual di lapangan.
+                        </p>
                       </div>
+                    ) : (
+                      <div className={cn("grid grid-cols-1 lg:grid-cols-12 gap-6 p-1 items-start", expanded && "flex-1")}>
+                        {/* Vertical Bar Chart */}
+                        <div className={cn("lg:col-span-7 xl:col-span-7 w-full min-w-0", expanded ? "flex-1 min-h-[440px]" : "h-64 sm:h-72")}>
+                          <Bar data={pipeCausesBarData} options={pipeCausesBarOptions} />
+                        </div>
 
-                      {/* Breakdown Ranking Table */}
-                      <div className="lg:col-span-5 xl:col-span-5 space-y-2.5 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-6 pt-4 lg:pt-0">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                          Peringkat Dominasi Penyebab:
-                        </span>
-                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                          {pipeCausesSummary.map((item, rIdx) => {
-                            const pct = totalPipeUnfifoTon > 0 ? ((item.totalTon / totalPipeUnfifoTon) * 100).toFixed(1) : 0;
-                            return (
-                              <div
-                                key={item.cause}
-                                className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 hover:bg-slate-100/90 transition-all space-y-1.5"
-                              >
-                                <div className="flex items-center justify-between gap-2 min-w-0">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className={`h-5 w-5 rounded-md text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                                      rIdx === 0
-                                        ? 'bg-amber-500 text-slate-950 shadow-2xs'
-                                        : rIdx === 1
-                                        ? 'bg-slate-700 text-white shadow-2xs'
-                                        : 'bg-slate-200 text-slate-700'
-                                    }`}>
-                                      {rIdx + 1}
-                                    </span>
-                                    <span className="text-xs font-semibold text-slate-800 truncate" title={item.cause}>
-                                      {item.cause}
-                                    </span>
+                        {/* Breakdown Ranking Table */}
+                        <div className={cn("lg:col-span-5 xl:col-span-5 space-y-2.5 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-6 pt-4 lg:pt-0", expanded && "flex-1")}>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                            Peringkat Dominasi Penyebab:
+                          </span>
+                          <div className={cn("space-y-2 overflow-y-auto pr-1", expanded ? "max-h-[500px]" : "max-h-64")}>
+                            {pipeCausesSummary.map((item, rIdx) => {
+                              const pct = totalPipeUnfifoTon > 0 ? ((item.totalTon / totalPipeUnfifoTon) * 100).toFixed(1) : 0;
+                              return (
+                                <div
+                                  key={item.cause}
+                                  className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 hover:bg-slate-100/90 transition-all space-y-1.5"
+                                >
+                                  <div className="flex items-center justify-between gap-2 min-w-0">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className={`h-5 w-5 rounded-md text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                        rIdx === 0
+                                          ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                                          : rIdx === 1
+                                          ? 'bg-slate-700 text-white shadow-2xs'
+                                          : 'bg-slate-200 text-slate-700'
+                                      }`}>
+                                        {rIdx + 1}
+                                      </span>
+                                      <span className="text-xs font-semibold text-slate-800 truncate" title={item.cause}>
+                                        {item.cause}
+                                      </span>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <strong className="text-slate-900 tabular-nums">{formatTon(item.totalTon, { showUnit: true })}</strong>
+                                    </div>
                                   </div>
-                                  <div className="text-right shrink-0">
-                                    <strong className="text-slate-900 tabular-nums">{formatTon(item.totalTon, { showUnit: true })}</strong>
+                                  <div className="flex items-center justify-between text-[10px] text-slate-500 gap-2">
+                                    <div className="flex-1 bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
+                                      <div
+                                        className="h-full rounded-full bg-amber-500"
+                                        style={{ width: `${Math.min(100, Math.max(3, Number(pct)))}%` }}
+                                      />
+                                    </div>
+                                    <span className="shrink-0 tabular-nums">({pct}% &bull; {item.count} item)</span>
                                   </div>
                                 </div>
-                                <div className="flex items-center justify-between text-[10px] text-slate-500 gap-2">
-                                  <div className="flex-1 bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
-                                    <div
-                                      className="h-full rounded-full bg-amber-500"
-                                      style={{ width: `${Math.min(100, Math.max(3, Number(pct)))}%` }}
-                                    />
-                                  </div>
-                                  <span className="shrink-0 tabular-nums">({pct}% &bull; {item.count} item)</span>
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )
                   )}
                 </CustomizableCard>
               );
@@ -1313,8 +1319,9 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                     </div>
                   }
                 >
-                  <div className="flex flex-col justify-between h-full">
-                    <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+                  {(expanded) => (
+                    <div className="flex flex-col justify-between h-full">
+                      <div className={cn("overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white", expanded && "flex-1 overflow-auto max-h-none")}>
                       <table className="w-full text-left text-xs border-collapse">
                         <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold uppercase tracking-wider text-[11px] select-none">
                           <tr>
@@ -1450,16 +1457,17 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                       </div>
                     )}
                   </div>
-                </CustomizableCard>
-              );
-            }
+                )}
+              </CustomizableCard>
+            );
+          }
 
-            return null;
-          })}
-        </div>
-      )}
+          return null;
+        })}
+      </div>
+    )}
 
-      {/* TAB 2: COIL & STRIP UNFIFO CARDS */}
+    {/* TAB 2: COIL & STRIP UNFIFO CARDS */}
       {activeTab === 'coil' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full">
           {coilCards.map((card, index) => {
@@ -1479,9 +1487,11 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                   onMoveRight={() => handleMoveCoil(index, 'right')}
                   onWidthChange={(w) => handleWidthChangeCoil(card.id, w)}
                 >
-                  <div className="h-64 sm:h-72 w-full min-w-0 p-1">
-                    <Bar data={coilBarChartData} options={coilBarChartOptions} />
-                  </div>
+                  {(expanded) => (
+                    <div className={cn("w-full pt-1 min-w-0 p-1", expanded ? "flex-1 min-h-[440px]" : "h-64 sm:h-72")}>
+                      <Bar data={coilBarChartData} options={coilBarChartOptions} />
+                    </div>
+                  )}
                 </CustomizableCard>
               );
             }
@@ -1507,42 +1517,44 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                     </span>
                   }
                 >
-                  <div className="flex flex-col justify-between h-full space-y-3 font-mono p-1">
-                    <div className="h-40 sm:h-44 flex items-center justify-center relative my-auto min-w-0">
-                      <Doughnut data={coilSummaryDonutData} options={coilSummaryDonutOptions} />
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
-                          {formatTon(totalCoilUnfifoTon, { decimals: 2 })}
-                        </span>
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
-                          TOTAL TON
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Breakdown Pills List */}
-                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2">
-                      <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                          <span className="text-[11px] font-medium text-slate-600 truncate">Coil ({totalCoilOnlyQty} Roll)</span>
+                  {(expanded) => (
+                    <div className={cn("flex flex-col justify-between font-mono p-1", expanded ? "flex-1 h-full max-w-2xl mx-auto w-full space-y-6 justify-center" : "h-full space-y-3")}>
+                      <div className={cn("flex items-center justify-center relative my-auto min-w-0", expanded ? "h-72 sm:h-80" : "h-40 sm:h-44")}>
+                        <Doughnut data={coilSummaryDonutData} options={coilSummaryDonutOptions} />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className={cn("font-bold font-mono text-slate-900 tracking-tight", expanded ? "text-3xl sm:text-4xl" : "text-2xl")}>
+                            {formatTon(totalCoilUnfifoTon, { decimals: 2 })}
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                            TOTAL TON
+                          </span>
                         </div>
-                        <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                          {formatTon(totalCoilOnlyTon, { decimals: 2 })}
-                        </span>
                       </div>
 
-                      <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                          <span className="text-[11px] font-medium text-slate-600 truncate">Strip ({totalStripOnlyQty} Roll)</span>
+                      {/* Breakdown Pills List */}
+                      <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2 shrink-0">
+                        <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                            <span className="text-[11px] font-medium text-slate-600 truncate">Coil ({totalCoilOnlyQty} Roll)</span>
+                          </div>
+                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                            {formatTon(totalCoilOnlyTon, { decimals: 2 })}
+                          </span>
                         </div>
-                        <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                          {formatTon(totalStripOnlyTon, { decimals: 2 })}
-                        </span>
+
+                        <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                            <span className="text-[11px] font-medium text-slate-600 truncate">Strip ({totalStripOnlyQty} Roll)</span>
+                          </div>
+                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
+                            {formatTon(totalStripOnlyTon, { decimals: 2 })}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </CustomizableCard>
               );
             }
@@ -1571,68 +1583,70 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                     ) : undefined
                   }
                 >
-                  {coilCausesSummary.length === 0 ? (
-                    <div className="py-8 px-4 text-center font-mono">
-                      <AlertTriangle className="h-7 w-7 text-slate-300 mx-auto mb-2" />
-                      <p className="text-xs font-bold text-slate-700">Belum Ada Catatan Alasan / Issue Coil & Strip</p>
-                      <p className="text-[11px] text-slate-400 font-sans mt-0.5">
-                        Klik tombol <span className="text-emerald-700 font-bold font-mono">&quot;+ Catat Alasan&quot;</span> pada tabel di bawah untuk mengisi kendala aktual di lapangan.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-1 items-start">
-                      {/* Vertical Bar Chart */}
-                      <div className="lg:col-span-7 xl:col-span-7 h-64 sm:h-72 w-full min-w-0">
-                        <Bar data={coilCausesBarData} options={coilCausesBarOptions} />
+                  {(expanded) => (
+                    coilCausesSummary.length === 0 ? (
+                      <div className="py-8 px-4 text-center font-mono">
+                        <AlertTriangle className="h-7 w-7 text-slate-300 mx-auto mb-2" />
+                        <p className="text-xs font-bold text-slate-700">Belum Ada Catatan Alasan / Issue Coil & Strip</p>
+                        <p className="text-[11px] text-slate-400 font-sans mt-0.5">
+                          Klik tombol <span className="text-emerald-700 font-bold font-mono">&quot;+ Catat Alasan&quot;</span> pada tabel di bawah untuk mengisi kendala aktual di lapangan.
+                        </p>
                       </div>
+                    ) : (
+                      <div className={cn("grid grid-cols-1 lg:grid-cols-12 gap-6 p-1 items-start", expanded && "flex-1")}>
+                        {/* Vertical Bar Chart */}
+                        <div className={cn("lg:col-span-7 xl:col-span-7 w-full min-w-0", expanded ? "flex-1 min-h-[440px]" : "h-64 sm:h-72")}>
+                          <Bar data={coilCausesBarData} options={coilCausesBarOptions} />
+                        </div>
 
-                      {/* Breakdown Ranking Table */}
-                      <div className="lg:col-span-5 xl:col-span-5 space-y-2.5 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-6 pt-4 lg:pt-0">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                          Peringkat Dominasi Kendala:
-                        </span>
-                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                          {coilCausesSummary.map((item, rIdx) => {
-                            const pct = totalCoilUnfifoTon > 0 ? ((item.totalTon / totalCoilUnfifoTon) * 100).toFixed(1) : 0;
-                            return (
-                              <div
-                                key={item.cause}
-                                className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 hover:bg-slate-100/90 transition-all space-y-1.5"
-                              >
-                                <div className="flex items-center justify-between gap-2 min-w-0">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className={`h-5 w-5 rounded-md text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                                      rIdx === 0
-                                        ? 'bg-amber-500 text-slate-950 shadow-2xs'
-                                        : rIdx === 1
-                                        ? 'bg-slate-700 text-white shadow-2xs'
-                                        : 'bg-slate-200 text-slate-700'
-                                    }`}>
-                                      {rIdx + 1}
-                                    </span>
-                                    <span className="text-xs font-semibold text-slate-800 truncate" title={item.cause}>
-                                      {item.cause}
-                                    </span>
+                        {/* Breakdown Ranking Table */}
+                        <div className={cn("lg:col-span-5 xl:col-span-5 space-y-2.5 font-mono text-xs border-t lg:border-t-0 lg:border-l border-slate-200 lg:pl-6 pt-4 lg:pt-0", expanded && "flex-1")}>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                            Peringkat Dominasi Kendala:
+                          </span>
+                          <div className={cn("space-y-2 overflow-y-auto pr-1", expanded ? "max-h-[500px]" : "max-h-64")}>
+                            {coilCausesSummary.map((item, rIdx) => {
+                              const pct = totalCoilUnfifoTon > 0 ? ((item.totalTon / totalCoilUnfifoTon) * 100).toFixed(1) : 0;
+                              return (
+                                <div
+                                  key={item.cause}
+                                  className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 hover:bg-slate-100/90 transition-all space-y-1.5"
+                                >
+                                  <div className="flex items-center justify-between gap-2 min-w-0">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className={`h-5 w-5 rounded-md text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                        rIdx === 0
+                                          ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                                          : rIdx === 1
+                                          ? 'bg-slate-700 text-white shadow-2xs'
+                                          : 'bg-slate-200 text-slate-700'
+                                      }`}>
+                                        {rIdx + 1}
+                                      </span>
+                                      <span className="text-xs font-semibold text-slate-800 truncate" title={item.cause}>
+                                        {item.cause}
+                                      </span>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <strong className="text-slate-900 tabular-nums">{formatTon(item.totalTon, { showUnit: true })}</strong>
+                                    </div>
                                   </div>
-                                  <div className="text-right shrink-0">
-                                    <strong className="text-slate-900 tabular-nums">{formatTon(item.totalTon, { showUnit: true })}</strong>
+                                  <div className="flex items-center justify-between text-[10px] text-slate-500 gap-2">
+                                    <div className="flex-1 bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
+                                      <div
+                                        className="h-full rounded-full bg-emerald-600"
+                                        style={{ width: `${Math.min(100, Math.max(3, Number(pct)))}%` }}
+                                      />
+                                    </div>
+                                    <span className="shrink-0 tabular-nums">({pct}% &bull; {item.count} roll)</span>
                                   </div>
                                 </div>
-                                <div className="flex items-center justify-between text-[10px] text-slate-500 gap-2">
-                                  <div className="flex-1 bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
-                                    <div
-                                      className="h-full rounded-full bg-emerald-600"
-                                      style={{ width: `${Math.min(100, Math.max(3, Number(pct)))}%` }}
-                                    />
-                                  </div>
-                                  <span className="shrink-0 tabular-nums">({pct}% &bull; {item.count} roll)</span>
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )
                   )}
                 </CustomizableCard>
               );
@@ -1692,8 +1706,9 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                     </div>
                   }
                 >
-                  <div className="flex flex-col justify-between h-full">
-                    <div className="overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white">
+                  {(expanded) => (
+                    <div className="flex flex-col justify-between h-full">
+                      <div className={cn("overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white", expanded && "flex-1 overflow-auto max-h-none")}>
                       <table className="w-full text-left text-xs border-collapse">
                         <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold uppercase tracking-wider text-[11px] select-none">
                           <tr>
@@ -1825,9 +1840,10 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
                       </div>
                     )}
                   </div>
-                </CustomizableCard>
-              );
-            }
+                )}
+              </CustomizableCard>
+            );
+          }
 
             return null;
           })}
