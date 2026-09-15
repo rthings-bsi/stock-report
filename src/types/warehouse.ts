@@ -464,6 +464,12 @@ export interface StockOpnameGudangRecap {
   sapTon: number;
   actualTon: number;
   varianceTon: number;
+  matchingTon: number;
+  minusTon: number;
+  plusTon: number;
+  matchingQty: number;
+  minusQty: number;
+  plusQty: number;
 }
 
 export interface StockOpnameSLocRecap {

@@ -137,6 +137,15 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   // Toggles for chart view metrics
   const [varianceMetric, setVarianceMetric] = useState<'ton' | 'qty'>('ton');
   const [compareMetric, setCompareMetric] = useState<'ton' | 'qty'>('ton');
+  const [slocGudangFilter, setSlocGudangFilter] = useState<string>('ALL');
+  const [slocMetric, setSlocMetric] = useState<'ton' | 'qty'>('ton');
+
+  // Sinkronisasi filter gudang per SLoc dengan filter gudang global bila berubah
+  useEffect(() => {
+    if (selectedGudang !== 'ALL') {
+      setSlocGudangFilter(selectedGudang);
+    }
+  }, [selectedGudang]);
 
   // Table Sorting & Pagination
   const [sortField, setSortField] = useState<string>('differencesFinalQty');
@@ -253,11 +262,11 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   const slocRecap = useMemo(() => {
     return calculateSTOSLocRecap(
       items.filter((i) => {
-        if (selectedGudang !== 'ALL' && i.gudang !== selectedGudang) return false;
+        if (slocGudangFilter !== 'ALL' && i.gudang !== slocGudangFilter) return false;
         return true;
       })
     );
-  }, [items, selectedGudang]);
+  }, [items, slocGudangFilter]);
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -275,33 +284,56 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
 
   // ==========================================
   // CHART 1: SELISIH STO PER GUDANG (BAR)
+  // Model Grouped Bar Chart identik Progres NC
   // ==========================================
   const varianceChartData = useMemo(() => {
-    const activeGudangs = gudangRecap.filter((g) => g.itemCount > 0 || Math.abs(g.varianceTon) > 0.01 || Math.abs(g.varianceQty) > 0);
+    const activeGudangs = gudangRecap.filter((g) => g.itemCount > 0);
     const labels = activeGudangs.map((g) => g.gudang);
-    const dataValues = activeGudangs.map((g) =>
-      varianceMetric === 'ton' ? Number(g.varianceTon.toFixed(2)) : g.varianceQty
-    );
 
-    const backgroundColors = dataValues.map((v) =>
-      v < 0 ? 'rgba(225, 29, 72, 0.85)' : v > 0 ? 'rgba(14, 165, 233, 0.85)' : 'rgba(16, 185, 129, 0.85)'
+    const defisitValues = activeGudangs.map((g) =>
+      varianceMetric === 'ton' ? Number((g.minusTon || 0).toFixed(2)) : (g.minusQty || 0)
     );
-    const borderColors = dataValues.map((v) =>
-      v < 0 ? '#e11d48' : v > 0 ? '#0ea5e9' : '#10b981'
+    const surplusValues = activeGudangs.map((g) =>
+      varianceMetric === 'ton' ? Number((g.plusTon || 0).toFixed(2)) : (g.plusQty || 0)
+    );
+    const akuratValues = activeGudangs.map((g) =>
+      varianceMetric === 'ton' ? Number((g.matchingTon || 0).toFixed(2)) : (g.matchingQty || 0)
     );
 
     return {
       labels,
       datasets: [
         {
-          label: varianceMetric === 'ton' ? 'Selisih Ton (Aktual - SAP)' : 'Selisih Qty Batang (Aktual - SAP)',
-          data: dataValues,
-          backgroundColor: backgroundColors,
-          borderColor: borderColors,
-          borderWidth: 1.5,
+          label: 'Defisit (Minus)',
+          data: defisitValues,
+          backgroundColor: '#ef4444', // Merah
+          hoverBackgroundColor: '#dc2626',
           borderRadius: 4,
-          maxBarThickness: selectedGudang !== 'ALL' ? 44 : 34,
-          barPercentage: 0.6,
+          borderSkipped: false,
+          maxBarThickness: selectedGudang !== 'ALL' ? 44 : 32,
+          barPercentage: 0.7,
+          categoryPercentage: 0.7,
+        },
+        {
+          label: 'Surplus (Plus)',
+          data: surplusValues,
+          backgroundColor: '#3b82f6', // Biru
+          hoverBackgroundColor: '#2563eb',
+          borderRadius: 4,
+          borderSkipped: false,
+          maxBarThickness: selectedGudang !== 'ALL' ? 44 : 32,
+          barPercentage: 0.7,
+          categoryPercentage: 0.7,
+        },
+        {
+          label: 'Akurat (0)',
+          data: akuratValues,
+          backgroundColor: '#10b981', // Hijau
+          hoverBackgroundColor: '#059669',
+          borderRadius: 4,
+          borderSkipped: false,
+          maxBarThickness: selectedGudang !== 'ALL' ? 44 : 32,
+          barPercentage: 0.7,
           categoryPercentage: 0.7,
         },
       ],
@@ -328,10 +360,9 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           borderWidth: 1,
           callbacks: {
             label: (context: any) => {
-              const val = context.raw;
+              const val = context.parsed.y || 0;
               const unit = varianceMetric === 'ton' ? 'Ton' : 'Btg';
-              const sign = val > 0 ? '+' : '';
-              return ` Selisih: ${sign}${val} ${unit}`;
+              return ` ${context.dataset.label}: ${val} ${unit}`;
             },
           },
         },
@@ -345,6 +376,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           },
         },
         y: {
+          beginAtZero: true,
           grid: { color: '#f1f5f9' },
           ticks: {
             color: '#94a3b8',
@@ -452,11 +484,19 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   // ==========================================
   const slocChartData = useMemo(() => {
     const sortedSLocs = [...slocRecap]
-      .sort((a, b) => Math.abs(b.varianceTon) - Math.abs(a.varianceTon))
+      .sort((a, b) => {
+        const valA = slocMetric === 'ton' ? Math.abs(a.varianceTon) : Math.abs(a.varianceQty);
+        const valB = slocMetric === 'ton' ? Math.abs(b.varianceTon) : Math.abs(b.varianceQty);
+        return valB - valA;
+      })
       .slice(0, 10);
 
-    const labels = sortedSLocs.map((s) => `${s.sloc} (${s.gudang})`);
-    const dataValues = sortedSLocs.map((s) => Number(s.varianceTon.toFixed(2)));
+    const labels = sortedSLocs.map((s) =>
+      slocGudangFilter === 'ALL' ? `${s.sloc} (${s.gudang})` : s.sloc
+    );
+    const dataValues = sortedSLocs.map((s) =>
+      slocMetric === 'ton' ? Number(s.varianceTon.toFixed(2)) : s.varianceQty
+    );
 
     const backgroundColors = dataValues.map((v) =>
       v < 0 ? 'rgba(225, 29, 72, 0.85)' : v > 0 ? 'rgba(245, 158, 11, 0.85)' : 'rgba(16, 185, 129, 0.85)'
@@ -466,7 +506,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
       labels,
       datasets: [
         {
-          label: 'Selisih Ton (SLoc)',
+          label: slocMetric === 'ton' ? 'Selisih Ton (SLoc)' : 'Selisih Qty (SLoc)',
           data: dataValues,
           backgroundColor: backgroundColors,
           borderRadius: 4,
@@ -478,7 +518,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
         },
       ],
     };
-  }, [slocRecap]);
+  }, [slocRecap, slocMetric, slocGudangFilter]);
 
   const slocChartOptions = useMemo(() => {
     return {
@@ -502,7 +542,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
             label: (context: any) => {
               const val = context.raw;
               const sign = val > 0 ? '+' : '';
-              return ` Selisih: ${sign}${val} Ton`;
+              return ` Selisih: ${sign}${val} ${slocMetric === 'ton' ? 'Ton' : 'Btg'}`;
             },
           },
         },
@@ -520,12 +560,12 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           ticks: {
             color: '#94a3b8',
             font: { family: 'ui-monospace, monospace', size: 10 },
-            callback: (val: any) => `${val} T`,
+            callback: (val: any) => `${val} ${slocMetric === 'ton' ? 'T' : 'B'}`,
           },
         },
       },
     };
-  }, []);
+  }, [slocMetric]);
 
   // ==========================================
   // CHART 4: DOUGHNUT STATUS PROPORSI
@@ -936,7 +976,11 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
         <CustomizableCard
           id="chart-sto-sloc-bar"
           title="Deviasi Selisih per SLoc"
-          subtitle="Top 10 lokasi simpan SAP dengan deviasi tonase terbesar"
+          subtitle={
+            slocGudangFilter !== 'ALL'
+              ? `Top 10 SLoc deviasi terbesar di ${slocGudangFilter}`
+              : `Top 10 lokasi simpan SAP dengan deviasi ${slocMetric === 'ton' ? 'tonase' : 'kuantitas'} terbesar`
+          }
           icon={MapPin}
           width={cards.find((c) => c.id === 'chart-sto-sloc-bar')?.width || 'col-span-8'}
           isCustomizing={isCustomizing}
@@ -947,14 +991,86 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           onMoveRight={() => handleMove(2, 'right')}
           badge={
             <span className="text-[10px] font-mono bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded border border-slate-300">
-              Top 10 SLoc
+              {slocGudangFilter !== 'ALL' ? slocGudangFilter : 'Semua Gudang'}
             </span>
+          }
+          headerAction={
+            <div className="flex items-center gap-1.5">
+              {/* Filter Gudang per SLoc */}
+              <div className="flex items-center gap-1 text-xs bg-white border border-slate-200/90 rounded-lg px-2 py-0.5 shadow-2xs">
+                <Building2 className="h-3 w-3 text-slate-400 shrink-0" />
+                <span className="text-[10px] text-slate-500 font-bold uppercase hidden sm:inline">Gudang:</span>
+                <select
+                  value={slocGudangFilter}
+                  onChange={(e) => setSlocGudangFilter(e.target.value)}
+                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer text-xs py-0.5"
+                >
+                  <option value="ALL">Semua Gudang</option>
+                  {availableGudangs.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Metric Toggle */}
+              <div className="inline-flex items-center rounded-lg bg-slate-100 p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setSlocMetric('ton')}
+                  className={cn(
+                    'px-2 py-0.5 rounded-md font-bold transition-all cursor-pointer text-[11px]',
+                    slocMetric === 'ton'
+                      ? 'bg-white text-emerald-700 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  )}
+                >
+                  Tonase
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSlocMetric('qty')}
+                  className={cn(
+                    'px-2 py-0.5 rounded-md font-bold transition-all cursor-pointer text-[11px]',
+                    slocMetric === 'qty'
+                      ? 'bg-white text-emerald-700 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  )}
+                >
+                  Qty Btg
+                </button>
+              </div>
+            </div>
           }
         >
           {(expanded) => (
             <div className="flex flex-col justify-between h-full w-full">
+              <div>
+                {/* Custom Clean Legend */}
+                <div className="flex flex-wrap items-center gap-4 mb-2">
+                  <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                    <span>Defisit (-)</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                    <span>Surplus (+)</span>
+                  </div>
+                </div>
+              </div>
+
               <div className={cn("w-full pt-1", expanded ? "h-96" : "h-56 sm:h-64")}>
-                <Bar data={slocChartData} options={slocChartOptions} />
+                {slocChartData.labels.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
+                    <MapPin className="h-7 w-7 text-slate-300 mb-1.5 stroke-1" />
+                    <p className="text-xs font-medium text-slate-500">
+                      Tidak ada data SLoc untuk {slocGudangFilter}
+                    </p>
+                  </div>
+                ) : (
+                  <Bar data={slocChartData} options={slocChartOptions} />
+                )}
               </div>
             </div>
           )}

@@ -495,7 +495,10 @@ export default function Home() {
       : Boolean(newState.pipeCapacities && newState.pipeCapacities.some(c => (c.stock || 0) > 0));
     const hasCoil = newState.uploadedCategories
       ? newState.uploadedCategories.includes('coil')
-      : Boolean(newState.coilStripData && newState.coilStripData.some(c => (c.totalTon || 0) > 0));
+      : Boolean(
+          (newState.coilStripData && newState.coilStripData.some(c => (c.totalTon || 0) > 0 || (c.totalQty || 0) > 0)) ||
+          (newState.unfifoCoilData && newState.unfifoCoilData.length > 0)
+        );
     const hasLoo = newState.uploadedCategories
       ? newState.uploadedCategories.includes('loo')
       : Boolean((newState.looSTData && newState.looSTData.length > 0) || (newState.looLTData && newState.looLTData.length > 0));

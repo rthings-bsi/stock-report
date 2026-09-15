@@ -195,6 +195,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       let stoRawMatrix: unknown[][] = [];
 
       // 1. Baca tiap file secara terisolasi agar error spesifik file terlihat jelas
+      // Cek apakah user memilih file yang sama untuk slot Pipa dan Coil
+      const isSameFileForPipeAndCoil = Boolean(
+        pipeFile && coilFile &&
+        (pipeFile === coilFile || (pipeFile.name === coilFile.name && pipeFile.size === coilFile.size))
+      );
+
       if (pipeFile && canUploadPipe) {
         try {
           const sheetPipa = await readExcelFile(pipeFile, 'pipa');
@@ -209,7 +215,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         }
       }
 
-      if (coilFile && canUploadCoil) {
+      if (coilFile && canUploadCoil && !isSameFileForPipeAndCoil) {
         try {
           const sheetCoil = await readExcelFile(coilFile, 'coil');
           if (sheetCoil.length > 0) {
@@ -221,24 +227,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           const m = e instanceof Error ? e.message : 'Format file tidak dapat dibaca';
           throw new Error(`File Data Coil (${coilFile.name}): ${m}`);
         }
-      } else if (pipeFile && canUploadCoil && coilRows.length === 0) {
-        // Cerdas: Jika user mengupload 1 file zppshstock gabungan pada slot Pipa, coba baca sheet Coil jika ada
-        try {
-          const autoCoilRows = await readExcelFile(pipeFile, 'coil');
-          if (autoCoilRows && autoCoilRows.length > 0) {
-            coilRows = autoCoilRows;
-          }
-        } catch {}
-      }
-
-      if (!pipeFile && coilFile && canUploadPipe && pipeRows.length === 0) {
-        // Cerdas: Jika user mengupload 1 file gabungan pada slot Coil, coba baca sheet Pipa jika ada
-        try {
-          const autoPipeRows = await readExcelFile(coilFile, 'pipa');
-          if (autoPipeRows && autoPipeRows.length > 0) {
-            pipeRows = autoPipeRows;
-          }
-        } catch {}
       }
 
       if (looFile && canUploadLoo) {
@@ -313,6 +301,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       if (coilFile && coilRows.length > 0) {
         if (!uploadedCategories.includes('coil')) {
           uploadedCategories.push('coil');
+        }
+        // Jika file yang diunggah di slot coil memuat data pipa juga:
+        const pipeStockTotalFromCoil = (parsedResult.pipeCapacities || []).reduce((acc, c) => acc + (c.stock || 0), 0);
+        if (!pipeFile && pipeStockTotalFromCoil > 0 && !uploadedCategories.includes('pipe')) {
+          uploadedCategories.push('pipe');
         }
       }
 

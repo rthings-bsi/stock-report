@@ -125,7 +125,8 @@ function normalizeGudang(sloc: string | undefined): string {
   const s = String(sloc).toUpperCase().trim();
 
   // Pola Standar SAP Spindo: 5A* = Gd.01 s/d 5N* = Gd.14
-  const match5Letter = s.match(/^5([A-N])/);
+  // Cocokkan pola 5[A-N] di awal, setelah pemisah (-, /, _, spasi), atau mandiri (misal: "1105-5M08", "5M08", "5A01")
+  const match5Letter = s.match(/(?:^|[\s/_\-])5([A-N])/);
   if (match5Letter) {
     const charCode = match5Letter[1].charCodeAt(0);
     const whNumber = charCode - 65 + 1; // 'A' = 65 -> 1
@@ -141,21 +142,14 @@ function normalizeGudang(sloc: string | undefined): string {
     return `Gd.${padNum}`;
   }
 
-  // Fallback cek langsung huruf
-  if (s.startsWith('5N')) return 'Gd.14';
-  if (s.startsWith('5M')) return 'Gd.13';
-  if (s.startsWith('5L')) return 'Gd.12';
-  if (s.startsWith('5K')) return 'Gd.11';
-  if (s.startsWith('5J')) return 'Gd.10';
-  if (s.startsWith('5I')) return 'Gd.09';
-  if (s.startsWith('5H')) return 'Gd.08';
-  if (s.startsWith('5G')) return 'Gd.07';
-  if (s.startsWith('5F')) return 'Gd.06';
-  if (s.startsWith('5E')) return 'Gd.05';
-  if (s.startsWith('5D')) return 'Gd.04';
-  if (s.startsWith('5C')) return 'Gd.03';
-  if (s.startsWith('5B')) return 'Gd.02';
-  if (s.startsWith('5A')) return 'Gd.01';
+  // Fallback cek keberadaan 5A - 5N di mana saja dalam string
+  const matchAny5 = s.match(/5([A-N])/);
+  if (matchAny5) {
+    const charCode = matchAny5[1].charCodeAt(0);
+    const whNumber = charCode - 65 + 1;
+    const padNum = whNumber < 10 ? `0${whNumber}` : `${whNumber}`;
+    return `Gd.${padNum}`;
+  }
 
   return 'Gd.01';
 }
@@ -163,16 +157,54 @@ function normalizeGudang(sloc: string | undefined): string {
 function parseNumber(val: unknown): number {
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
   if (!val) return 0;
-  let str = String(val).trim().replace(/[^\d.,-]/g, '');
-  if (!str) return 0;
-  // Format Indonesia: 1.234,56 -> 1234.56
-  if (str.includes(',') && str.includes('.')) {
-    str = str.replace(/\./g, '').replace(',', '.');
-  } else if (str.includes(',')) {
-    str = str.replace(',', '.');
+  let s = String(val).trim();
+  if (!s || s === '-' || s === '0') return 0;
+
+  // Cek tanda minus di belakang ("5-", "17.760-") atau depan
+  let isNegative = false;
+  if (s.endsWith('-')) {
+    isNegative = true;
+    s = s.slice(0, -1).trim();
+  } else if (s.startsWith('-')) {
+    isNegative = true;
+    s = s.slice(1).trim();
   }
-  const n = parseFloat(str);
-  return isNaN(n) ? 0 : n;
+
+  s = s.replace(/[^\d.,]/g, '');
+  if (!s) return 0;
+
+  // Format SAP Indonesia / Jerman:
+  if (s.includes('.') && s.includes(',')) {
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+      // "1.234,56" -> Titik ribuan, koma desimal
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // "1,234.56" -> Koma ribuan, titik desimal
+      s = s.replace(/,/g, '');
+    }
+  } else if (s.includes(',')) {
+    const parts = s.split(',');
+    if (parts.length > 2) {
+      s = s.replace(/,/g, '');
+    } else if (parts.length === 2 && parts[1].length === 3 && parts[0].length <= 3 && parts[0] !== '0') {
+      s = parts[0] + parts[1];
+    } else {
+      s = s.replace(',', '.');
+    }
+  } else if (s.includes('.')) {
+    const parts = s.split('.');
+    if (parts.length > 2) {
+      // "1.234.567" -> titik ribuan
+      s = s.replace(/\./g, '');
+    } else if (parts.length === 2 && parts[1].length === 3 && parts[0].length <= 3 && parts[0] !== '0') {
+      // e.g. "17.760", "2.452", "15.000" -> integer ribuan dari SAP
+      s = parts[0] + parts[1];
+    }
+  }
+
+  const n = parseFloat(s);
+  if (isNaN(n)) return 0;
+  return isNegative ? -n : n;
 }
 
 /**
@@ -518,17 +550,52 @@ export function isCoilOrStripRow(row: Record<string, unknown>): boolean {
   if (past.includes('PIPA') || past.includes('PIPE')) {
     return false;
   }
-  // Jika kolom PAST secara eksplisit menandakan coil/strip (misal: "1. STOCK COIL", "COIL", "STRIP", "RAW MATERIAL")
-  if (past.includes('COIL') || past.includes('STRIP') || past.includes('RAW')) {
+  // Jika kolom PAST secara eksplisit menandakan coil/strip (misal: "1. STOCK COIL", "COIL", "STRIP", "RAW MATERIAL", "BAHAN BAKU")
+  if (past.includes('COIL') || past.includes('STRIP') || past.includes('RAW') || past.includes('BAHAN BAKU') || past.includes('BB')) {
     return true;
   }
 
   const desc = String(
-    getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi', 'Kode Material', 'Coil Specification']) || ''
+    getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi']) || ''
   ).toUpperCase();
+
+  // Jika deskripsi secara eksplisit produk pipa
+  if (desc.includes('PIPA') || desc.includes('PIPE') || desc.includes('HOLLOW') || desc.includes('TUBING') || desc.includes('SCH40') || desc.includes('SCH 40')) {
+    return false;
+  }
+
+  // 1. Cek kolom spesifik Coil dari ekspor SAP:
+  const coilSpec = String(
+    getRowValue(row, ['Coil Specification', 'COIL SPECIFICATION', 'Coil Spec', 'CoilSpecification', 'Spec Coil']) || ''
+  ).trim();
+  if (coilSpec && coilSpec !== '-' && coilSpec !== '0') {
+    return true;
+  }
+
+  const cManuf = String(
+    getRowValue(row, ['C.MANUFAKTUR', 'C.Manufaktur', 'CMANUFAKTUR', 'C_MANUFAKTUR', 'Manufaktur Coil']) || ''
+  ).trim();
+  if (cManuf && cManuf !== '-' && cManuf !== '0') {
+    return true;
+  }
+
+  const cHeatNo = String(
+    getRowValue(row, ['C.HEATNO', 'C.HeatNo', 'CHEATNO', 'C_HEATNO', 'Heat No']) || ''
+  ).trim();
+  if (cHeatNo && cHeatNo !== '-' && cHeatNo !== '0') {
+    return true;
+  }
+
   const mat = String(
     getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Material', 'Kode Material', 'Material No']) || ''
-  ).toUpperCase();
+  ).toUpperCase().trim();
+
+  // Material prefix standard Spindo: C = Coil, S = Strip, RC = Raw Coil, RS = Raw Strip
+  // Contoh: C2-119P..., C1-..., S1-..., S2-..., RC-..., RS-..., C0012..., S0012...
+  if (/^R?[CS][0-9\-_]/i.test(mat)) {
+    return true;
+  }
+
   const kategori = String(
     getRowValue(row, [
       'Jenis Material',
@@ -548,12 +615,15 @@ export function isCoilOrStripRow(row: Record<string, unknown>): boolean {
     kategori === 'SLITTING' ||
     kategori.includes('COIL') ||
     kategori.includes('STRIP') ||
-    kategori.includes('SLIT')
+    kategori.includes('SLIT') ||
+    kategori.includes('BAHAN BAKU') ||
+    kategori.includes('RAW')
   ) {
     return true;
   }
 
-  // Keywords in description
+  // Keywords in description / coil spec
+  const combinedText = `${desc} ${coilSpec}`.toUpperCase();
   const coilKeywords = [
     'COIL',
     'STRIP',
@@ -567,18 +637,36 @@ export function isCoilOrStripRow(row: Record<string, unknown>): boolean {
     'HOT ROLLED COIL',
     'PO COIL',
     'HRC',
-    'CRC'
+    'CRC',
+    'HRPO',
+    'SKP',
+    'SGCC',
+    'SECC',
+    'BORDES',
+    'PLATE',
+    'SHEET',
+    'SS400',
+    'SAE1006',
+    'SAE 1006',
+    'Q235',
+    'Q195'
   ];
-  if (coilKeywords.some((kw) => desc.includes(kw))) {
-    if (desc.includes('PIPA') || desc.includes('PIPE') || desc.includes('HOLLOW') || desc.includes('TUBING')) {
-      return false;
-    }
+  if (coilKeywords.some((kw) => combinedText.includes(kw))) {
     return true;
   }
 
-  // Material prefix standard Spindo: C = Coil, S = Strip
-  // Contoh: C2-119P..., C1-..., S1-..., S2-..., C0012..., S0012...
-  if (/^[CS][0-9\-]/i.test(mat)) {
+  // Pola dimensi coil: e.g. "3.00 X 1219 X C"
+  if (/\bX\s*C\b/i.test(combinedText)) {
+    return true;
+  }
+
+  // Karakteristik fisik SAP: memiliki LEBAR > 0, TEBAL > 0, dan tanpa diameter pipa
+  const lebar = parseNumber(getRowValue(row, ['LEBAR', 'Lebar', 'Width']));
+  const tebal = parseNumber(getRowValue(row, ['TEBAL', 'Tebal', 'TEBAL AKTUAL', 'Thickness']));
+  const diameter = parseNumber(getRowValue(row, ['DIAM "', 'DIAM MM', 'DIAMETER', 'Diameter', 'OD']));
+  const panjang = parseNumber(getRowValue(row, ['PANJANG', 'Panjang', 'Length']));
+
+  if (lebar > 0 && tebal > 0 && diameter === 0 && panjang === 0) {
     return true;
   }
 
@@ -610,49 +698,147 @@ export function resolveStockWeightAndQty(
     ])
   );
 
-  const explicitQty = parseNumber(
-    getRowValue(row, [
-      'Unrestricted',
-      'UNRESTRICTED',
-      'Roll',
-      'Qty (Roll)',
-      'Jumlah Roll',
-      'Qty (Btg)',
-      'Qty Btg',
-      'Qty(Btg)',
-      'Batang',
-      'Btg',
-      'Pcs',
-      'Pieces',
-      'Kuantitas'
-    ])
-  );
+  // Untuk itemType === 'coil', 'Unrestricted' di SAP Base UoM adalah KILOGRAM (bobot), bukan kuantitas roll!
+  // Jadi 'Unrestricted' hanya diekstrak sebagai explicitQty untuk pipa.
+  const qtyKeys = itemType === 'coil'
+    ? [
+        'Roll',
+        'Qty (Roll)',
+        'Jumlah Roll',
+        'Rolls',
+        'Kuantitas Roll',
+        'Qty Roll'
+      ]
+    : [
+        'Unrestricted',
+        'UNRESTRICTED',
+        'Qty (Btg)',
+        'Qty Btg',
+        'Qty(Btg)',
+        'Batang',
+        'Btg',
+        'Pcs',
+        'Pieces',
+        'Kuantitas'
+      ];
 
-  const valBom = parseNumber(
+  const explicitQty = parseNumber(getRowValue(row, qtyKeys));
+
+  let valBom = parseNumber(
     getRowValue(row, [
       'TTL STOK BOm',
       'TTL STOK BOM',
       'TTL STOCK BOm',
       'TTL STOCK BOM',
+      'TTL STOK',
+      'TTL STOCK',
+      'Total Stok BOm',
+      'Total Stock BOm',
+      'Total Stok',
+      'Total Stock',
+      'STOK BOm',
+      'STOCK BOm',
+      'STOK BOM',
+      'STOCK BOM',
       'S.AKHIR BOm FREE',
       'S.AWAL BOm FREE'
     ])
   );
 
-  const valEom = parseNumber(
+  // Jika valBom masih 0, cari breakdown stock di SAP (Free + SO + Blok)
+  if (valBom <= 0) {
+    const akhirFree = parseNumber(getRowValue(row, ['S.AKHIR BOm FREE', 'S.AKHIR BOM FREE', 'SAKHIR BOm FREE']));
+    const akhirSo = parseNumber(getRowValue(row, ['S.AKHIR BOm SO', 'S.AKHIR BOM SO', 'SAKHIR BOm SO']));
+    const blokBom = parseNumber(getRowValue(row, ['BLOK STOK BOm', 'BLOK STOK BOM']));
+    if (akhirFree > 0 || akhirSo > 0 || blokBom > 0) {
+      valBom = akhirFree + akhirSo + blokBom;
+    }
+  }
+
+  let valEom = parseNumber(
     getRowValue(row, [
       'TTL STOCK EOm',
       'TTL STOCK EOM',
       'TTL STOK EOm',
       'TTL STOK EOM',
+      'Total Stok EOm',
+      'Total Stock EOm',
+      'STOK EOm',
+      'STOCK EOm',
+      'STOK EOM',
+      'STOCK EOM',
       'S.AKHIR EOm FREE',
       'S.AWAL EOm FREE'
     ])
   );
 
+  // Jika valEom masih 0, cari breakdown stock di SAP (Free + SO + Blok)
+  if (valEom <= 0) {
+    const akhirFreeEom = parseNumber(getRowValue(row, ['S.AKHIR EOm FREE', 'S.AKHIR EOM FREE', 'SAKHIR EOm FREE']));
+    const akhirSoEom = parseNumber(getRowValue(row, ['S.AKHIR EOm SO', 'S.AKHIR EOM SO', 'SAKHIR EOm SO']));
+    const blokEom = parseNumber(getRowValue(row, ['BLOK STOK EOm', 'BLOK STOK EOM']));
+    if (akhirFreeEom > 0 || akhirSoEom > 0 || blokEom > 0) {
+      valEom = akhirFreeEom + akhirSoEom + blokEom;
+    }
+  }
+
+  // Jika masih 0, cek kolom Unrestricted use
+  if (valBom <= 0 && valEom <= 0) {
+    const unres = parseNumber(getRowValue(row, ['Unrestricted', 'UNRESTRICTED', 'Unrestricted Use']));
+    if (unres > 0) {
+      if (itemType === 'coil') {
+        if (unres > 50) {
+          valBom = unres; // Berat KG
+        } else {
+          valEom = unres; // Qty roll
+        }
+      } else {
+        valBom = unres; // Qty btg
+      }
+    }
+  }
+
   let weightKg = 0;
   let qty = 0;
 
+  if (itemType === 'coil') {
+    // ==========================================
+    // LOGIKA RESOLUSI COIL & STRIP (HEURISTIK FISIK)
+    // Sesuai instruksi definitif: Bobot (KG) diambil langsung dari kolom TTL STOK BOm.
+    // Pada SAP bahan baku (ROH):
+    // BOm = Base UoM = Kilogram (KG) fisik aktual (contoh data: 18150,00 -> 18.150 kg -> 18,15 Ton).
+    // EOm = Entry UoM = Kuantitas Roll / ST (contoh: 1 roll).
+    // ==========================================
+    if (valBom > 0) {
+      weightKg = valBom;
+      qty = (valEom > 0 && valEom <= 50) ? valEom : (explicitQty > 0 ? explicitQty : 1);
+    } else if (explicitWeight > 0) {
+      weightKg = explicitWeight;
+      qty = (explicitQty > 0) ? explicitQty : ((valEom > 0 && valEom <= 50) ? valEom : 1);
+    } else if (valEom > 0) {
+      if (valEom > 50) {
+        weightKg = valEom;
+        qty = explicitQty > 0 ? explicitQty : 1;
+      } else {
+        qty = valEom;
+        weightKg = 0;
+      }
+    } else if (explicitQty > 0) {
+      qty = explicitQty;
+      weightKg = 0;
+    }
+
+    return {
+      weightKg,
+      qty: qty > 0 ? qty : (weightKg > 0 ? 1 : 0)
+    };
+  }
+
+  // ==========================================
+  // LOGIKA RESOLUSI PIPA (FINISHED GOODS)
+  // BOm = Batang / Pcs (Kuantitas)
+  // EOm = Kilogram (KG) (Berat)
+  // ==========================================
   if (explicitWeight > 0 && explicitQty > 0) {
     weightKg = explicitWeight;
     qty = explicitQty;
@@ -663,23 +849,21 @@ export function resolveStockWeightAndQty(
     qty = explicitQty;
     weightKg = valEom > 0 ? valEom : (explicitWeight > 0 ? explicitWeight : 0);
   } else {
-    // Diambil dari pasangan BOm dan EOm pada SAP zppshstock:
-    // BOm (Base UoM) = Batang / Pcs (Pipa) atau Roll (Coil) -> Kuantitas / QTY
-    // EOm (Entry UoM) = Kilogram (KG) -> Berat / WEIGHT
     if (valEom > 0 && valBom > 0) {
-      weightKg = valEom;
-      qty = valBom;
+      if (valBom > valEom && valBom > 200 && valEom <= 50) {
+        // Varian langka terbalik pada pipa
+        weightKg = valBom;
+        qty = valEom;
+      } else {
+        weightKg = valEom;
+        qty = valBom;
+      }
     } else if (valEom > 0) {
       weightKg = valEom;
       qty = valBom > 0 ? valBom : 1;
     } else if (valBom > 0) {
-      if (itemType === 'coil' && valBom > 100) {
-        weightKg = valBom;
-        qty = 1;
-      } else {
-        qty = valBom;
-        weightKg = 0;
-      }
+      qty = valBom;
+      weightKg = 0;
     }
   }
 
@@ -700,27 +884,41 @@ export function parseExcelFiles(
   const effectiveCoilAreaLabels = options?.customCapacities?.areaLabels || COIL_AREA_LABELS;
 
   // Pisahkan otomatis baris Coil & Strip dari baris Pipa (mendukung 1 file gabungan zppshstock maupun 2 file terpisah)
+  // Dilengkapi deduplikasi ketat untuk mencegah data ganda (double) saat user mengunggah file yang sama di slot pipa dan coil
   let effectivePipeRows: Record<string, unknown>[] = [];
   let effectiveCoilRows: Record<string, unknown>[] = [];
 
-  pipeRows.forEach((row) => {
+  const seenStockSignatures = new Set<string>();
+
+  const processStockRow = (row: Record<string, unknown>) => {
+    if (!row || typeof row !== 'object') return;
+
+    // Buat signature unik baris stock (kombinasi SLoc + Material + Batch + BOm + EOm + HeatNo + Desc)
+    const sloc = String(getRowValue(row, ['SLOC', 'Gudang', 'Storage Location', 'SLoc', 'Sloc']) || '').trim().toUpperCase();
+    const mat = String(getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Material', 'Kode Material', 'Material No']) || '').trim().toUpperCase();
+    const batch = String(getRowValue(row, ['BATCH', 'Batch', 'Lot']) || '').trim().toUpperCase();
+    const bom = String(getRowValue(row, ['TTL STOK BOm', 'TTL STOK BOM', 'TTL STOCK BOm', 'Total Stok BOm']) || '').trim();
+    const eom = String(getRowValue(row, ['TTL STOK EOm', 'TTL STOK EOM', 'TTL STOCK EOm', 'Total Stok EOm']) || '').trim();
+    const heatNo = String(getRowValue(row, ['C.HEATNO', 'C.HeatNo', 'CHEATNO', 'Heat No']) || '').trim().toUpperCase();
+    const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi']) || '').trim().toUpperCase();
+
+    if (mat || batch || bom || eom || heatNo) {
+      const sig = `${sloc}|${mat}|${batch}|${bom}|${eom}|${heatNo}|${desc}`;
+      if (seenStockSignatures.has(sig)) {
+        return; // Mencegah baris ganda / duplikat
+      }
+      seenStockSignatures.add(sig);
+    }
+
     if (isCoilOrStripRow(row)) {
       effectiveCoilRows.push(row);
     } else {
       effectivePipeRows.push(row);
     }
-  });
+  };
 
-  coilRows.forEach((row) => {
-    // Jika baris di slot coil terang-terangan pipa (misal pengguna salah pilih file), alihkan ke pipa
-    const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi']) || '').toUpperCase();
-    const isExplicitPipe = desc.includes('PIPA') || desc.includes('PIPE') || desc.includes('HOLLOW') || desc.includes('TUBING');
-    if (isExplicitPipe && !isCoilOrStripRow(row)) {
-      effectivePipeRows.push(row);
-    } else {
-      effectiveCoilRows.push(row);
-    }
-  });
+  pipeRows.forEach(processStockRow);
+  coilRows.forEach(processStockRow);
 
   const gudangMap: Record<string, {
     kapasitas: number;
@@ -1206,7 +1404,9 @@ export function parseExcelFiles(
   effectiveCoilRows.forEach(row => {
     const sloc = String(getRowValue(row, ['SLOC', 'Gudang', 'Storage Location', 'SLoc', 'Sloc']) || '');
     const g = normalizeGudang(sloc);
-    const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi', 'Kode Material', 'Coil Specification']) || '').toUpperCase();
+    const rawMatNum = String(getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Kode Material', 'Material', 'Material No']) || '').trim();
+    const rawSpec = String(getRowValue(row, ['Coil Specification', 'COIL SPECIFICATION', 'Coil Spec', 'Specification', 'Spec', 'DESCRIPTION', 'Description']) || '').trim();
+    const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi', 'Coil Specification']) || rawSpec).toUpperCase();
     const jenisMat = String(getRowValue(row, [
       'Jenis Material',
       'Jenis_Material',
@@ -1217,7 +1417,17 @@ export function parseExcelFiles(
       'Category',
       'Tipe'
     ]) || '').toUpperCase();
-    const isStrip = jenisMat.includes('STRIP') || jenisMat.includes('SLIT') || desc.includes('STRIP') || desc.includes('SLIT');
+    const isExplicitCoil = jenisMat === 'COIL' || jenisMat.includes('COIL') || desc.includes('COIL') || rawSpec.toUpperCase().includes('COIL');
+    const isExplicitStrip = jenisMat === 'STRIP' || jenisMat.includes('STRIP') || jenisMat.includes('SLIT') ||
+                    desc.includes('STRIP') || desc.includes('SLIT') || rawSpec.toUpperCase().includes('STRIP') || rawSpec.toUpperCase().includes('SLIT');
+
+    // Strip hanya jika secara eksplisit Strip, atau kode material Strip (S1-, S2-, RS-) DAN bukan Coil eksplisit, DAN bukan grade baja seperti SPHC/SS400/SAE
+    const isMatStripCode = /^R?S[0-9\-_]/i.test(rawMatNum) &&
+      !rawMatNum.toUpperCase().startsWith('SP') &&
+      !rawMatNum.toUpperCase().startsWith('SS') &&
+      !rawMatNum.toUpperCase().startsWith('SA');
+
+    const isStrip = isExplicitStrip ? true : (isExplicitCoil ? false : isMatStripCode);
 
     const { weightKg, qty: resolvedCoilQty } = resolveStockWeightAndQty(row, 'coil');
     const tonase = weightKg / 1000;
@@ -1239,14 +1449,12 @@ export function parseExcelFiles(
     // Deteksi UNFIFO Coil: Gunakan kolom PASM (SLOW/S atau terisi status non-kosong/non-FAST) atau kolom UNFIFO
     const rawUnfifo = String(getRowValue(row, ['UNFIFO', 'Unfifo', 'STATUS UNFIFO', 'Status UNFIFO']) || '').toUpperCase().trim();
     const rawPasm = String(getRowValue(row, ['PASM', 'PASM Status', 'Status PASM']) || '').toUpperCase().trim();
-    const rawCustRemark = String(getRowValue(row, ['CUST.REMARK', 'CUST REMARK', 'Remark', 'Remarks', 'Catatan']) || '').trim();
-    const rawMatNum = String(getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Kode Material', 'Material']) || '');
-    const rawSpec = String(getRowValue(row, ['Coil Specification', 'Specification', 'Spec']) || desc);
-    const rawManuf = String(getRowValue(row, ['C.MANUFAKTUR', 'Manufaktur', 'Manufacturer']) || '-');
+    const rawCustRemark = String(getRowValue(row, ['CUST.REMARK', 'CUST REMARK', 'Cust Remark', 'Cust. Remark', 'Remark', 'Remarks', 'Catatan']) || '').trim();
+    const rawManuf = String(getRowValue(row, ['C.MANUFAKTUR', 'C.Manufaktur', 'CMANUFAKTUR', 'C_MANUFAKTUR', 'Manufaktur', 'Manufacturer']) || '-');
     const rawBatch = String(getRowValue(row, ['BATCH', 'Batch', 'Lot']) || '');
-    const tebal = parseNumber(getRowValue(row, ['TEBAL', 'Tebal', 'Thickness']) || 0);
+    const tebal = parseNumber(getRowValue(row, ['TEBAL', 'Tebal', 'TEBAL AKTUAL', 'Tebal Aktual', 'Thickness']) || 0);
     const lebar = parseNumber(getRowValue(row, ['LEBAR', 'Lebar', 'Width']) || 0);
-    const rawIncDate = getRowValue(row, ['Inc.Date', 'Posting Date', 'REMARKS', 'Remarks']);
+    const rawIncDate = getRowValue(row, ['Inc.Date', 'TPTP Inc.Date', 'Posting Date', 'REMARKS', 'Remarks']);
     const formattedIncDate = formatSapDate(rawIncDate, rawBatch);
 
     const isPasmUnfifo = rawPasm !== '' && !rawPasm.includes('FAST') && rawPasm !== 'F';
@@ -1255,8 +1463,8 @@ export function parseExcelFiles(
     if (isUnfifoCoil) {
       unfifoCoilList.push({
         gudang: g,
-        kodeMaterial: rawMatNum,
-        specification: rawSpec,
+        kodeMaterial: rawMatNum || desc,
+        specification: rawSpec || desc,
         manufaktur: rawManuf,
         batch: rawBatch,
         tebal,
@@ -1285,11 +1493,11 @@ export function parseExcelFiles(
       gudang: g,
       area: effectiveCoilAreaLabels[g] || COIL_AREA_LABELS[g] || `Area ${g}`,
       coilQty: Math.round(d.coilQty),
-      coilTon: Number(d.coilTon.toFixed(1)),
+      coilTon: Number(d.coilTon.toFixed(2)),
       stripQty: Math.round(d.stripQty),
-      stripTon: Number(d.stripTon.toFixed(1)),
+      stripTon: Number(d.stripTon.toFixed(2)),
       totalQty: Math.round(totalQty),
-      totalTon: Number(totalTon.toFixed(1)),
+      totalTon: Number(totalTon.toFixed(2)),
       kapasitas: d.kap,
       persenTerisi: Number(persenTerisi.toFixed(1)),
     };
@@ -1826,6 +2034,10 @@ export async function readExcelFile(file: File, targetSheetName?: string): Promi
       if (matchedName && workbook.Sheets[matchedName] && workbook.Sheets[matchedName]['!ref']) {
         worksheet = workbook.Sheets[matchedName];
       }
+    }
+    // Jika target sheet secara spesifik diminta namun tidak ditemukan, jangan fallback ke sheet pertama
+    if (!worksheet) {
+      return [];
     }
   }
 

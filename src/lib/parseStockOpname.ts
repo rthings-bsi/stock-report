@@ -354,6 +354,12 @@ export function calculateSTOGudangRecap(items: StockOpnameItem[]): StockOpnameGu
     sapTon: number;
     actualTon: number;
     varianceTon: number;
+    matchingTon: number;
+    minusTon: number;
+    plusTon: number;
+    matchingQty: number;
+    minusQty: number;
+    plusQty: number;
   }>();
 
   // Inisialisasi seluruh gudang Spindo
@@ -367,6 +373,12 @@ export function calculateSTOGudangRecap(items: StockOpnameItem[]): StockOpnameGu
       sapTon: 0,
       actualTon: 0,
       varianceTon: 0,
+      matchingTon: 0,
+      minusTon: 0,
+      plusTon: 0,
+      matchingQty: 0,
+      minusQty: 0,
+      plusQty: 0,
     });
   }
 
@@ -382,18 +394,37 @@ export function calculateSTOGudangRecap(items: StockOpnameItem[]): StockOpnameGu
         sapTon: 0,
         actualTon: 0,
         varianceTon: 0,
+        matchingTon: 0,
+        minusTon: 0,
+        plusTon: 0,
+        matchingQty: 0,
+        minusQty: 0,
+        plusQty: 0,
       };
       map.set(item.gudang, entry);
     }
 
-    if (item.status === 'SESUAI') entry.matchingCount++;
-    else if (item.status === 'SELISIH_MINUS') entry.minusCount++;
-    else if (item.status === 'SELISIH_PLUS') entry.plusCount++;
+    const approxWeightTon = Math.abs(item.kgSTO > 0 ? item.kgSTO / 1000 : item.actualFinalQty * 0.05);
+    const diffTon = Math.abs(item.tonDiffFinal || (item.differencesFinalQty * 0.05));
+    const diffQty = Math.abs(item.differencesFinalQty);
+
+    if (item.status === 'SESUAI') {
+      entry.matchingCount++;
+      entry.matchingQty += item.actualFinalQty;
+      entry.matchingTon += approxWeightTon;
+    } else if (item.status === 'SELISIH_MINUS') {
+      entry.minusCount++;
+      entry.minusQty += diffQty;
+      entry.minusTon += diffTon;
+    } else if (item.status === 'SELISIH_PLUS') {
+      entry.plusCount++;
+      entry.plusQty += diffQty;
+      entry.plusTon += diffTon;
+    }
 
     entry.sapQty += item.sapFinalQty;
     entry.actualQty += item.actualFinalQty;
 
-    const approxWeightTon = Math.abs(item.kgSTO > 0 ? item.kgSTO / 1000 : item.actualFinalQty * 0.05);
     entry.actualTon += approxWeightTon;
     entry.sapTon += Math.abs(item.sapFinalQty * (item.actualFinalQty > 0 ? approxWeightTon / item.actualFinalQty : 0.05));
     entry.varianceTon += item.tonDiffFinal || (item.differencesFinalQty * 0.05);
@@ -415,6 +446,12 @@ export function calculateSTOGudangRecap(items: StockOpnameItem[]): StockOpnameGu
       sapTon: val.sapTon,
       actualTon: val.actualTon,
       varianceTon: val.varianceTon,
+      matchingTon: val.matchingTon,
+      minusTon: val.minusTon,
+      plusTon: val.plusTon,
+      matchingQty: val.matchingQty,
+      minusQty: val.minusQty,
+      plusQty: val.plusQty,
     });
   }
 
