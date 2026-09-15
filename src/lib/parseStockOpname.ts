@@ -1,5 +1,5 @@
 /**
- * Parser & Helper untuk Data Stock Opname (STO) Rekonsiliasi Fisik vs SAP
+ * Parser & Helper untuk Data Stock Opname (STO) Rekonsiliasi Actual vs SAP
  * Sesuai format ekspor laporan SAP STO (MI04 / MI07 / ZSTO / MB52).
  */
 
@@ -222,29 +222,37 @@ export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
     const kgOut = parseSapWeight(r[16]);
     const sapFinalQty = r[17] !== undefined ? parseSapNumber(r[17]) : sapInitialQty;
     const actualFinalQty = r[18] !== undefined ? parseSapNumber(r[18]) : qtySTO + additionalSTO;
-    const differencesFinalQty = r[19] !== undefined ? parseSapNumber(r[19]) : actualFinalQty - sapFinalQty;
-    const diffSignRaw = cellVal(20);
 
-    // Penentuan Status:
-    // Jika diff < 0 atau ada tanda (-) -> SELISIH_MINUS
-    // Jika diff > 0 atau ada tanda (+) -> SELISIH_PLUS
-    // Jika diff === 0 -> SESUAI
+    // Deviasi Actual vs Stock SAP:
+    // Actual > SAP -> Surplus (+)
+    // Actual < SAP -> Defisit (-) (misal 5M17 tidak ada STO / actual 0, stock SAP 14 -> defisit -14)
+    // Actual === SAP -> Sesuai (0)
+    const differencesFinalQty = actualFinalQty - sapFinalQty;
+
     let status: STODifferenceStatus = 'SESUAI';
-    if (differencesFinalQty < 0 || diffSignRaw.includes('(-)') || (diffSignRaw === '-' && differencesFinalQty !== 0)) {
+    let diffSign = '(0)';
+    if (differencesFinalQty < 0) {
       status = 'SELISIH_MINUS';
-    } else if (differencesFinalQty > 0 || (diffSignRaw.includes('(+)') && differencesFinalQty !== 0)) {
+      diffSign = '(-)';
+    } else if (differencesFinalQty > 0) {
       status = 'SELISIH_PLUS';
-    } else {
-      status = 'SESUAI';
+      diffSign = '(+)';
     }
 
     const gudang = normalizeSLocGudang(rawSloc);
     const uom = sapEomWeight > 0 ? 'Ton' : 'Btg';
 
-    // Estimasi KG / Ton selisih final
-    let kgDiffFinal = kgDiff;
-    if (kgDiffFinal === 0 && differencesFinalQty !== 0 && sapInitialQty !== 0 && sapEomWeight !== 0) {
-      kgDiffFinal = (differencesFinalQty / Math.abs(sapInitialQty)) * sapEomWeight;
+    // Estimasi KG / Ton selisih final (konsisten: bernilai negatif jika defisit, positif jika surplus)
+    let kgDiffFinal = 0;
+    if (differencesFinalQty !== 0) {
+      if (kgDiff !== 0) {
+        // Kolom KG Difference di SAP dihitung SAP - Actual, sehingga dibalik untuk Actual - SAP
+        kgDiffFinal = -kgDiff;
+      } else if (sapInitialQty !== 0 && sapEomWeight !== 0) {
+        kgDiffFinal = (differencesFinalQty / Math.abs(sapInitialQty)) * sapEomWeight;
+      } else {
+        kgDiffFinal = differencesFinalQty * 50;
+      }
     }
     const tonDiffFinal = kgDiffFinal / 1000;
 
@@ -273,7 +281,7 @@ export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
       sapFinalQty,
       actualFinalQty,
       differencesFinalQty,
-      diffSign: diffSignRaw || (status === 'SESUAI' ? '(0)' : status === 'SELISIH_MINUS' ? '(-)' : '(+)'),
+      diffSign,
       kgDiffFinal,
       tonDiffFinal,
       status,
@@ -469,6 +477,10 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
     plusCount: number;
     varianceQty: number;
     varianceTon: number;
+    sapQty: number;
+    actualQty: number;
+    sapTon: number;
+    actualTon: number;
   }>();
 
   for (const item of items) {
@@ -482,6 +494,10 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
         plusCount: 0,
         varianceQty: 0,
         varianceTon: 0,
+        sapQty: 0,
+        actualQty: 0,
+        sapTon: 0,
+        actualTon: 0,
       };
       map.set(key, entry);
     }
@@ -492,19 +508,29 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
 
     entry.varianceQty += item.differencesFinalQty;
     entry.varianceTon += item.tonDiffFinal;
+    entry.sapQty += item.sapFinalQty;
+    entry.actualQty += item.actualFinalQty;
+    entry.actualTon += (item.kgSTO + item.kgAdditionalSTO) / 1000;
+    entry.sapTon += item.sapFinalQty * (item.actualFinalQty > 0 ? ((item.kgSTO + item.kgAdditionalSTO) / 1000) / item.actualFinalQty : 0.05);
   }
 
   const result: StockOpnameSLocRecap[] = [];
   for (const [sloc, val] of map.entries()) {
+    const totalCount = val.matchingCount + val.minusCount + val.plusCount;
     result.push({
       sloc,
       gudang: val.gudang,
-      itemCount: val.matchingCount + val.minusCount + val.plusCount,
+      itemCount: totalCount,
       matchingCount: val.matchingCount,
       minusCount: val.minusCount,
       plusCount: val.plusCount,
+      accuracyRate: totalCount > 0 ? (val.matchingCount / totalCount) * 100 : 100,
       varianceQty: val.varianceQty,
       varianceTon: val.varianceTon,
+      sapQty: val.sapQty,
+      actualQty: val.actualQty,
+      sapTon: val.sapTon,
+      actualTon: val.actualTon,
     });
   }
 
@@ -611,17 +637,17 @@ export function generateMockStockOpnameData(): StockOpnameItem[] {
       additionalSTO: 0,
       kgAdditionalSTO: 0,
       kgDifference: 3.795,
-      differencesQty: 69,
+      differencesQty: -69,
       qtyIn: 0,
       kgIn: 0,
       qtyOut: 0,
       kgOut: 0,
       sapFinalQty: 69,
       actualFinalQty: 0,
-      differencesFinalQty: 69,
-      diffSign: '(+)',
-      kgDiffFinal: 3.795,
-      status: 'SELISIH_PLUS',
+      differencesFinalQty: -69,
+      diffSign: '(-)',
+      kgDiffFinal: -3.795,
+      status: 'SELISIH_MINUS',
     },
     {
       labelId: 'LBL-05',
@@ -978,7 +1004,7 @@ export function generateMockStockOpnameData(): StockOpnameItem[] {
       kgDiffFinal: diffTon * 1000,
       tonDiffFinal: diffTon,
       status,
-      remarks: status === 'SESUAI' ? 'Stock Akurat' : status === 'SELISIH_MINUS' ? 'Kurang di fisik' : 'Lebih di fisik',
+      remarks: status === 'SESUAI' ? 'Stock Akurat' : status === 'SELISIH_MINUS' ? 'Kurang di actual' : 'Lebih di actual',
     });
   });
 

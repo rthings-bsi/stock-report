@@ -86,12 +86,12 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
   if (isExpanded) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 lg:p-6 animate-in fade-in duration-150">
-        <div className="flex flex-col w-full h-full max-w-7xl rounded-xl border border-slate-300 bg-white shadow-2xl overflow-hidden">
+        <div className="flex flex-col w-full h-full max-w-7xl rounded-2xl border border-slate-300 bg-white shadow-2xl overflow-hidden">
           {/* Expanded Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50 shrink-0 gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50/90 backdrop-blur-xs shrink-0 gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               {Icon && (
-                <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800 shrink-0">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200/80 shadow-2xs shrink-0">
                   <Icon className="h-4 w-4" />
                 </div>
               )}
@@ -112,7 +112,7 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
               <button
                 type="button"
                 onClick={() => setIsExpanded(false)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer shadow-2xs transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer shadow-2xs transition-all active:scale-95"
                 title="Tutup mode layar penuh (Esc)"
               >
                 <Minimize2 className="h-3.5 w-3.5 text-slate-500" />
@@ -131,14 +131,14 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
 
   return (
     <div
-      className={`border transition-all duration-200 bg-white shadow-xs hover:shadow-sm flex flex-col justify-between overflow-hidden rounded-xl min-w-0 ${
+      className={`border transition-all duration-200 bg-white shadow-xs hover:shadow-md flex flex-col justify-between overflow-hidden rounded-2xl min-w-0 ${
         isCustomizing
           ? 'border-emerald-600 ring-2 ring-emerald-600/20'
           : 'border-slate-200/90 hover:border-slate-300'
       } ${COL_SPAN_MAP[width] || 'col-span-12'}`}
     >
       {/* Header Card */}
-      <div className="border-b border-slate-200/70 px-4 py-2.5 bg-slate-50 flex items-center justify-between gap-2">
+      <div className="border-b border-slate-100 px-4 py-3 bg-slate-50/80 backdrop-blur-xs flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
           {isCustomizing && (
             <div className="text-emerald-700 cursor-grab active:cursor-grabbing p-0.5">
@@ -146,7 +146,7 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
             </div>
           )}
           {Icon && (
-            <div className="p-1.5 rounded-lg bg-white text-slate-700 border border-slate-200 shadow-2xs shrink-0">
+            <div className="p-1.5 rounded-xl bg-white text-slate-700 border border-slate-200/80 shadow-2xs shrink-0">
               <Icon className="h-3.5 w-3.5" />
             </div>
           )}
@@ -168,11 +168,11 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
 
           {/* Tombol Kustomisasi Layout */}
           {isCustomizing && (
-            <div className="flex items-center gap-1 bg-white p-0.5 rounded border border-slate-200">
+            <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-200">
               <select
                 value={width}
                 onChange={(e) => onWidthChange && onWidthChange(e.target.value as CardWidth)}
-                className="text-[10px] font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200 cursor-pointer focus:outline-hidden"
+                className="text-[10px] font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded-lg border border-slate-200 cursor-pointer focus:outline-hidden"
               >
                 {WIDTH_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -186,7 +186,7 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
                 disabled={!canMoveLeft}
                 onClick={onMoveLeft}
                 title="Pindahkan ke atas / kiri"
-                className="p-1 rounded hover:bg-slate-100 text-slate-600 disabled:opacity-30 cursor-pointer"
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-600 disabled:opacity-30 cursor-pointer"
               >
                 <ChevronLeft className="h-3 w-3" />
               </button>
@@ -196,7 +196,7 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
                 disabled={!canMoveRight}
                 onClick={onMoveRight}
                 title="Pindahkan ke bawah / kanan"
-                className="p-1 rounded hover:bg-slate-100 text-slate-600 disabled:opacity-30 cursor-pointer"
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-600 disabled:opacity-30 cursor-pointer"
               >
                 <ChevronRight className="h-3 w-3" />
               </button>
@@ -208,7 +208,7 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
             type="button"
             onClick={() => setIsExpanded(true)}
             title="Tampilkan layar penuh"
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
           >
             <Maximize2 className="h-3.5 w-3.5" />
           </button>
@@ -216,7 +216,7 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
       </div>
 
       {/* Card Content Body */}
-      <div className="p-4 flex-1 flex flex-col justify-between">
+      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
         {typeof children === 'function' ? children(false) : children}
       </div>
     </div>

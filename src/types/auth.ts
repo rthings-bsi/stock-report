@@ -12,7 +12,7 @@ export interface RolePermissions {
   viewIncomingPkg: boolean;    // Input & Kelola Incoming Packaging (RTP)
   viewProgressNC?: boolean;    // Progres NC & Repair (MVT 309, 261 REP, 101 OK)
   viewCapacitySettings?: boolean; // Master Kapasitas Gudang (Pipa & Coil)
-  viewSTO?: boolean;           // Stock Opname (STO) & Rekonsiliasi Fisik-SAP
+  viewSTO?: boolean;           // Stock Opname (STO) & Rekonsiliasi Actual-SAP
   viewUserManagement: boolean; // Kelola Pengguna & Roles
 
   // Upload Raw Data Permissions (Pecahan Upload Data Raw SAP & Packaging)

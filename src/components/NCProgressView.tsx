@@ -126,6 +126,12 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGudang, setSelectedGudang] = useState('ALL');
   const [selectedWorkCenter, setSelectedWorkCenter] = useState('ALL');
+  const [selectedGrade, setSelectedGrade] = useState<'ALL' | 'Grade C' | 'Grade E'>('ALL');
+  const [activeChartFilter, setActiveChartFilter] = useState<{
+    gudang: string;
+    datasetIndex: number;
+    label: string;
+  } | null>(null);
 
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -293,6 +299,14 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       // Khusus subtab reject_repair: Tampilkan mutasi repair penyusun (261, 262, 101)
       if (activeSubTab === 'reject_repair' && t.transactionType !== 'OUT_REPAIR' && t.transactionType !== 'OUT_REPAIR_RETURN' && t.transactionType !== 'IN_OK_PRIME') return false;
 
+      // Filter grade untuk IN_NC (Grade C vs Grade E)
+      if (activeSubTab === 'in_nc' && selectedGrade !== 'ALL') {
+        const b = (t.batch || '').trim().toUpperCase();
+        const isGradeE = b.endsWith('E') || (!b.endsWith('C') && ((t.text || '').toUpperCase().includes('GRADE E') || (t.materialDescription || '').toUpperCase().includes('GRADE E')));
+        if (selectedGrade === 'Grade C' && isGradeE) return false;
+        if (selectedGrade === 'Grade E' && !isGradeE) return false;
+      }
+
       const g = normalizeGudang(t.storageLocation);
       const matchGudang = selectedGudang === 'ALL' || g === selectedGudang || t.storageLocation === selectedGudang;
       const matchWC = selectedWorkCenter === 'ALL' || t.workCenter === selectedWorkCenter;
@@ -318,7 +332,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       const dateB = b.postingDate || b.entryDate || '';
       return dateB.localeCompare(dateA);
     });
-  }, [cleanTransactions, activeSubTab, selectedGudang, selectedWorkCenter, searchQuery]);
+  }, [cleanTransactions, activeSubTab, selectedGudang, selectedWorkCenter, searchQuery, selectedGrade]);
 
   // Daftar Order Repair untuk Subtab 'Reject / DG Repair' (Rumus: 261 - 262 - 101)
   const rejectRepairPipelineItems = useMemo(() => {
@@ -663,52 +677,116 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
     });
 
     const labels = Object.keys(gdMap).sort();
+
+    const datasetConfigs = [
+      { label: 'IN NC Grade C (309)', key: 'ncInGradeC' as const, baseColor: '#3b82f6', hoverColor: '#2563eb' },
+      { label: 'IN NC Grade E (309)', key: 'ncInGradeE' as const, baseColor: '#eab308', hoverColor: '#ca8a04' },
+      { label: 'Bahan Repair (261)', key: 'outRep' as const, baseColor: '#f97316', hoverColor: '#ea580c' },
+      { label: 'Hasil Repair (101)', key: 'inPrime' as const, baseColor: '#10b981', hoverColor: '#059669' },
+      { label: 'Reject Repair', key: 'reject' as const, baseColor: '#ef4444', hoverColor: '#dc2626' }
+    ];
+
+    const datasets = datasetConfigs.map((cfg, dIdx) => {
+      const isFilterActive = !!activeChartFilter;
+      const bgColors = labels.map((l) => {
+        if (!isFilterActive) return cfg.baseColor;
+        const isSelected = activeChartFilter.gudang === l && activeChartFilter.datasetIndex === dIdx;
+        return isSelected ? cfg.baseColor : `${cfg.baseColor}38`;
+      });
+
+      const borderColors = labels.map((l) => {
+        if (!isFilterActive) return 'transparent';
+        const isSelected = activeChartFilter.gudang === l && activeChartFilter.datasetIndex === dIdx;
+        return isSelected ? '#0f172a' : 'transparent';
+      });
+
+      const borderWidths = labels.map((l) => {
+        if (!isFilterActive) return 0;
+        const isSelected = activeChartFilter.gudang === l && activeChartFilter.datasetIndex === dIdx;
+        return isSelected ? 2 : 0;
+      });
+
+      return {
+        label: cfg.label,
+        data: labels.map((l) => gdMap[l][cfg.key]),
+        backgroundColor: bgColors,
+        hoverBackgroundColor: cfg.hoverColor,
+        borderColor: borderColors,
+        borderWidth: borderWidths,
+        borderRadius: 4,
+        borderSkipped: false
+      };
+    });
+
     return {
       labels,
-      datasets: [
-        {
-          label: 'IN NC Grade C (309)',
-          data: labels.map((l) => gdMap[l].ncInGradeC),
-          backgroundColor: '#3b82f6', // Biru
-          hoverBackgroundColor: '#2563eb',
-          borderRadius: 4,
-          borderSkipped: false
-        },
-        {
-          label: 'IN NC Grade E (309)',
-          data: labels.map((l) => gdMap[l].ncInGradeE),
-          backgroundColor: '#eab308', // Kuning
-          hoverBackgroundColor: '#ca8a04',
-          borderRadius: 4,
-          borderSkipped: false
-        },
-        {
-          label: 'Bahan Repair (261)',
-          data: labels.map((l) => gdMap[l].outRep),
-          backgroundColor: '#f97316', // Orange
-          hoverBackgroundColor: '#ea580c',
-          borderRadius: 4,
-          borderSkipped: false
-        },
-        {
-          label: 'Hasil Repair (101)',
-          data: labels.map((l) => gdMap[l].inPrime),
-          backgroundColor: '#10b981', // Hijau
-          hoverBackgroundColor: '#059669',
-          borderRadius: 4,
-          borderSkipped: false
-        },
-        {
-          label: 'Reject Repair',
-          data: labels.map((l) => gdMap[l].reject),
-          backgroundColor: '#ef4444', // Merah
-          hoverBackgroundColor: '#dc2626',
-          borderRadius: 4,
-          borderSkipped: false
-        }
-      ]
+      datasets
     };
-  }, [cleanTransactions]);
+  }, [cleanTransactions, activeChartFilter]);
+
+  const handleResetChartFilter = () => {
+    setActiveChartFilter(null);
+    setSelectedGudang('ALL');
+    setSelectedGrade('ALL');
+  };
+
+  const handleChartBarClick = (_event: unknown, elements: { index: number; datasetIndex: number }[]) => {
+    if (!elements || elements.length === 0) return;
+    const { index, datasetIndex } = elements[0];
+    const clickedGudang = gudangProgressChartData.labels[index];
+    if (!clickedGudang) return;
+
+    // Toggle reset jika batang yang sama diklik kembali
+    if (
+      activeChartFilter &&
+      activeChartFilter.gudang === clickedGudang &&
+      activeChartFilter.datasetIndex === datasetIndex
+    ) {
+      handleResetChartFilter();
+      return;
+    }
+
+    const datasetLabels = [
+      'IN NC Grade C (309)',
+      'IN NC Grade E (309)',
+      'Bahan Repair (261)',
+      'Hasil Repair (101)',
+      'Reject Repair'
+    ];
+    const label = datasetLabels[datasetIndex] || 'Mutasi NC';
+
+    setActiveChartFilter({
+      gudang: clickedGudang,
+      datasetIndex,
+      label
+    });
+    setSelectedGudang(clickedGudang);
+
+    if (datasetIndex === 0) {
+      setActiveSubTab('in_nc');
+      setSelectedGrade('Grade C');
+    } else if (datasetIndex === 1) {
+      setActiveSubTab('in_nc');
+      setSelectedGrade('Grade E');
+    } else if (datasetIndex === 2) {
+      setActiveSubTab('out_repair');
+      setSelectedGrade('ALL');
+    } else if (datasetIndex === 3) {
+      setActiveSubTab('in_prime');
+      setSelectedGrade('ALL');
+    } else if (datasetIndex === 4) {
+      setActiveSubTab('reject_repair');
+      setSelectedGrade('ALL');
+    }
+
+    // Smooth scroll ke tabel progres NC
+    setTimeout(() => {
+      const tableElem = document.getElementById('table-nc-progress');
+      if (tableElem) {
+        tableElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
 
   // Chart Data: Total Akumulasi Mutasi All Gudang
   const donutChartData = useMemo(() => {
@@ -835,9 +913,20 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <span className="text-[10px] font-mono bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded border border-slate-300">
-                    Per Gudang
-                  </span>
+                  activeChartFilter ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleResetChartFilter();
+                      }}
+                      title="Klik untuk reset filter diagram"
+                      className="inline-flex items-center gap-1.5 text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-0.5 rounded-md transition-all cursor-pointer shadow-2xs"
+                    >
+                      <span>Filter: {activeChartFilter.gudang} ({activeChartFilter.label})</span>
+                      <X className="h-3 w-3" />
+                    </button>
+                  ) : undefined
                 }
               >
                 {(expanded) => (
@@ -874,6 +963,13 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                         options={{
                           responsive: true,
                           maintainAspectRatio: false,
+                          onClick: handleChartBarClick,
+                          onHover: (event, chartElement) => {
+                            const target = event.native?.target as HTMLElement;
+                            if (target) {
+                              target.style.cursor = chartElement && chartElement.length > 0 ? 'pointer' : 'default';
+                            }
+                          },
                           plugins: {
                             legend: {
                               display: false
@@ -1063,6 +1159,44 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
               >
                 {(expanded) => (
                   <div className="space-y-3 w-full">
+                    {/* Interactive Chart Filter Banner / Active Status */}
+                    {(activeChartFilter || selectedGudang !== 'ALL' || selectedGrade !== 'ALL') && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 px-3 rounded-lg bg-emerald-50 border border-emerald-200/90 text-emerald-900 text-xs shadow-2xs">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex items-center gap-1.5 font-bold text-emerald-950">
+                            <Filter className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+                            <span>Filter Aktif:</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {selectedGudang !== 'ALL' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white text-emerald-800 font-semibold text-[11px] border border-emerald-300 shadow-2xs">
+                                <Building2 className="h-3 w-3 text-emerald-600" />
+                                Gudang: {selectedGudang}
+                              </span>
+                            )}
+                            {activeChartFilter && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-700 text-white font-semibold text-[11px] shadow-2xs">
+                                {activeChartFilter.label}
+                              </span>
+                            )}
+                            {selectedGrade !== 'ALL' && !activeChartFilter && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white text-blue-800 font-semibold text-[11px] border border-blue-300 shadow-2xs">
+                                Grade: {selectedGrade}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResetChartFilter}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+                        >
+                          <X className="h-3 w-3" />
+                          <span>Reset Filter</span>
+                        </button>
+                      </div>
+                    )}
+
                     {/* Navigation Sub-Tabs & Filtering Toolbar (Compact 1 Row) */}
                     <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
         {/* Left: Subtabs & View Switcher */}
@@ -1071,7 +1205,9 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
           <div className="flex items-center gap-1 p-0.5 bg-slate-100/80 rounded-lg border border-slate-200/60 text-xs">
             <button
               type="button"
-              onClick={() => setActiveSubTab('in_nc')}
+              onClick={() => {
+                setActiveSubTab('in_nc');
+              }}
               className={cn(
                 "px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                 activeSubTab === 'in_nc'
@@ -1085,7 +1221,10 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveSubTab('out_repair')}
+              onClick={() => {
+                setActiveSubTab('out_repair');
+                setSelectedGrade('ALL');
+              }}
               className={cn(
                 "px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                 activeSubTab === 'out_repair'
@@ -1099,7 +1238,10 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveSubTab('in_prime')}
+              onClick={() => {
+                setActiveSubTab('in_prime');
+                setSelectedGrade('ALL');
+              }}
               className={cn(
                 "px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                 activeSubTab === 'in_prime'
@@ -1113,7 +1255,10 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveSubTab('reject_repair')}
+              onClick={() => {
+                setActiveSubTab('reject_repair');
+                setSelectedGrade('ALL');
+              }}
               className={cn(
                 "px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
                 activeSubTab === 'reject_repair'
@@ -1125,6 +1270,65 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
               <span>Reject / DG Repair</span>
             </button>
           </div>
+
+          {/* Quick Grade Filter Pills: Hanya tampil jika filter IN NC (Grade C/E) aktif */}
+          {activeSubTab === 'in_nc' && (selectedGrade !== 'ALL' || (activeChartFilter && activeChartFilter.datasetIndex <= 1)) && (
+            <div className="flex items-center gap-1 p-0.5 bg-blue-50/80 rounded-lg border border-blue-200/70 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGrade('ALL');
+                  if (activeChartFilter && activeChartFilter.datasetIndex <= 1) {
+                    setActiveChartFilter(null);
+                  }
+                }}
+                className={cn(
+                  "px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer",
+                  selectedGrade === 'ALL'
+                    ? "bg-white text-blue-900 shadow-2xs font-bold"
+                    : "text-blue-700 hover:text-blue-950"
+                )}
+              >
+                Semua
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGrade('Grade C');
+                  if (activeChartFilter && activeChartFilter.datasetIndex === 1) {
+                    setActiveChartFilter({ ...activeChartFilter, datasetIndex: 0, label: 'IN NC Grade C (309)' });
+                  }
+                }}
+                className={cn(
+                  "px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1",
+                  selectedGrade === 'Grade C'
+                    ? "bg-blue-600 text-white shadow-2xs font-bold"
+                    : "text-blue-700 hover:text-blue-950"
+                )}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+                Grade C
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGrade('Grade E');
+                  if (activeChartFilter && activeChartFilter.datasetIndex === 0) {
+                    setActiveChartFilter({ ...activeChartFilter, datasetIndex: 1, label: 'IN NC Grade E (309)' });
+                  }
+                }}
+                className={cn(
+                  "px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1",
+                  selectedGrade === 'Grade E'
+                    ? "bg-yellow-500 text-slate-900 shadow-2xs font-bold"
+                    : "text-yellow-800 hover:text-yellow-950"
+                )}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                Grade E
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right: Search, Gudang & Workcenter */}
@@ -1153,7 +1357,17 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
           {/* Filter Gudang */}
           <select
             value={selectedGudang}
-            onChange={(e) => setSelectedGudang(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedGudang(val);
+              if (activeChartFilter) {
+                if (val === 'ALL') {
+                  setActiveChartFilter(null);
+                } else {
+                  setActiveChartFilter({ ...activeChartFilter, gudang: val });
+                }
+              }
+            }}
             className="px-2.5 py-1.5 rounded-md border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-600 transition-all cursor-pointer"
           >
             <option value="ALL">Semua Gudang</option>

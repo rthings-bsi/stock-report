@@ -824,7 +824,7 @@ export default function Home() {
     { id: 'coilstrip', label: 'Coil & Strip', icon: Disc, desc: 'Bahan Baku Induk', permKey: 'viewCoilStrip' },
     { id: 'nc', label: 'Stock NC', icon: ShieldAlert, desc: 'Grade E & Mutu C', permKey: 'viewNC' },
     { id: 'nc_progress', label: 'Progres NC & Repair', icon: GitFork, desc: 'MVT 309, 261 & 101', permKey: 'viewProgressNC' },
-    { id: 'sto', label: 'Stock Opname (STO)', icon: ClipboardCheck, desc: 'Rekonsiliasi Fisik vs SAP', permKey: 'viewSTO' },
+    { id: 'sto', label: 'Stock Opname (STO)', icon: ClipboardCheck, desc: 'Rekonsiliasi Actual vs SAP', permKey: 'viewSTO' },
     { id: 'unfifo', label: 'UNFIFO', icon: RefreshCcw, desc: 'Audit Alur Pengeluaran', permKey: 'viewUnfifo' },
     { id: 'loo', label: 'Stock Pipa vs LOO', icon: TrendingUp, desc: 'Pemenuhan Target LOO', permKey: 'viewLoo' },
     { id: 'packaging', label: 'Data Packaging Rusak', icon: PackageX, desc: 'Temuan & Status Repack', permKey: 'viewDamagedPkg' },

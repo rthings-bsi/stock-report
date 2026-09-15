@@ -413,11 +413,11 @@ export interface StockOpnameItem {
   materialDescription?: string;
   ukuran?: string;              // Ekstraksi dimensi pipa (tebal, dia, panjang)
   batch: string;
-  sapInitialQty: number;        // Buku awal (kolom SAP awal)
+  sapInitialQty: number;        // Stock SAP awal (kolom SAP awal)
   uom: string;                  // Satuan (Eom / BTG / PCS)
-  qtySTO: number;               // Fisik awal (Qty STO)
-  kgSTO: number;                // Berat fisik awal (KG STO)
-  additionalSTO: number;        // Susulan fisik (Additional STO)
+  qtySTO: number;               // Actual awal (Qty STO)
+  kgSTO: number;                // Berat actual awal (KG STO)
+  additionalSTO: number;        // Susulan actual (Additional STO)
   kgAdditionalSTO: number;      // Berat susulan (KG Additional STO)
   kgDifference: number;         // Selisih KG awal (KG Difference)
   differencesQty: number;       // Selisih Qty awal (Differences)
@@ -425,8 +425,8 @@ export interface StockOpnameItem {
   kgIn: number;                 // Berat IN saat STO
   qtyOut: number;               // Mutasi OUT saat STO
   kgOut: number;                // Berat OUT saat STO
-  sapFinalQty: number;          // Buku final rekonsiliasi (SAP final)
-  actualFinalQty: number;       // Fisik final rekonsiliasi (Actual final)
+  sapFinalQty: number;          // Stock SAP final rekonsiliasi (SAP final)
+  actualFinalQty: number;       // Actual final rekonsiliasi (Actual final)
   differencesFinalQty: number;  // Selisih Qty final (Differences final)
   diffSign: string;             // '+' / '-' / '0'
   kgDiffFinal: number;          // Estimasi selisih berat final (KG)
@@ -479,8 +479,13 @@ export interface StockOpnameSLocRecap {
   matchingCount: number;
   minusCount: number;
   plusCount: number;
+  accuracyRate: number;
   varianceQty: number;
   varianceTon: number;
+  sapQty?: number;
+  actualQty?: number;
+  sapTon?: number;
+  actualTon?: number;
 }
 
 

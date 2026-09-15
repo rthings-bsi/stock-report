@@ -19,9 +19,9 @@ export function exportStockOpnameToExcel(
     'Deskripsi Material': item.materialDescription || '-',
     'Ukuran Pipa': item.ukuran || '-',
     'Batch': item.batch,
-    'SAP Buku Awal': item.sapInitialQty,
+    'Stock SAP Awal': item.sapInitialQty,
     'UoM': item.uom,
-    'Qty STO Fisik': item.qtySTO,
+    'Qty STO Actual': item.qtySTO,
     'KG STO': item.kgSTO,
     'Additional STO': item.additionalSTO,
     'KG Additional STO': item.kgAdditionalSTO,
@@ -31,8 +31,8 @@ export function exportStockOpnameToExcel(
     'Berat IN (KG)': item.kgIn,
     'Mutasi OUT': item.qtyOut,
     'Berat OUT (KG)': item.kgOut,
-    'SAP Buku Final': item.sapFinalQty,
-    'Actual Fisik Final': item.actualFinalQty,
+    'Stock SAP Final': item.sapFinalQty,
+    'Actual Final': item.actualFinalQty,
     'Differences Final': item.differencesFinalQty,
     'Diff Sign': item.diffSign,
     'Selisih KG Final': Number(item.kgDiffFinal.toFixed(3)),
@@ -49,7 +49,7 @@ export function exportStockOpnameToExcel(
   // Sheet 2: Sesuai (Diff = 0)
   const sesuaiRows = items.filter(i => i.status === 'SESUAI').map(mapItemToRow);
   const wsSesuai = XLSX.utils.json_to_sheet(sesuaiRows);
-  XLSX.utils.book_append_sheet(wb, wsSesuai, 'Tidak Selisih (Sesuai)');
+  XLSX.utils.book_append_sheet(wb, wsSesuai, 'Sesuai');
 
   // Sheet 3: Selisih Minus (-)
   const minusRows = items.filter(i => i.status === 'SELISIH_MINUS').map(mapItemToRow);
@@ -69,11 +69,11 @@ export function exportStockOpnameToExcel(
     'Item Minus': r.minusCount,
     'Item Plus': r.plusCount,
     'Akurasi (%)': `${r.accuracyRate.toFixed(1)}%`,
-    'Buku SAP (Btg)': r.sapQty,
-    'Fisik Aktual (Btg)': r.actualQty,
+    'Stock SAP (Btg)': r.sapQty,
+    'Actual (Btg)': r.actualQty,
     'Selisih (Btg)': r.varianceQty,
-    'Buku SAP (Ton)': Number(r.sapTon.toFixed(2)),
-    'Fisik Aktual (Ton)': Number(r.actualTon.toFixed(2)),
+    'Stock SAP (Ton)': Number(r.sapTon.toFixed(2)),
+    'Actual (Ton)': Number(r.actualTon.toFixed(2)),
     'Selisih Ton': Number(r.varianceTon.toFixed(2))
   }));
   const wsRecap = XLSX.utils.json_to_sheet(recapRows);

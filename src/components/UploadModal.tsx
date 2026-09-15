@@ -515,10 +515,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               inputRef={ncProgressInputRef}
             />
 
-            {/* 7. Data Stock Opname (Fisik vs SAP) */}
+            {/* 7. Data Stock Opname (Actual vs SAP) */}
             <UploadItemRow
               canUpload={canUploadSTO}
-              title="Data Stock Opname (Fisik vs SAP)"
+              title="Data Stock Opname (Actual vs SAP)"
               file={stoFile}
               onFileChange={setStoFile}
               inputRef={stoInputRef}
