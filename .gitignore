@@ -39,3 +39,12 @@ data/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# temporary / helper scripts
+test_*.js
+test_*.ts
+fix_*.js
+rewrite.js
+run_migration_*.js
+graphify-out/
+
