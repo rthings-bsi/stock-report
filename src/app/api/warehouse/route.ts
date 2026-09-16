@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server';
 import { supabase, isSupabaseConfigured } from '../../../lib/supabase';
+import {
+  getNormalizedSnapshotsListFromSupabase,
+  getNormalizedSnapshotFromSupabase,
+  saveNormalizedSnapshotToSupabase,
+  deleteNormalizedSnapshotFromSupabase,
+  deleteAllNormalizedSnapshotsFromSupabase,
+} from '../../../lib/supabaseNormalized';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -17,6 +24,20 @@ function getLocalDb() {
     }
   }
   return localDb;
+}
+
+// Normalized SQLite helper
+let normDbModule: any = null;
+function getNormDb() {
+  if (!normDbModule) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      normDbModule = require('../../../lib/dbNormalized');
+    } catch (e) {
+      console.warn('dbNormalized not available in this environment:', e);
+    }
+  }
+  return normDbModule;
 }
 
 function hasRealPipe(val: any): boolean {
@@ -71,9 +92,21 @@ export async function GET(request: Request) {
 
     // 1. Coba baca dari SQLite lokal terlebih dahulu (respons instan)
     const db = getLocalDb();
+    const normDb = getNormDb();
     if (db) {
       try {
         if (listOnly) {
+          if (normDb?.getNormalizedSnapshotsList) {
+            try {
+              const normRows = normDb.getNormalizedSnapshotsList(db);
+              if (normRows && normRows.length > 0) {
+                return NextResponse.json({ success: true, snapshots: normRows, source: 'sqlite' });
+              }
+            } catch (normListErr) {
+              console.warn('Normalized list failed, fallback to warehouse_snapshots:', normListErr);
+            }
+          }
+
           const listStmt = db.prepare(`
             SELECT snapshot_key, last_updated, created_at
             FROM warehouse_snapshots
@@ -85,6 +118,44 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: true, snapshots: rows, source: 'sqlite' });
           }
         } else {
+          // Coba ambil dari tabel-tabel ternormalisasi terlebih dahulu
+          if (normDb?.getNormalizedSnapshot) {
+            try {
+              const normData = normDb.getNormalizedSnapshot(db, key);
+              if (normData) {
+                if (!hasArray(normData.ncProgressData)) {
+                  try {
+                    const fbNc = db.prepare(`
+                      SELECT nc_progress_data FROM warehouse_snapshots
+                      WHERE nc_progress_data IS NOT NULL AND length(nc_progress_data) > 5
+                      ORDER BY snapshot_key DESC LIMIT 1
+                    `).get();
+                    if (fbNc?.nc_progress_data) {
+                      normData.ncProgressData = parseJsonSafe(fbNc.nc_progress_data, []);
+                    }
+                  } catch {}
+                }
+
+                if (!hasArray(normData.stoData)) {
+                  try {
+                    const fbSto = db.prepare(`
+                      SELECT sto_data FROM warehouse_snapshots
+                      WHERE sto_data IS NOT NULL AND length(sto_data) > 5
+                      ORDER BY snapshot_key DESC LIMIT 1
+                    `).get();
+                    if (fbSto?.sto_data) {
+                      normData.stoData = parseJsonSafe(fbSto.sto_data, []);
+                    }
+                  } catch {}
+                }
+
+                return NextResponse.json({ success: true, data: normData, source: 'sqlite' });
+              }
+            } catch (normGetErr) {
+              console.warn('Normalized get failed, fallback to warehouse_snapshots:', normGetErr);
+            }
+          }
+
           let row: any = null;
           if (key === 'latest') {
             const stmt = db.prepare(`
@@ -164,6 +235,16 @@ export async function GET(request: Request) {
     if (isSupabaseConfigured && supabase) {
       try {
         if (listOnly) {
+          // Prioritaskan daftar dari tabel snapshots ternormalisasi
+          try {
+            const normSnapshots = await getNormalizedSnapshotsListFromSupabase(supabase);
+            if (normSnapshots && normSnapshots.length > 0) {
+              return NextResponse.json({ success: true, snapshots: normSnapshots, source: 'supabase_normalized' });
+            }
+          } catch (normListErr) {
+            console.warn('Supabase normalized list query failed, falling back to legacy:', normListErr);
+          }
+
           const { data, error } = await supabase
             .from('warehouse_snapshots')
             .select('snapshot_key, last_updated, created_at')
@@ -172,6 +253,16 @@ export async function GET(request: Request) {
 
           if (error) throw error;
           return NextResponse.json({ success: true, snapshots: data || [], source: 'supabase' });
+        }
+
+        // Prioritaskan baca dari tabel-tabel ternormalisasi Supabase
+        try {
+          const normData = await getNormalizedSnapshotFromSupabase(supabase, key);
+          if (normData) {
+            return NextResponse.json({ success: true, data: normData, source: 'supabase_normalized' });
+          }
+        } catch (normGetErr) {
+          console.warn('Supabase normalized read failed, falling back to legacy:', normGetErr);
         }
 
         let query = supabase
@@ -333,39 +424,66 @@ export async function POST(request: Request) {
     // Fallback baca data referensi dari Supabase jika SQLite kosong / parsial
     if (!hasRealPipe(prevPipe) && isSupabaseConfigured && supabase) {
       try {
-        let { data: supaRows } = await supabase
-          .from('warehouse_snapshots')
-          .select('*')
-          .eq('snapshot_key', dateKey)
-          .limit(1);
-
-        if (!supaRows || supaRows.length === 0) {
-          const { data: latestRows } = await supabase
-            .from('warehouse_snapshots')
-            .select('*')
-            .like('snapshot_key', 'snap_%')
-            .order('snapshot_key', { ascending: false })
-            .limit(1);
-          supaRows = latestRows;
+        let cloudRef: any = null;
+        try {
+          cloudRef = await getNormalizedSnapshotFromSupabase(supabase, dateKey);
+          if (!cloudRef) {
+            cloudRef = await getNormalizedSnapshotFromSupabase(supabase, 'latest');
+          }
+        } catch {
+          // Fallback legacy table
         }
 
-        const sRow = supaRows && supaRows.length > 0 ? supaRows[0] : null;
-        if (sRow) {
-          if (!hasRealPipe(prevPipe)) prevPipe = parseJsonSafe(sRow.pipe_capacities, []);
-          if (!hasArray(prevFastSlow)) prevFastSlow = parseJsonSafe(sRow.fast_slow_data, []);
-          if (!hasRealCoil(prevCoil)) prevCoil = parseJsonSafe(sRow.coil_strip_data, []);
-          if (!hasRealPipe(prevNcWh)) prevNcWh = parseJsonSafe(sRow.nc_warehouse_data, []);
-          if (!hasArray(prevNcItems)) prevNcItems = parseJsonSafe(sRow.nc_items, []);
-          if (!hasArray(prevLooST)) prevLooST = parseJsonSafe(sRow.loo_st_data, []);
-          if (!hasArray(prevLooLT)) prevLooLT = parseJsonSafe(sRow.loo_lt_data, []);
-          if (!hasArray(prevUnfifo)) prevUnfifo = parseJsonSafe(sRow.unfifo_data, []);
-          if (!hasArray(prevUnfifoCoil)) prevUnfifoCoil = parseJsonSafe(sRow.unfifo_coil_data, []);
-          if (!hasArray(prevUnfifoPipe)) prevUnfifoPipe = parseJsonSafe(sRow.unfifo_pipe_data, []);
-          if (!hasArray(prevDamagedPkg)) prevDamagedPkg = parseJsonSafe(sRow.damaged_packaging_data, []);
-          if (!hasArray(prevIncomingPkg)) prevIncomingPkg = parseJsonSafe(sRow.incoming_packaging_data, []);
-          if (!hasArray(prevNcProgress)) prevNcProgress = parseJsonSafe(sRow.nc_progress_data, []);
-          if (!hasArray(prevStoData)) prevStoData = parseJsonSafe(sRow.sto_data, []);
-          if (!hasObject(prevCustBreakdown)) prevCustBreakdown = parseJsonSafe(sRow.customer_breakdown, {});
+        if (cloudRef) {
+          if (!hasRealPipe(prevPipe)) prevPipe = cloudRef.pipeCapacities || [];
+          if (!hasArray(prevFastSlow)) prevFastSlow = cloudRef.fastSlowData || [];
+          if (!hasRealCoil(prevCoil)) prevCoil = cloudRef.coilStripData || [];
+          if (!hasRealPipe(prevNcWh)) prevNcWh = cloudRef.ncWarehouseData || [];
+          if (!hasArray(prevNcItems)) prevNcItems = cloudRef.ncItems || [];
+          if (!hasArray(prevLooST)) prevLooST = cloudRef.looSTData || [];
+          if (!hasArray(prevLooLT)) prevLooLT = cloudRef.looLTData || [];
+          if (!hasArray(prevUnfifo)) prevUnfifo = cloudRef.unfifoData || [];
+          if (!hasArray(prevUnfifoCoil)) prevUnfifoCoil = cloudRef.unfifoCoilData || [];
+          if (!hasArray(prevUnfifoPipe)) prevUnfifoPipe = cloudRef.unfifoPipeData || [];
+          if (!hasArray(prevDamagedPkg)) prevDamagedPkg = cloudRef.damagedPackagingData || [];
+          if (!hasArray(prevNcProgress)) prevNcProgress = cloudRef.ncProgressData || [];
+          if (!hasArray(prevStoData)) prevStoData = cloudRef.stoData || [];
+          if (!hasObject(prevCustBreakdown)) prevCustBreakdown = cloudRef.customerBreakdown || {};
+        } else {
+          let { data: supaRows } = await supabase
+            .from('warehouse_snapshots')
+            .select('*')
+            .eq('snapshot_key', dateKey)
+            .limit(1);
+
+          if (!supaRows || supaRows.length === 0) {
+            const { data: latestRows } = await supabase
+              .from('warehouse_snapshots')
+              .select('*')
+              .like('snapshot_key', 'snap_%')
+              .order('snapshot_key', { ascending: false })
+              .limit(1);
+            supaRows = latestRows;
+          }
+
+          const sRow = supaRows && supaRows.length > 0 ? supaRows[0] : null;
+          if (sRow) {
+            if (!hasRealPipe(prevPipe)) prevPipe = parseJsonSafe(sRow.pipe_capacities, []);
+            if (!hasArray(prevFastSlow)) prevFastSlow = parseJsonSafe(sRow.fast_slow_data, []);
+            if (!hasRealCoil(prevCoil)) prevCoil = parseJsonSafe(sRow.coil_strip_data, []);
+            if (!hasRealPipe(prevNcWh)) prevNcWh = parseJsonSafe(sRow.nc_warehouse_data, []);
+            if (!hasArray(prevNcItems)) prevNcItems = parseJsonSafe(sRow.nc_items, []);
+            if (!hasArray(prevLooST)) prevLooST = parseJsonSafe(sRow.loo_st_data, []);
+            if (!hasArray(prevLooLT)) prevLooLT = parseJsonSafe(sRow.loo_lt_data, []);
+            if (!hasArray(prevUnfifo)) prevUnfifo = parseJsonSafe(sRow.unfifo_data, []);
+            if (!hasArray(prevUnfifoCoil)) prevUnfifoCoil = parseJsonSafe(sRow.unfifo_coil_data, []);
+            if (!hasArray(prevUnfifoPipe)) prevUnfifoPipe = parseJsonSafe(sRow.unfifo_pipe_data, []);
+            if (!hasArray(prevDamagedPkg)) prevDamagedPkg = parseJsonSafe(sRow.damaged_packaging_data, []);
+            if (!hasArray(prevIncomingPkg)) prevIncomingPkg = parseJsonSafe(sRow.incoming_packaging_data, []);
+            if (!hasArray(prevNcProgress)) prevNcProgress = parseJsonSafe(sRow.nc_progress_data, []);
+            if (!hasArray(prevStoData)) prevStoData = parseJsonSafe(sRow.sto_data, []);
+            if (!hasObject(prevCustBreakdown)) prevCustBreakdown = parseJsonSafe(sRow.customer_breakdown, {});
+          }
         }
       } catch (cloudMergeErr) {
         console.warn('Failed to query Supabase for merge fallback:', cloudMergeErr);
@@ -529,14 +647,68 @@ export async function POST(request: Request) {
           customerBreakdown: JSON.stringify(finalCustBreakdown),
         });
         sqliteSaved = true;
+
+        // Simpan ke tabel-tabel SQLite ternormalisasi
+        const normDb = getNormDb();
+        if (normDb?.saveNormalizedSnapshot) {
+          try {
+            normDb.saveNormalizedSnapshot(db, {
+              snapshotKey: dateKey,
+              lastUpdated: nowStr,
+              pipeCapacities: finalPipe,
+              fastSlowData: finalFastSlow,
+              coilStripData: finalCoil,
+              ncWarehouseData: finalNcWh,
+              ncItems: finalNcItems,
+              looSTData: finalLooST,
+              looLTData: finalLooLT,
+              unfifoData: finalUnfifo,
+              unfifoCoilData: finalUnfifoCoil,
+              unfifoPipeData: finalUnfifoPipe,
+              damagedPackagingData: finalDamagedPkg,
+              ncProgressData: finalNcProgress,
+              stoData: finalStoData,
+              customerBreakdown: finalCustBreakdown,
+            });
+          } catch (normSaveErr) {
+            console.warn('Normalized tables save warning:', normSaveErr);
+          }
+        }
       } catch (dbSaveErr) {
         console.error('SQLite Save Error:', dbSaveErr);
       }
     }
 
-    // 3. SINKRONKAN KE SUPABASE (Non-blocking fallback)
+    // 3. SINKRONKAN KE SUPABASE (Primary ke tabel ternormalisasi, secondary legacy)
+    let supabaseSaved = false;
     if (isSupabaseConfigured && supabase) {
       try {
+        // 3a. SIMPAN KE TABEL-TABEL TERNORMALISASI (Primary)
+        try {
+          await saveNormalizedSnapshotToSupabase(supabase, {
+            snapshotKey: dateKey,
+            lastUpdated: nowStr,
+            pipeCapacities: finalPipe,
+            fastSlowData: finalFastSlow,
+            coilStripData: finalCoil,
+            ncWarehouseData: finalNcWh,
+            ncItems: finalNcItems,
+            looSTData: finalLooST,
+            looLTData: finalLooLT,
+            unfifoData: finalUnfifo,
+            unfifoCoilData: finalUnfifoCoil,
+            unfifoPipeData: finalUnfifoPipe,
+            damagedPackagingData: finalDamagedPkg,
+            ncProgressData: finalNcProgress,
+            stoData: finalStoData,
+            customerBreakdown: finalCustBreakdown,
+          });
+          supabaseSaved = true;
+        } catch (normSaveErr) {
+          console.warn('Supabase normalized tables save warning:', normSaveErr);
+        }
+
+        // 3b. Simpan juga ke legacy warehouse_snapshots sebagai fallback / backward compatibility
         const payload = {
           snapshot_key: dateKey,
           last_updated: nowStr,
@@ -572,7 +744,9 @@ export async function POST(request: Request) {
           supaErr = retry.error;
         }
 
-        if (supaErr) {
+        if (!supaErr) {
+          supabaseSaved = true;
+        } else {
           console.warn('Supabase sync warning (data tetap aman di SQLite):', supaErr);
         }
       } catch (cloudErr) {
@@ -580,7 +754,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (sqliteSaved || isSupabaseConfigured) {
+    if (sqliteSaved || supabaseSaved || isSupabaseConfigured) {
       return NextResponse.json({
         success: true,
         message: 'Snapshot tersimpan dengan sukses',
@@ -622,11 +796,20 @@ export async function DELETE(request: Request) {
       // 1. Hapus snapshot spesifik dari SQLite
       if (db) {
         db.prepare('DELETE FROM warehouse_snapshots WHERE snapshot_key = ?').run(targetKey);
+        const normDb = getNormDb();
+        if (normDb?.deleteNormalizedSnapshot) {
+          try {
+            normDb.deleteNormalizedSnapshot(db, targetKey);
+          } catch (e) {
+            console.warn('Failed to delete normalized snapshot:', e);
+          }
+        }
       }
 
       // 2. Hapus snapshot spesifik dari Supabase jika terkonfigurasi
       if (isSupabaseConfigured && supabase) {
         try {
+          await deleteNormalizedSnapshotFromSupabase(supabase, targetKey);
           await supabase.from('warehouse_snapshots').delete().eq('snapshot_key', targetKey);
         } catch (supErr) {
           console.warn('Supabase delete snapshot error:', supErr);
@@ -643,13 +826,22 @@ export async function DELETE(request: Request) {
     // Jika tanpa parameter key/date: Reset semua snapshot ke data awal (perilaku lama)
     if (db) {
       db.prepare('DELETE FROM warehouse_snapshots').run();
+      const normDb = getNormDb();
+      if (normDb?.deleteAllNormalizedSnapshots) {
+        try {
+          normDb.deleteAllNormalizedSnapshots(db);
+        } catch (e) {
+          console.warn('Failed to reset normalized snapshots:', e);
+        }
+      }
     }
 
     if (isSupabaseConfigured && supabase) {
       try {
+        await deleteAllNormalizedSnapshotsFromSupabase(supabase);
         await supabase.from('warehouse_snapshots').delete().neq('id', 0);
-      } catch {
-        // Ignore Supabase reset error
+      } catch (supErr) {
+        console.warn('Supabase reset error:', supErr);
       }
     }
 

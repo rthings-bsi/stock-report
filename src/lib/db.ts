@@ -112,6 +112,15 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
           );
         `);
 
+        // Initialize normalized relational tables
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { initNormalizedSchema } = require('./dbNormalized');
+          initNormalizedSchema(db);
+        } catch (normErr) {
+          console.warn('Normalized schema initialization failed:', normErr);
+        }
+
         // Schema migrations for warehouse_snapshots
         try {
           const snapshotCols = new Set(
