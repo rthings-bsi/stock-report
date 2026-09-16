@@ -321,11 +321,6 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                 onMoveLeft={() => handleMove(index, 'left')}
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
-                badge={
-                  <span className="text-[10px] font-mono bg-amber-50 text-amber-900 font-bold px-2 py-0.5 rounded border border-amber-300">
-                    Utilisasi
-                  </span>
-                }
               >
                 {(expanded) => {
                   const displayItems = expanded ? [...data].sort((a, b) => b.persenTerisi - a.persenTerisi) : top5Highest;
