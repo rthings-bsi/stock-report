@@ -129,6 +129,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       await fetchSnapshots();
     } else {
       await onResetData();
+      setSnapshots([]);
       await fetchSnapshots();
     }
   };
@@ -615,15 +616,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                     )}
 
                 {/* Option to delete currently viewed archive snapshot */}
-                {currentUser?.role === 'admin' && selectedSnapshotKey && selectedSnapshotKey !== 'latest' && (
+                {currentUser?.role === 'admin' && (selectedSnapshotKey !== 'latest' ? selectedSnapshotKey : (snapshots.length > 0 ? snapshots[0].snapshot_key : null)) && (
                   <div className="mt-1.5 pt-1.5 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => {
-                        const dateLabel = formatSnapDateLabel(selectedSnapshotKey.replace('snap_', ''));
+                        const targetKey = selectedSnapshotKey !== 'latest' ? selectedSnapshotKey : snapshots[0].snapshot_key;
+                        const dateLabel = formatSnapDateLabel(targetKey.replace('snap_', ''));
                         setResetTarget({
                           type: 'date',
-                          key: selectedSnapshotKey,
+                          key: targetKey,
                           label: dateLabel
                         });
                         setIsOpenMenu(false);
@@ -639,7 +641,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <span className="truncate">Hapus Data Tanggal Ini</span>
                       </div>
                       <span className="text-[9.5px] font-mono text-rose-700 bg-rose-200/60 px-1 py-0.5 rounded shrink-0">
-                        {formatSnapDateLabel(selectedSnapshotKey.replace('snap_', ''))}
+                        {formatSnapDateLabel((selectedSnapshotKey !== 'latest' ? selectedSnapshotKey : snapshots[0].snapshot_key).replace('snap_', ''))}
                       </span>
                     </button>
                   </div>

@@ -715,22 +715,68 @@ export async function saveNormalizedSnapshotToSupabase(
   }
 }
 
-export async function deleteNormalizedSnapshotFromSupabase(supabase: SupabaseClient, snapshotKey: string) {
+export async function deleteNormalizedSnapshotFromSupabase(supabase: SupabaseClient, snapshotKey: string | string[]) {
+  const rawKeys = Array.isArray(snapshotKey) ? snapshotKey : [snapshotKey];
+  const keys = Array.from(
+    new Set(
+      rawKeys.flatMap((k) => [
+        k,
+        k.startsWith('snap_') ? k.replace('snap_', '') : `snap_${k}`,
+      ])
+    )
+  );
+
   const tables = [
     'pipe_capacities', 'fast_slow', 'coil_strip', 'nc_warehouse',
     'nc_items', 'loo_items', 'unfifo_items', 'unfifo_coil', 'unfifo_pipe',
     'damaged_packaging', 'nc_progress', 'stock_opname', 'customer_breakdown'
   ];
-  await Promise.all(tables.map(t => supabase.from(t).delete().eq('snapshot_key', snapshotKey)));
-  await supabase.from('snapshots').delete().eq('snapshot_key', snapshotKey);
+
+  for (const t of tables) {
+    try {
+      const { error } = await supabase.from(t).delete().in('snapshot_key', keys);
+      if (error) {
+        console.warn(`[Supabase Normalized] Error deleting from ${t}:`, error);
+      }
+    } catch (err) {
+      console.warn(`[Supabase Normalized] Exception deleting from ${t}:`, err);
+    }
+  }
+
+  try {
+    const { error } = await supabase.from('snapshots').delete().in('snapshot_key', keys);
+    if (error) {
+      console.warn(`[Supabase Normalized] Error deleting from snapshots:`, error);
+    }
+  } catch (err) {
+    console.warn(`[Supabase Normalized] Exception deleting from snapshots:`, err);
+  }
 }
 
 export async function deleteAllNormalizedSnapshotsFromSupabase(supabase: SupabaseClient) {
-  const tables = [
+  const childTables = [
     'pipe_capacities', 'fast_slow', 'coil_strip', 'nc_warehouse',
     'nc_items', 'loo_items', 'unfifo_items', 'unfifo_coil', 'unfifo_pipe',
-    'damaged_packaging', 'nc_progress', 'stock_opname', 'customer_breakdown',
-    'snapshots'
+    'damaged_packaging', 'nc_progress', 'stock_opname', 'customer_breakdown'
   ];
-  await Promise.all(tables.map(t => supabase.from(t).delete().neq('id', 0)));
+
+  for (const t of childTables) {
+    try {
+      const { error } = await supabase.from(t).delete().like('snapshot_key', '%');
+      if (error) {
+        console.warn(`[Supabase Normalized] Error deleting all from ${t}:`, error);
+      }
+    } catch (err) {
+      console.warn(`[Supabase Normalized] Exception deleting all from ${t}:`, err);
+    }
+  }
+
+  try {
+    const { error } = await supabase.from('snapshots').delete().like('snapshot_key', '%');
+    if (error) {
+      console.warn(`[Supabase Normalized] Error deleting all from snapshots:`, error);
+    }
+  } catch (err) {
+    console.warn(`[Supabase Normalized] Exception deleting all from snapshots:`, err);
+  }
 }

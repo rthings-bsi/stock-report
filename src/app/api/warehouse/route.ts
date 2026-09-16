@@ -108,6 +108,9 @@ export async function GET(request: Request) {
           if (rows && rows.length > 0) {
             return NextResponse.json({ success: true, snapshots: rows, source: 'sqlite' });
           }
+          if (!isSupabaseConfigured) {
+            return NextResponse.json({ success: true, snapshots: [], source: 'sqlite' });
+          }
         } else {
           // Coba ambil dari tabel-tabel ternormalisasi terlebih dahulu
           if (normDb?.getNormalizedSnapshot) {
@@ -783,8 +786,31 @@ export async function DELETE(request: Request) {
 
     const db = getLocalDb();
 
+    // Resolusi key aktual jika targetKey adalah 'latest'
+    if (targetKey === 'latest' || targetKey === 'snap_latest') {
+      targetKey = null;
+      if (db) {
+        try {
+          const row = db.prepare("SELECT snapshot_key FROM warehouse_snapshots WHERE snapshot_key LIKE 'snap_%' ORDER BY snapshot_key DESC LIMIT 1").get() as any;
+          if (row?.snapshot_key) targetKey = row.snapshot_key;
+        } catch {}
+      }
+      if (!targetKey && isSupabaseConfigured && supabase) {
+        try {
+          const { data: sRows } = await supabase.from('snapshots').select('snapshot_key').like('snapshot_key', 'snap_%').order('snapshot_key', { ascending: false }).limit(1);
+          if (sRows && sRows.length > 0) {
+            targetKey = sRows[0].snapshot_key;
+          } else {
+            const { data: wRows } = await supabase.from('warehouse_snapshots').select('snapshot_key').like('snapshot_key', 'snap_%').order('snapshot_key', { ascending: false }).limit(1);
+            if (wRows && wRows.length > 0) targetKey = wRows[0].snapshot_key;
+          }
+        } catch {}
+      }
+    }
+
     if (targetKey) {
       const altKey = targetKey.startsWith('snap_') ? targetKey.replace('snap_', '') : `snap_${targetKey}`;
+      const keys = [targetKey, altKey];
 
       // 1. Hapus snapshot spesifik dari SQLite
       if (db) {
@@ -802,12 +828,13 @@ export async function DELETE(request: Request) {
       // 2. Hapus snapshot spesifik dari Supabase jika terkonfigurasi
       if (isSupabaseConfigured && supabase) {
         try {
-          await supabase.from('warehouse_snapshots').delete().in('snapshot_key', [targetKey, altKey]);
+          const { error: whErr } = await supabase.from('warehouse_snapshots').delete().in('snapshot_key', keys);
+          if (whErr) console.warn('Supabase delete warehouse_snapshots error:', whErr);
         } catch (supErr) {
           console.warn('Supabase delete snapshot error:', supErr);
         }
         try {
-          await deleteNormalizedSnapshotFromSupabase(supabase, targetKey);
+          await deleteNormalizedSnapshotFromSupabase(supabase, keys);
         } catch (normErr) {
           console.warn('Supabase delete normalized snapshot error:', normErr);
         }
@@ -835,7 +862,8 @@ export async function DELETE(request: Request) {
 
     if (isSupabaseConfigured && supabase) {
       try {
-        await supabase.from('warehouse_snapshots').delete().neq('id', 0);
+        const { error: whResetErr } = await supabase.from('warehouse_snapshots').delete().like('snapshot_key', '%');
+        if (whResetErr) console.warn('Supabase reset warehouse_snapshots error:', whResetErr);
       } catch (supErr) {
         console.warn('Supabase reset warehouse_snapshots error:', supErr);
       }

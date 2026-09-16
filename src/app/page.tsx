@@ -723,6 +723,12 @@ export default function Home() {
   };
 
   const handleResetData = async () => {
+    try {
+      await fetch('/api/warehouse', { method: 'DELETE' });
+    } catch (err) {
+      console.error('Failed to reset warehouse snapshot:', err);
+    }
+
     localStorage.removeItem('spindo_warehouse_saved_state');
     setSelectedSnapshotKey('latest');
     setLastUpdated('02.09.2026 - 07:31 WIB');
@@ -742,12 +748,6 @@ export default function Home() {
     setStoData([]);
     setCustomerBreakdown({});
     setIsCustomData(false);
-
-    try {
-      await fetch('/api/warehouse', { method: 'DELETE' });
-    } catch (err) {
-      console.error('Failed to reset warehouse snapshot:', err);
-    }
   };
 
   const handleResetSnapshot = async (key: string) => {
@@ -757,16 +757,19 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.success) {
+        const altKey = key.startsWith('snap_') ? key.replace('snap_', '') : `snap_${key}`;
         const listRes = await fetch('/api/warehouse?list=true', { cache: 'no-store' });
         const listJson = await listRes.json();
-        const remainingSnapshots: any[] = listJson?.snapshots || [];
+        const rawSnapshots: any[] = listJson?.snapshots || [];
+        const remainingSnapshots = rawSnapshots.filter(
+          (s: any) => s.snapshot_key !== key && s.snapshot_key !== altKey
+        );
 
         if (remainingSnapshots.length === 0) {
           await handleResetData();
         } else {
-          if (selectedSnapshotKey === key || selectedSnapshotKey === 'latest') {
-            await loadSnapshotByKey('latest');
-          }
+          const nextKey = remainingSnapshots[0].snapshot_key;
+          await loadSnapshotByKey(nextKey);
         }
       }
     } catch (err) {
