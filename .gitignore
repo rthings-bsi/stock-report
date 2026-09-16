@@ -47,4 +47,5 @@ fix_*.js
 rewrite.js
 run_migration_*.js
 graphify-out/
+spindo_obsidian/
 
