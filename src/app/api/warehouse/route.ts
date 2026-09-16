@@ -26,18 +26,9 @@ function getLocalDb() {
   return localDb;
 }
 
-// Normalized SQLite helper
-let normDbModule: any = null;
-function getNormDb() {
-  if (!normDbModule) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      normDbModule = require('../../../lib/dbNormalized');
-    } catch (e) {
-      console.warn('dbNormalized not available in this environment:', e);
-    }
-  }
-  return normDbModule;
+// Normalized SQLite helper (legacy)
+function getNormDb(): any {
+  return null;
 }
 
 function hasRealPipe(val: any): boolean {
