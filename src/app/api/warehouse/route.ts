@@ -104,6 +104,34 @@ export async function GET(request: Request) {
           }
 
           if (row) {
+            let ncProgressData = parseJsonSafe(row.nc_progress_data, []);
+            if (!hasArray(ncProgressData)) {
+              try {
+                const fbNc = db.prepare(`
+                  SELECT nc_progress_data FROM warehouse_snapshots
+                  WHERE nc_progress_data IS NOT NULL AND length(nc_progress_data) > 5
+                  ORDER BY snapshot_key DESC LIMIT 1
+                `).get();
+                if (fbNc?.nc_progress_data) {
+                  ncProgressData = parseJsonSafe(fbNc.nc_progress_data, []);
+                }
+              } catch {}
+            }
+
+            let stoData = parseJsonSafe(row.sto_data, []);
+            if (!hasArray(stoData)) {
+              try {
+                const fbSto = db.prepare(`
+                  SELECT sto_data FROM warehouse_snapshots
+                  WHERE sto_data IS NOT NULL AND length(sto_data) > 5
+                  ORDER BY snapshot_key DESC LIMIT 1
+                `).get();
+                if (fbSto?.sto_data) {
+                  stoData = parseJsonSafe(fbSto.sto_data, []);
+                }
+              } catch {}
+            }
+
             const data = {
               snapshotKey: row.snapshot_key,
               lastUpdated: row.last_updated,
@@ -119,8 +147,8 @@ export async function GET(request: Request) {
               unfifoPipeData: parseJsonSafe(row.unfifo_pipe_data, []),
               damagedPackagingData: parseJsonSafe(row.damaged_packaging_data, []),
               incomingPackagingData: parseJsonSafe(row.incoming_packaging_data, []),
-              ncProgressData: parseJsonSafe(row.nc_progress_data, []),
-              stoData: parseJsonSafe(row.sto_data, []),
+              ncProgressData,
+              stoData,
               customerBreakdown: parseJsonSafe(row.customer_breakdown, {}),
               createdAt: row.created_at,
             };
@@ -270,6 +298,32 @@ export async function POST(request: Request) {
           prevNcProgress = parseJsonSafe(existingRow.nc_progress_data, []);
           prevStoData = parseJsonSafe(existingRow.sto_data, []);
           prevCustBreakdown = parseJsonSafe(existingRow.customer_breakdown, {});
+        }
+
+        if (!hasArray(prevNcProgress)) {
+          try {
+            const fbNc = db.prepare(`
+              SELECT nc_progress_data FROM warehouse_snapshots
+              WHERE nc_progress_data IS NOT NULL AND length(nc_progress_data) > 5
+              ORDER BY snapshot_key DESC LIMIT 1
+            `).get() as any;
+            if (fbNc?.nc_progress_data) {
+              prevNcProgress = parseJsonSafe(fbNc.nc_progress_data, []);
+            }
+          } catch {}
+        }
+
+        if (!hasArray(prevStoData)) {
+          try {
+            const fbSto = db.prepare(`
+              SELECT sto_data FROM warehouse_snapshots
+              WHERE sto_data IS NOT NULL AND length(sto_data) > 5
+              ORDER BY snapshot_key DESC LIMIT 1
+            `).get() as any;
+            if (fbSto?.sto_data) {
+              prevStoData = parseJsonSafe(fbSto.sto_data, []);
+            }
+          } catch {}
         }
       } catch (err) {
         console.warn('Failed to read existing SQLite row for merge:', err);

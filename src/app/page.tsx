@@ -311,8 +311,12 @@ export default function Home() {
         setUnfifoPipeData(d.unfifoPipeData || []);
         setDamagedPackagingData(d.damagedPackagingData || []);
         setIncomingPackagingData(d.incomingPackagingData || []);
-        setNcProgressData(d.ncProgressData || []);
-        setStoData(d.stoData || []);
+        if (d.ncProgressData && Array.isArray(d.ncProgressData) && d.ncProgressData.length > 0) {
+          setNcProgressData(d.ncProgressData);
+        }
+        if (d.stoData && Array.isArray(d.stoData) && d.stoData.length > 0) {
+          setStoData(d.stoData);
+        }
         setCustomerBreakdown(d.customerBreakdown || {});
         setLastUpdated(d.lastUpdated || '');
         setIsCustomData(true);

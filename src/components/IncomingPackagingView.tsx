@@ -561,7 +561,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   return (
     <div className="space-y-3 sm:space-y-5 font-sans pb-16 sm:pb-0">
       {/* Top Banner & Header */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
             <PackagePlus className="h-4.5 w-4.5" strokeWidth={2.4} />
@@ -571,59 +571,17 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
           </h1>
         </div>
 
-        {/* Action Toolbar (Desktop only for Header Buttons) */}
-        <div className="hidden sm:flex items-center gap-2 flex-wrap font-mono text-xs">
+        {/* Action Toolbar */}
+        <div className="flex items-center gap-2 ml-auto font-mono text-xs">
           <button
             type="button"
-            onClick={handleOpenCreate}
-            className="px-3 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-emerald-950 font-bold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
-            title="Tambah Data Audit Baru"
+            onClick={handleExportExcel}
+            className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+            title="Download Spreadsheet Excel"
           >
-            <Plus className="h-3.5 w-3.5 text-emerald-800" strokeWidth={2.5} />
-            <span>Tambah Audit</span>
+            <Download className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
+            <span>Export</span>
           </button>
-
-          {isAdmin && (
-            <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx, .xls, .csv, .txt, .tsv"
-                className="hidden"
-                onChange={handleImportExcel}
-              />
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
-                title="Import File Excel / CSV"
-              >
-                <Upload className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
-                <span>Import</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExportExcel}
-                className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
-                title="Download Spreadsheet Excel"
-              >
-                <Download className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
-                <span>Export</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsResetModalOpen(true)}
-                className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
-                title="Reset Semua Data Input"
-              >
-                <RotateCcw className="h-3.5 w-3.5 text-rose-100" />
-                <span>Reset</span>
-              </button>
-            </>
-          )}
         </div>
       </div>
 
