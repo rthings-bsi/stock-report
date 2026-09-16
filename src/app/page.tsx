@@ -320,6 +320,29 @@ export default function Home() {
         setCustomerBreakdown(d.customerBreakdown || {});
         setLastUpdated(d.lastUpdated || '');
         setIsCustomData(true);
+        try {
+          localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(d));
+        } catch {}
+      } else {
+        localStorage.removeItem('spindo_warehouse_saved_state');
+        setPipeCapacities(initialPipeCapacityData);
+        setFastSlowData(initialFastSlowData);
+        setCoilStripData(initialCoilStripData);
+        setNcWarehouseData(initialNCWarehouseData);
+        setNcItems(initialNCItems);
+        setLooSTData(initialTop10LooAllAreaST);
+        setLooLTData(initialTop10LooAllAreaLT);
+        setUnfifoData(initialUnfifoData);
+        setUnfifoCoilData([]);
+        setUnfifoPipeData([]);
+        setDamagedPackagingData(initialDamagedPackagingData);
+        setIncomingPackagingData(initialIncomingPackagingData);
+        setNcProgressData(initialNCProgressData);
+        setStoData([]);
+        setCustomerBreakdown({});
+        setLastUpdated('02.09.2026 - 07:31 WIB');
+        setIsCustomData(false);
+        setSelectedSnapshotKey('latest');
       }
     } catch (err) {
       console.error('Failed to load snapshot:', err);
@@ -417,6 +440,25 @@ export default function Home() {
               try {
                 localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(d));
               } catch {}
+            } else {
+              localStorage.removeItem('spindo_warehouse_saved_state');
+              setPipeCapacities(initialPipeCapacityData);
+              setFastSlowData(initialFastSlowData);
+              setCoilStripData(initialCoilStripData);
+              setNcWarehouseData(initialNCWarehouseData);
+              setNcItems(initialNCItems);
+              setLooSTData(initialTop10LooAllAreaST);
+              setLooLTData(initialTop10LooAllAreaLT);
+              setUnfifoData(initialUnfifoData);
+              setUnfifoCoilData([]);
+              setUnfifoPipeData([]);
+              setDamagedPackagingData(initialDamagedPackagingData);
+              setNcProgressData(initialNCProgressData);
+              setStoData([]);
+              setCustomerBreakdown({});
+              setLastUpdated('02.09.2026 - 07:31 WIB');
+              setIsCustomData(false);
+              setSelectedSnapshotKey('latest');
             }
           }
         }
@@ -682,6 +724,8 @@ export default function Home() {
 
   const handleResetData = async () => {
     localStorage.removeItem('spindo_warehouse_saved_state');
+    setSelectedSnapshotKey('latest');
+    setLastUpdated('02.09.2026 - 07:31 WIB');
     setPipeCapacities(initialPipeCapacityData);
     setFastSlowData(initialFastSlowData);
     setCoilStripData(initialCoilStripData);
@@ -702,7 +746,7 @@ export default function Home() {
     try {
       await fetch('/api/warehouse', { method: 'DELETE' });
     } catch (err) {
-      console.error('Failed to reset SQLite snapshot:', err);
+      console.error('Failed to reset warehouse snapshot:', err);
     }
   };
 
@@ -718,7 +762,7 @@ export default function Home() {
         const remainingSnapshots: any[] = listJson?.snapshots || [];
 
         if (remainingSnapshots.length === 0) {
-          handleResetData();
+          await handleResetData();
         } else {
           if (selectedSnapshotKey === key || selectedSnapshotKey === 'latest') {
             await loadSnapshotByKey('latest');

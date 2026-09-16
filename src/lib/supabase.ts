@@ -14,8 +14,8 @@ const supabaseUrl = isCloudDeploy
 
 const FALLBACK_SB_KEY =
   typeof Buffer !== 'undefined'
-    ? Buffer.from('c2Jfc2VjcmV0X1AydjU4MmRrSllZQmpzTTcyTGtOZ0FfalBUd1hsTmw=', 'base64').toString('utf-8')
-    : '';
+    ? Buffer.from('c2JfcHVibGlzaGFibGVfczFrZzl0UjlsTV93azc4dWRMai1vd193SnF6Q0JfTQ==', 'base64').toString('utf-8')
+    : 'sb_publishable_s1kg9tR9lM_wk78udLj-ow_wJqzCB_M';
 
 const supabaseKey = isCloudDeploy
   ? (process.env.SUPABASE_SERVICE_ROLE_KEY ||

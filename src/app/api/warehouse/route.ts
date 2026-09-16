@@ -784,9 +784,11 @@ export async function DELETE(request: Request) {
     const db = getLocalDb();
 
     if (targetKey) {
+      const altKey = targetKey.startsWith('snap_') ? targetKey.replace('snap_', '') : `snap_${targetKey}`;
+
       // 1. Hapus snapshot spesifik dari SQLite
       if (db) {
-        db.prepare('DELETE FROM warehouse_snapshots WHERE snapshot_key = ?').run(targetKey);
+        db.prepare('DELETE FROM warehouse_snapshots WHERE snapshot_key IN (?, ?)').run(targetKey, altKey);
         const normDb = getNormDb();
         if (normDb?.deleteNormalizedSnapshot) {
           try {
@@ -800,10 +802,14 @@ export async function DELETE(request: Request) {
       // 2. Hapus snapshot spesifik dari Supabase jika terkonfigurasi
       if (isSupabaseConfigured && supabase) {
         try {
-          await deleteNormalizedSnapshotFromSupabase(supabase, targetKey);
-          await supabase.from('warehouse_snapshots').delete().eq('snapshot_key', targetKey);
+          await supabase.from('warehouse_snapshots').delete().in('snapshot_key', [targetKey, altKey]);
         } catch (supErr) {
           console.warn('Supabase delete snapshot error:', supErr);
+        }
+        try {
+          await deleteNormalizedSnapshotFromSupabase(supabase, targetKey);
+        } catch (normErr) {
+          console.warn('Supabase delete normalized snapshot error:', normErr);
         }
       }
 
@@ -829,10 +835,14 @@ export async function DELETE(request: Request) {
 
     if (isSupabaseConfigured && supabase) {
       try {
-        await deleteAllNormalizedSnapshotsFromSupabase(supabase);
         await supabase.from('warehouse_snapshots').delete().neq('id', 0);
       } catch (supErr) {
-        console.warn('Supabase reset error:', supErr);
+        console.warn('Supabase reset warehouse_snapshots error:', supErr);
+      }
+      try {
+        await deleteAllNormalizedSnapshotsFromSupabase(supabase);
+      } catch (normErr) {
+        console.warn('Supabase reset normalized error:', normErr);
       }
     }
 

@@ -128,7 +128,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       }
       await fetchSnapshots();
     } else {
-      onResetData();
+      await onResetData();
+      await fetchSnapshots();
     }
   };
 
@@ -201,13 +202,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const fetchSnapshots = async () => {
     try {
-      const res = await fetch('/api/warehouse?list=true');
+      const res = await fetch('/api/warehouse?list=true', { cache: 'no-store' });
       const json = await res.json();
-      if (json?.success && json?.snapshots) {
+      if (json?.success && Array.isArray(json?.snapshots)) {
         setSnapshots(json.snapshots);
+      } else {
+        setSnapshots([]);
       }
     } catch (e) {
       console.error('Failed to fetch snapshots list:', e);
+      setSnapshots([]);
     }
   };
 
