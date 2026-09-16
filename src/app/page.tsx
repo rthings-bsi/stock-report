@@ -691,6 +691,7 @@ export default function Home() {
     setDamagedPackagingData(initialDamagedPackagingData);
     setIncomingPackagingData(initialIncomingPackagingData);
     setNcProgressData(initialNCProgressData);
+    setStoData([]);
     setCustomerBreakdown({});
     setIsCustomData(false);
 

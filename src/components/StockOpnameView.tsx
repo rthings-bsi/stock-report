@@ -14,8 +14,7 @@ import {
 import {
   calculateSTOSummary,
   calculateSTOGudangRecap,
-  calculateSTOSLocRecap,
-  generateMockStockOpnameData
+  calculateSTOSLocRecap
 } from '@/lib/parseStockOpname';
 import { exportStockOpnameToExcel } from '@/lib/exportStockOpnameExcel';
 import { formatTon, formatQty, formatPercent, cn } from '@/lib/utils';
@@ -75,19 +74,12 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   onDataUpdate,
   targetDate,
 }) => {
-  // Gunakan data props jika tersedia dan ada isinya, atau fallback ke mock data realistis
-  const initialItems = useMemo(() => {
-    return data && data.length > 0 ? data : generateMockStockOpnameData();
-  }, [data]);
-
-  const [items, setItems] = useState<StockOpnameItem[]>(initialItems);
+  const [items, setItems] = useState<StockOpnameItem[]>(data || []);
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    if (data && data.length > 0) {
-      setItems(data);
-    }
+    setItems(data || []);
   }, [data]);
 
   // Layout persistence
@@ -941,28 +933,24 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   return (
     <div className="space-y-4 font-sans text-slate-800 animate-in fade-in duration-200">
       {/* Top Banner & Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 text-white px-5 py-4 sm:px-6 sm:py-4.5 rounded-2xl border border-emerald-500/20 shadow-lg shadow-emerald-950/15 flex flex-wrap items-center justify-between gap-4">
-        {/* Ambient glowing orbs */}
-        <div className="absolute -top-12 -right-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-8 left-1/3 w-48 h-48 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
-
-        <div className="relative flex items-center gap-3.5 z-10">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-400 shadow-inner ring-1 ring-emerald-500/20 backdrop-blur-md">
-            <ClipboardCheck className="h-5 w-5" strokeWidth={2.4} />
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            <ClipboardCheck className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-bold text-white font-sans tracking-tight">
+            <h1 className="text-base font-bold text-white font-sans tracking-tight">
               Stock Opname (STO) &amp; Rekonsiliasi Actual vs SAP
             </h1>
           </div>
         </div>
 
-        <div className="relative flex items-center gap-2.5 ml-auto z-10">
+        <div className="flex items-center gap-2 ml-auto">
           <button
             type="button"
             onClick={handleExport}
             title="Ekspor data ke Excel"
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 active:scale-95 text-emerald-50 hover:text-white border border-emerald-400/30 text-xs font-semibold shadow-md shadow-emerald-900/30 hover:shadow-emerald-700/40 transition-all duration-200 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 text-emerald-100 hover:text-white border border-emerald-700 text-xs font-semibold transition-all cursor-pointer shadow-xs"
           >
             <Download className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Export Excel</span>
@@ -1257,11 +1245,20 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
               </div>
 
               <div className={cn("w-full pt-1", expanded ? "flex-1 min-h-[440px]" : "h-56 sm:h-64")}>
-                <Bar
-                  data={accuracyChartData}
-                  options={accuracyChartOptions}
-                  plugins={[accuracyDataLabelsPlugin]}
-                />
+                {activeGudangs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
+                    <BarChart3 className="h-7 w-7 text-slate-300 mb-1.5 stroke-1" />
+                    <p className="text-xs font-medium text-slate-500">
+                      Belum ada data akurasi gudang
+                    </p>
+                  </div>
+                ) : (
+                  <Bar
+                    data={accuracyChartData}
+                    options={accuracyChartOptions}
+                    plugins={[accuracyDataLabelsPlugin]}
+                  />
+                )}
               </div>
             </div>
           )}
@@ -1331,7 +1328,16 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
               </div>
 
               <div className={cn("w-full pt-1", expanded ? "h-96" : "h-56 sm:h-64")}>
-                <Bar data={compareChartData} options={compareChartOptions} />
+                {compareChartData.labels.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
+                    <Scale className="h-7 w-7 text-slate-300 mb-1.5 stroke-1" />
+                    <p className="text-xs font-medium text-slate-500">
+                      Belum ada data perbandingan
+                    </p>
+                  </div>
+                ) : (
+                  <Bar data={compareChartData} options={compareChartOptions} />
+                )}
               </div>
             </div>
           )}
@@ -1511,15 +1517,26 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           {(expanded) => (
             <div className="flex flex-col justify-between h-full w-full">
               <div className={cn("flex items-center justify-center relative my-auto", expanded ? "h-64 sm:h-72" : "h-40 sm:h-44")}>
-                <Doughnut data={donutChartData} options={donutChartOptions} />
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 tracking-tight">
-                    {summary.accuracyRate.toFixed(1)}%
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                    AKURASI
-                  </span>
-                </div>
+                {summary.totalItems === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-6">
+                    <PieChart className="h-7 w-7 text-slate-300 mb-1.5 stroke-1" />
+                    <p className="text-xs font-medium text-slate-500">
+                      Belum ada data hasil STO
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Doughnut data={donutChartData} options={donutChartOptions} />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                        {summary.accuracyRate.toFixed(1)}%
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                        AKURASI
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Breakdown Pills List */}
