@@ -25,7 +25,7 @@ import {
   extractNCRAndRemark
 } from '@/lib/parseNCProgress';
 import { exportNCProgressToExcel } from '@/lib/exportNCProgressExcel';
-import { readExcelFile } from '@/lib/parser';
+import { readExcelFile, getPipeType } from '@/lib/parser';
 import { formatTon, formatQty, formatPercent, cn } from '@/lib/utils';
 import {
   ShieldAlert,
@@ -35,6 +35,7 @@ import {
   XCircle,
   Search,
   Filter,
+  Layers,
   Download,
   Upload,
   Plus,
@@ -50,7 +51,6 @@ import {
   FileSpreadsheet,
   Check,
   Building2,
-  Calendar,
   User,
   Hash,
   Activity,
@@ -99,6 +99,7 @@ interface GroupedNCItem {
   materialDescription: string;
   customer?: string;
   ukuran: string;
+  pipeType: 'LT' | 'ST';
   batches: string[];
   gudangs: string[];
   slocs: string[];
@@ -125,7 +126,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<SubTabType>('in_nc');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGudang, setSelectedGudang] = useState('ALL');
-  const [selectedDate, setSelectedDate] = useState<string>('ALL');
+  const [selectedPipeType, setSelectedPipeType] = useState<'ALL' | 'LT' | 'ST'>('ALL');
   const [selectedWorkCenter, setSelectedWorkCenter] = useState('ALL');
   const [selectedGrade, setSelectedGrade] = useState<'ALL' | 'Grade C' | 'Grade E'>('ALL');
   const [activeChartFilter, setActiveChartFilter] = useState<{
@@ -274,42 +275,24 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       });
   }, [transactions]);
 
-  // Daftar tanggal transaksi yang tersedia (diambil dari postingDate / entryDate)
-  const availableDates = useMemo(() => {
-    const dates = new Set<string>();
-    cleanTransactions.forEach((t) => {
-      const d = formatExcelDate(t.postingDate || t.entryDate);
-      if (d) dates.add(d);
-    });
-    return Array.from(dates).sort((a, b) => {
-      const partsA = a.split(/[\/\-.]/);
-      const partsB = b.split(/[\/\-.]/);
-      if (partsA.length === 3 && partsB.length === 3) {
-        const isoA = `${partsA[2]}-${partsA[1]}-${partsA[0]}`;
-        const isoB = `${partsB[2]}-${partsB[1]}-${partsB[0]}`;
-        return isoB.localeCompare(isoA);
-      }
-      return b.localeCompare(a);
-    });
-  }, [cleanTransactions]);
-
-  // Transaksi yang telah difilter berdasarkan tanggal terpilih
-  const dateFilteredTransactions = useMemo(() => {
-    if (selectedDate === 'ALL') return cleanTransactions;
+  // Filter transaksi berdasarkan Tipe Pipa (LT vs ST)
+  // ST: Panjang pipa < 3000 mm, LT: Panjang pipa >= 3000 mm
+  const pipeFilteredTransactions = useMemo(() => {
+    if (selectedPipeType === 'ALL') return cleanTransactions;
     return cleanTransactions.filter((t) => {
-      const d = formatExcelDate(t.postingDate || t.entryDate);
-      return d === selectedDate || t.postingDate === selectedDate || t.entryDate === selectedDate;
+      const pType = getPipeType(t.material, t.materialDescription);
+      return pType === selectedPipeType;
     });
-  }, [cleanTransactions, selectedDate]);
+  }, [cleanTransactions, selectedPipeType]);
 
-  // Build Pipeline & Summary (Filtered by Date if active)
+  // Build Pipeline & Summary (Filtered by Pipe Type LT / ST if active)
   const pipeline = useMemo(() => {
-    return buildNCProgressPipeline(dateFilteredTransactions);
-  }, [dateFilteredTransactions]);
+    return buildNCProgressPipeline(pipeFilteredTransactions);
+  }, [pipeFilteredTransactions]);
 
   const summary = useMemo<NCProgressSummary>(() => {
-    return computeNCProgressSummary(dateFilteredTransactions, pipeline);
-  }, [dateFilteredTransactions, pipeline]);
+    return computeNCProgressSummary(pipeFilteredTransactions, pipeline);
+  }, [pipeFilteredTransactions, pipeline]);
 
   // Dynamic filter lists
   const gudangList = useMemo(() => {
@@ -320,7 +303,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
   // Filtered Raw Transactions
   const filteredTransactions = useMemo(() => {
-    return dateFilteredTransactions.filter((t) => {
+    return pipeFilteredTransactions.filter((t) => {
       // Subtab filter
       if (activeSubTab === 'in_nc' && t.transactionType !== 'IN_NC') return false;
       if (activeSubTab === 'out_repair' && t.transactionType !== 'OUT_REPAIR' && t.transactionType !== 'OUT_REPAIR_RETURN') return false;
@@ -365,7 +348,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       const dateB = b.postingDate || b.entryDate || '';
       return dateB.localeCompare(dateA);
     });
-  }, [dateFilteredTransactions, activeSubTab, selectedGudang, selectedWorkCenter, searchQuery, selectedGrade]);
+  }, [pipeFilteredTransactions, activeSubTab, selectedGudang, selectedWorkCenter, searchQuery, selectedGrade]);
 
   // Daftar Order Repair untuk Subtab 'Reject / DG Repair' (Rumus: 261 - 262 - 101)
   const rejectRepairPipelineItems = useMemo(() => {
@@ -504,6 +487,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
         materialDescription: first.materialDescription,
         customer: nonNullCustomer,
         ukuran: parseMaterialUkuran(first.material, first.materialDescription),
+        pipeType: getPipeType(first.material, first.materialDescription),
         batches,
         gudangs,
         slocs,
@@ -696,7 +680,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
   const gudangProgressChartData = useMemo(() => {
     const gdMap: Record<string, { ncInGradeC: number; ncInGradeE: number; outRep: number; inPrime: number; reject: number }> = {};
 
-    dateFilteredTransactions.forEach((tx) => {
+    pipeFilteredTransactions.forEach((tx) => {
       const g = normalizeGudang(tx.storageLocation);
       if (!gdMap[g]) gdMap[g] = { ncInGradeC: 0, ncInGradeE: 0, outRep: 0, inPrime: 0, reject: 0 };
       const ton = (tx.quantity || tx.kgGI || tx.kgGR || 0) / 1000;
@@ -763,13 +747,13 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       labels,
       datasets
     };
-  }, [dateFilteredTransactions, activeChartFilter]);
+  }, [pipeFilteredTransactions, activeChartFilter]);
 
   const handleResetChartFilter = () => {
     setActiveChartFilter(null);
     setSelectedGudang('ALL');
     setSelectedGrade('ALL');
-    setSelectedDate('ALL');
+    setSelectedPipeType('ALL');
   };
 
   const handleChartBarClick = (_event: unknown, elements: { index: number; datasetIndex: number }[]) => {
@@ -837,7 +821,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
     let totalOutRepTon = 0;
     let totalInPrimeTon = 0;
 
-    dateFilteredTransactions.forEach((tx) => {
+    pipeFilteredTransactions.forEach((tx) => {
       const ton = (tx.quantity || tx.kgGI || tx.kgGR || 0) / 1000;
       if (tx.transactionType === 'IN_NC') {
         const b = (tx.batch || '').trim().toUpperCase();
@@ -902,7 +886,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
         ]
       }
     };
-  }, [dateFilteredTransactions]);
+  }, [pipeFilteredTransactions]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
@@ -922,7 +906,49 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex flex-wrap items-center gap-2 ml-auto">
+          {/* Quick Segment Filter LT / ST */}
+          <div className="flex items-center bg-emerald-950/70 p-0.5 rounded-lg border border-emerald-700/60 text-xs shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setSelectedPipeType('ALL')}
+              className={cn(
+                "px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer",
+                selectedPipeType === 'ALL'
+                  ? "bg-emerald-500 text-white font-bold shadow-2xs"
+                  : "text-emerald-200 hover:text-white font-medium"
+              )}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedPipeType('LT')}
+              title="Pipa LT (Panjang ≥ 3000 mm)"
+              className={cn(
+                "px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer",
+                selectedPipeType === 'LT'
+                  ? "bg-emerald-500 text-white font-bold shadow-2xs"
+                  : "text-emerald-200 hover:text-white font-medium"
+              )}
+            >
+              LT
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedPipeType('ST')}
+              title="Pipa ST (Panjang < 3000 mm)"
+              className={cn(
+                "px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer",
+                selectedPipeType === 'ST'
+                  ? "bg-emerald-500 text-white font-bold shadow-2xs"
+                  : "text-emerald-200 hover:text-white font-medium"
+              )}
+            >
+              ST
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={handleExportExcel}
@@ -1202,7 +1228,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                 {(expanded) => (
                   <div className="space-y-3 w-full">
                     {/* Interactive Chart Filter Banner / Active Status */}
-                    {(activeChartFilter || selectedGudang !== 'ALL' || selectedGrade !== 'ALL' || selectedDate !== 'ALL') && (
+                    {(activeChartFilter || selectedGudang !== 'ALL' || selectedGrade !== 'ALL' || selectedPipeType !== 'ALL') && (
                       <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 px-3 rounded-lg bg-emerald-50 border border-emerald-200/90 text-emerald-900 text-xs shadow-2xs">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="flex items-center gap-1.5 font-bold text-emerald-950">
@@ -1210,10 +1236,10 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                             <span>Filter Aktif:</span>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {selectedDate !== 'ALL' && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white text-emerald-800 font-semibold text-[11px] border border-emerald-300 shadow-2xs">
-                                <Calendar className="h-3 w-3 text-emerald-600" />
-                                Tanggal: {selectedDate}
+                            {selectedPipeType !== 'ALL' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white text-emerald-900 font-semibold text-[11px] border border-emerald-400 shadow-2xs">
+                                <Layers className="h-3 w-3 text-emerald-600" />
+                                Tipe: {selectedPipeType}
                               </span>
                             )}
                             {selectedGudang !== 'ALL' && (
@@ -1402,19 +1428,22 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
             )}
           </div>
 
-          {/* Filter Tanggal */}
-          {availableDates.length > 0 && (
-            <select
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-2.5 py-1.5 rounded-md border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-600 transition-all cursor-pointer"
-            >
-              <option value="ALL">Semua Tanggal ({availableDates.length})</option>
-              {availableDates.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          )}
+          {/* Filter Tipe Pipa (LT / ST) */}
+          <select
+            value={selectedPipeType}
+            onChange={(e) => setSelectedPipeType(e.target.value as 'ALL' | 'LT' | 'ST')}
+            className={cn(
+              "px-2.5 py-1.5 rounded-md border text-xs font-medium focus:outline-none focus:ring-1 transition-all cursor-pointer",
+              selectedPipeType !== 'ALL'
+                ? "border-emerald-500 bg-emerald-50 text-emerald-900 font-semibold focus:ring-emerald-500 shadow-2xs"
+                : "border-slate-200 bg-slate-50 hover:bg-white focus:bg-white text-slate-700 focus:ring-emerald-500"
+            )}
+            title="Filter Tipe Pipa (All / LT / ST)"
+          >
+            <option value="ALL">All</option>
+            <option value="LT">LT</option>
+            <option value="ST">ST</option>
+          </select>
 
           {/* Filter Gudang */}
           <select
@@ -1570,8 +1599,18 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                             </div>
                           </td>
                           <td className="py-3 px-3 max-w-xs">
-                            <div className="font-mono font-bold text-slate-900 text-xs tracking-tight">
-                              {parseMaterialUkuran(item.material, item.materialDescription)}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono font-bold text-slate-900 text-xs tracking-tight">
+                                {parseMaterialUkuran(item.material, item.materialDescription)}
+                              </span>
+                              <span className={cn(
+                                "px-1.5 py-0.2 rounded text-[10px] font-mono font-bold uppercase",
+                                getPipeType(item.material, item.materialDescription) === 'ST'
+                                  ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                  : "bg-blue-100 text-blue-800 border border-blue-300"
+                              )}>
+                                {getPipeType(item.material, item.materialDescription)}
+                              </span>
                             </div>
                             <div className="text-[11px] font-mono text-slate-400 truncate tracking-tight mt-0.5" title={item.material}>
                               {item.material}
@@ -1790,8 +1829,18 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                           )}
                         </td>
                         <td className="py-3 px-3.5 max-w-xs">
-                          <div className="font-mono font-bold text-slate-900 text-xs tracking-tight">
-                            {item.ukuran}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono font-bold text-slate-900 text-xs tracking-tight">
+                              {item.ukuran}
+                            </span>
+                            <span className={cn(
+                              "px-1.5 py-0.2 rounded text-[10px] font-mono font-bold uppercase",
+                              item.pipeType === 'ST'
+                                ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                : "bg-blue-100 text-blue-800 border border-blue-300"
+                            )}>
+                              {item.pipeType}
+                            </span>
                           </div>
                           <div className="text-[11px] font-mono text-slate-400 truncate tracking-tight mt-0.5" title={item.material}>
                             {item.material}
@@ -1925,8 +1974,18 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                           <div className="text-[10px] text-slate-400">{formatExcelTime(tx.timeOfEntry) || '-'}</div>
                         </td>
                         <td className="py-3 px-3.5 max-w-xs">
-                          <div className="font-mono font-bold text-slate-900 text-xs tracking-tight">
-                            {parseMaterialUkuran(tx.material, tx.materialDescription)}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono font-bold text-slate-900 text-xs tracking-tight">
+                              {parseMaterialUkuran(tx.material, tx.materialDescription)}
+                            </span>
+                            <span className={cn(
+                              "px-1.5 py-0.2 rounded text-[10px] font-mono font-bold uppercase",
+                              getPipeType(tx.material, tx.materialDescription) === 'ST'
+                                ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                : "bg-blue-100 text-blue-800 border border-blue-300"
+                            )}>
+                              {getPipeType(tx.material, tx.materialDescription)}
+                            </span>
                           </div>
                         </td>
                         <td className="py-3 px-3.5 font-mono text-xs">
@@ -2068,8 +2127,16 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                       {selectedGroup.transactions.length} Dokumen SAP
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 font-mono">
-                    {selectedGroup.ukuran} &bull; {selectedGroup.material}
+                  <p className="text-xs text-slate-500 font-mono flex items-center gap-1.5 mt-0.5">
+                    <span>{selectedGroup.ukuran} &bull; {selectedGroup.material}</span>
+                    <span className={cn(
+                      "px-1.5 py-0.2 rounded text-[10px] font-bold uppercase",
+                      selectedGroup.pipeType === 'ST'
+                        ? "bg-amber-100 text-amber-800 border border-amber-300"
+                        : "bg-blue-100 text-blue-800 border border-blue-300"
+                    )}>
+                      {selectedGroup.pipeType === 'ST' ? 'ST (< 3000 mm)' : 'LT (≥ 3000 mm)'}
+                    </span>
                   </p>
                 </div>
               </div>
@@ -2211,8 +2278,16 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                   <h3 className="text-sm font-bold text-slate-900">
                     Detail Alur Mutasi & Dokumen SAP
                   </h3>
-                  <p className="text-xs text-slate-500 font-mono">
-                    {parseMaterialUkuran(selectedDrilldown.material, selectedDrilldown.materialDescription)} &bull; {selectedDrilldown.customer}
+                  <p className="text-xs text-slate-500 font-mono flex items-center gap-1.5 mt-0.5">
+                    <span>{parseMaterialUkuran(selectedDrilldown.material, selectedDrilldown.materialDescription)} &bull; {selectedDrilldown.customer}</span>
+                    <span className={cn(
+                      "px-1.5 py-0.2 rounded text-[10px] font-bold uppercase",
+                      getPipeType(selectedDrilldown.material, selectedDrilldown.materialDescription) === 'ST'
+                        ? "bg-amber-100 text-amber-800 border border-amber-300"
+                        : "bg-blue-100 text-blue-800 border border-blue-300"
+                    )}>
+                      {getPipeType(selectedDrilldown.material, selectedDrilldown.materialDescription) === 'ST' ? 'ST (< 3000 mm)' : 'LT (≥ 3000 mm)'}
+                    </span>
                   </p>
                 </div>
               </div>

@@ -463,7 +463,7 @@ export function extractPipeDimension(
   if (matchMat) {
     prefix = matchMat[1];
     const tVal = parseInt(matchMat[2], 10) / 100;
-    tDecoded = (tVal * 100) % 10 === 0 && tVal < 10 ? tVal.toFixed(2) : String(tVal);
+    tDecoded = tVal % 1 === 0 ? String(tVal) : (tVal * 10) % 1 === 0 ? tVal.toFixed(1) : tVal.toFixed(2);
 
     const sign = matchMat[3];
     const pRaw = matchMat[4];
@@ -474,16 +474,8 @@ export function extractPipeDimension(
         pMmVal = pNum;
       } else {
         // Format pipa presisi / mekanikal / automotive (+):
-        // 5 digit berakhiran 0 atau >= 7000: satuan 0.1 mm (misal 07420=742, 07750=775, 11700=1170, 11670=1167, 21760=2176, 60000=6000)
-        if (pRaw.startsWith('0')) {
-          if (pNum >= 7000) {
-            pMmVal = pNum / 10;
-          } else {
-            pMmVal = pNum;
-          }
-        } else {
-          pMmVal = pNum / 10;
-        }
+        // Satuan 0.1 mm (misal 03100 = 310, 03250 = 325, 07420 = 742, 11700 = 1170, 60000 = 6000)
+        pMmVal = pNum / 10;
       }
     } else if (pRaw.startsWith('A') && /^\d+$/.test(pRaw.slice(1))) {
       pMmVal = parseInt(pRaw.slice(1), 10);
@@ -493,31 +485,37 @@ export function extractPipeDimension(
     pDecoded = pMmVal % 1 === 0 ? String(parseInt(String(pMmVal), 10)) : String(pMmVal);
   }
 
-  // 1. Pipa Kotak/Hollow di Deskripsi: 100x50x3,20x6220 atau 50x100x1,70x6000
-  const matchKotak = descClean.match(/(\d+[\.,]?\d*)\s*[xX]\s*(\d+[\.,]?\d*)\s*[xX]\s*(\d+[\.,]?\d*)\s*[xX]\s*(\d+[\.,]?\d*)/);
-  if (matchKotak) {
-    const d1 = matchKotak[1].replace(',', '.');
-    const d2 = matchKotak[2].replace(',', '.');
-    const t = tDecoded || matchKotak[3].replace(',', '.');
-    let p = pDecoded || matchKotak[4].replace(',', '.').replace(/\.+$/, '');
-    if (p.endsWith('.0') || p.endsWith('.00')) {
-      p = String(parseInt(p, 10));
+  // Cari pola dimensi di descClean terlebih dahulu, baru matClean jika descClean kosong/tidak mengandung dimensi
+  const candidates = [descClean, matClean].filter(Boolean);
+  for (const text of candidates) {
+    // 1. Pipa Kotak/Hollow: 100x50x3,20x6220 atau 50x100x1,70x6000
+    const matchKotak = text.match(/(\d+[\.,]?\d*)\s*[xX]\s*(\d+[\.,]?\d*)\s*[xX]\s*(\d+[\.,]?\d*)\s*[xX]\s*(\d+[\.,]?\d*)\b/);
+    if (matchKotak) {
+      const d1 = matchKotak[1].replace(',', '.');
+      const d2 = matchKotak[2].replace(',', '.');
+      const t = tDecoded || matchKotak[3].replace(',', '.');
+      let p = pDecoded || matchKotak[4].replace(',', '.').replace(/\.+$/, '');
+      if (p.endsWith('.0') || p.endsWith('.00')) {
+        p = String(parseInt(p, 10));
+      }
+      let pNum = parseFloat(p) || pMmVal;
+      if (pNum < 25) pNum = pNum * 1000;
+      return { dimension: `${d1}x${d2} x ${t} x ${p}`, panjangMm: pNum };
     }
-    const pNum = parseFloat(p) || pMmVal;
-    return { dimension: `${d1}x${d2} x ${t} x ${p}`, panjangMm: pNum };
-  }
 
-  // 2. Pipa Bulat Lengkap 3 Angka di Deskripsi: 60,3x4,55x6000 atau 73x5,16x12000
-  const matchBulat = descClean.match(/(\d+[\.,]?\d*)\s*[xX]\s*(\d+[\.,]?\d*)\s*[xX]\s*(\d+[\.,]?\d*)/);
-  if (matchBulat) {
-    const d = matchBulat[1].replace(',', '.');
-    const t = tDecoded || matchBulat[2].replace(',', '.');
-    let pStr = pDecoded || matchBulat[3].replace(',', '.').replace(/\.+$/, '');
-    if (pStr.endsWith('.0') || pStr.endsWith('.00')) {
-      pStr = String(parseInt(pStr, 10));
+    // 2. Pipa Bulat Lengkap 3 Angka: 60,3x4,55x6000 atau 73x5,16x12000 atau 38.1 x 2.2 x 310
+    const matchBulat = text.match(/(\d+[\.,]?\d*)\s*[xX]\s*(\d+[\.,]?\d*)\s*[xX]\s*(\d+[\.,]?\d*)\b/);
+    if (matchBulat) {
+      const d = matchBulat[1].replace(',', '.');
+      const t = tDecoded || matchBulat[2].replace(',', '.');
+      let pStr = pDecoded || matchBulat[3].replace(',', '.').replace(/\.+$/, '');
+      if (pStr.endsWith('.0') || pStr.endsWith('.00')) {
+        pStr = String(parseInt(pStr, 10));
+      }
+      let pNum = parseFloat(pStr) || pMmVal;
+      if (pNum < 25) pNum = pNum * 1000;
+      return { dimension: `${d} x ${t} x ${pStr}`, panjangMm: pNum };
     }
-    const pNum = parseFloat(pStr) || pMmVal;
-    return { dimension: `${d} x ${t} x ${pStr}`, panjangMm: pNum };
   }
 
   // 3. Cari diameter dari deskripsi teks (contoh '38,1x' atau '73x') + tebal & panjang kode material
@@ -538,7 +536,45 @@ export function extractPipeDimension(
     return { dimension: `${tDecoded} x ${pDecoded}`, panjangMm: pMmVal };
   }
 
-  return { dimension: descClean || matClean || 'N/A', panjangMm: parseNumber(rawPanjang) || 6000 };
+  return { dimension: descClean || matClean || 'N/A', panjangMm: parseNumber(rawPanjang) || (matchMat ? pMmVal : 6000) };
+}
+
+/**
+ * Dapatkan panjang pipa (dalam mm) dari kode material SAP, deskripsi, atau raw panjang.
+ */
+export function getPipeLengthMm(matNum?: string, desc?: string, rawPanjang?: string): number {
+  const { panjangMm } = extractPipeDimension(desc, matNum, rawPanjang);
+  if (panjangMm && panjangMm !== 6000) {
+    return panjangMm;
+  }
+  // Cek pola meter di deskripsi (contoh: "X 6M", "X 2.5M", "X 12M", "X 1.2 M")
+  const descStr = String(desc || '');
+  const matchMeter = descStr.match(/[xX]\s*(\d+[\.,]?\d*)\s*M(?:TR)?\b/i);
+  if (matchMeter) {
+    const val = parseFloat(matchMeter[1].replace(',', '.'));
+    if (!isNaN(val) && val > 0) {
+      return val < 100 ? val * 1000 : val;
+    }
+  }
+  // Cek pola eksplisit panjang (contoh: "P=2500", "L=2500", "PANJANG 1200")
+  const matchExplicit = descStr.match(/\b(?:[PL]|PANJANG|LENGTH)\s*[:=]?\s*(\d+[\.,]?\d*)\b/i);
+  if (matchExplicit) {
+    const val = parseFloat(matchExplicit[1].replace(',', '.'));
+    if (!isNaN(val) && val > 0) {
+      return val < 50 ? val * 1000 : val;
+    }
+  }
+  return panjangMm || 6000;
+}
+
+/**
+ * Klasifikasi jenis pipa:
+ * - ST (Short Tube): Panjang pipa < 3000 mm
+ * - LT (Long Tube): Panjang pipa >= 3000 mm
+ */
+export function getPipeType(matNum?: string, desc?: string, rawPanjang?: string): 'LT' | 'ST' {
+  const len = getPipeLengthMm(matNum, desc, rawPanjang);
+  return len < 3000 ? 'ST' : 'LT';
 }
 
 export function isCoilOrStripRow(row: Record<string, unknown>): boolean {
@@ -935,8 +971,14 @@ export function parseExcelFiles(
     wipLtSlow: number;
     wipStSlow: number;
     primeTon: number;
+    primeLtTon: number;
+    primeStTon: number;
     gradeETon: number;
+    gradeELtTon: number;
+    gradeEStTon: number;
     gradeCTon: number;
+    gradeCLtTon: number;
+    gradeCStTon: number;
     yearlySlowTon: Record<string, number>;
   }> = {};
 
@@ -957,8 +999,14 @@ export function parseExcelFiles(
       wipLtSlow: 0,
       wipStSlow: 0,
       primeTon: 0,
+      primeLtTon: 0,
+      primeStTon: 0,
       gradeETon: 0,
+      gradeELtTon: 0,
+      gradeEStTon: 0,
       gradeCTon: 0,
+      gradeCLtTon: 0,
+      gradeCStTon: 0,
       yearlySlowTon: {},
     };
   });
@@ -1178,11 +1226,17 @@ export function parseExcelFiles(
       const assignedGrade: 'Grade C' | 'Grade E' = isGradeC ? 'Grade C' : isGradeE ? 'Grade E' : (endsWithPrime ? 'Grade C' : 'Grade E');
       if (isGradeC) {
         target.gradeCTon += tonase;
+        if (isLT) target.gradeCLtTon += tonase;
+        else target.gradeCStTon += tonase;
       } else if (isGradeE) {
         target.gradeETon += tonase;
+        if (isLT) target.gradeELtTon += tonase;
+        else target.gradeEStTon += tonase;
       } else {
         // NC tanpa grade eksplisit (dari cust remark catch-all) — default Grade C (less severe)
         target.gradeCTon += tonase;
+        if (isLT) target.gradeCLtTon += tonase;
+        else target.gradeCStTon += tonase;
       }
 
       const custName = customer || 'General Stock';
@@ -1216,6 +1270,8 @@ export function parseExcelFiles(
       ncItemAggMap[aggKey].totalTon += tonase;
     } else {
       target.primeTon += tonase;
+      if (isLT) target.primeLtTon += tonase;
+      else target.primeStTon += tonase;
     }
 
     const rawKodeMat = matNum || `MAT-${idx}`;
@@ -1368,6 +1424,12 @@ export function parseExcelFiles(
       gradeE: Number(d.gradeETon.toFixed(1)),
       gradeC: Number(d.gradeCTon.toFixed(1)),
       persenGradeE: Number(persenGradeE.toFixed(1)),
+      primeLt: Number(d.primeLtTon.toFixed(1)),
+      primeSt: Number(d.primeStTon.toFixed(1)),
+      gradeELt: Number(d.gradeELtTon.toFixed(1)),
+      gradeESt: Number(d.gradeEStTon.toFixed(1)),
+      gradeCLt: Number(d.gradeCLtTon.toFixed(1)),
+      gradeCSt: Number(d.gradeCStTon.toFixed(1)),
     };
   });
 
@@ -2099,6 +2161,7 @@ export {
   calculateSTOSummary,
   calculateSTOGudangRecap,
   calculateSTOSLocRecap,
+  calculateSTOPeriodSummary,
   generateMockStockOpnameData,
 } from './parseStockOpname';
 

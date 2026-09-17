@@ -1657,6 +1657,7 @@ export default function Home() {
               <NCQualityView
                 ncWarehouseData={ncWarehouseData}
                 ncItems={ncItems}
+                pipeCapacities={pipeCapacities}
                 isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
               />
             )}

@@ -7,6 +7,7 @@ import {
   deleteNormalizedSnapshotFromSupabase,
   deleteAllNormalizedSnapshotsFromSupabase,
 } from '../../../lib/supabaseNormalized';
+import { calculateSTOPeriodSummary } from '../../../lib/parseStockOpname';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -80,6 +81,55 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key') || 'latest';
     const listOnly = searchParams.get('list') === 'true';
+    const stoHistory = searchParams.get('sto_history') === 'true';
+
+    // Handler riwayat komparasi STO per periode (snapshot)
+    if (stoHistory) {
+      const periods: any[] = [];
+      const db = getLocalDb();
+      if (db) {
+        try {
+          const rows = db.prepare(`
+            SELECT snapshot_key, last_updated, sto_data
+            FROM warehouse_snapshots
+            WHERE sto_data IS NOT NULL AND length(sto_data) > 10
+            ORDER BY snapshot_key ASC
+          `).all();
+          if (rows && rows.length > 0) {
+            for (const r of rows) {
+              const items = parseJsonSafe(r.sto_data, []);
+              if (Array.isArray(items) && items.length > 0) {
+                periods.push(calculateSTOPeriodSummary(items, r.snapshot_key, r.last_updated));
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('SQLite sto_history failed:', e);
+        }
+      }
+
+      if (periods.length === 0 && isSupabaseConfigured && supabase) {
+        try {
+          const { data: rows, error: supaErr } = await supabase
+            .from('warehouse_snapshots')
+            .select('snapshot_key, last_updated, sto_data')
+            .not('sto_data', 'is', null)
+            .order('snapshot_key', { ascending: true });
+          if (!supaErr && rows) {
+            for (const r of rows) {
+              const items = parseJsonSafe(r.sto_data, []);
+              if (Array.isArray(items) && items.length > 0) {
+                periods.push(calculateSTOPeriodSummary(items, r.snapshot_key, r.last_updated));
+              }
+            }
+          }
+        } catch (supaEx) {
+          console.warn('Supabase sto_history error:', supaEx);
+        }
+      }
+
+      return NextResponse.json({ success: true, periods });
+    }
 
     // 1. Coba baca dari SQLite lokal terlebih dahulu (respons instan)
     const db = getLocalDb();

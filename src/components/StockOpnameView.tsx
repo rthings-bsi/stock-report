@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Chart as ChartJS,
   registerables
@@ -9,12 +9,14 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 import {
   StockOpnameItem,
   STODifferenceStatus,
-  StockOpnameSummary
+  StockOpnameSummary,
+  StockOpnamePeriodSummary
 } from '../types/warehouse';
 import {
   calculateSTOSummary,
   calculateSTOGudangRecap,
-  calculateSTOSLocRecap
+  calculateSTOSLocRecap,
+  calculateSTOPeriodSummary
 } from '@/lib/parseStockOpname';
 import { exportStockOpnameToExcel } from '@/lib/exportStockOpnameExcel';
 import { formatTon, formatQty, formatPercent, cn } from '@/lib/utils';
@@ -42,7 +44,8 @@ import {
   Calendar,
   Hash,
   Scale,
-  ChevronDown
+  ChevronDown,
+  History
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 
@@ -65,6 +68,7 @@ const DEFAULT_CARDS: CardState[] = [
   { id: 'chart-sto-compare-bar', width: 'col-span-6' },
   { id: 'chart-sto-sloc-bar', width: 'col-span-8' },
   { id: 'chart-sto-donut', width: 'col-span-4' },
+  { id: 'chart-sto-period-trend', width: 'col-span-12' },
   { id: 'table-sto-detail', width: 'col-span-12' },
 ];
 
@@ -86,7 +90,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   useEffect(() => {
     setIsMounted(true);
     try {
-      const saved = localStorage.getItem('spindo_layout_stock_opname_v1');
+      const saved = localStorage.getItem('spindo_layout_stock_opname_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length === DEFAULT_CARDS.length) {
@@ -101,7 +105,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   useEffect(() => {
     if (!isMounted) return;
     try {
-      localStorage.setItem('spindo_layout_stock_opname_v1', JSON.stringify(cards));
+      localStorage.setItem('spindo_layout_stock_opname_v2', JSON.stringify(cards));
     } catch {}
   }, [cards, isMounted]);
 
@@ -129,9 +133,61 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
 
   // Toggles for chart view metrics
   const [accuracyMetric, setAccuracyMetric] = useState<'item' | 'ton'>('item');
-  const [compareMetric, setCompareMetric] = useState<'ton' | 'qty'>('ton');
+  const [compareMetric, setCompareMetric] = useState<'all' | 'ton' | 'qty' | 'item'>('all');
   const [slocGudangFilter, setSlocGudangFilter] = useState<string>('ALL');
   const [slocMetric, setSlocMetric] = useState<'ton' | 'qty' | 'percent'>('ton');
+
+  // STO Period Comparison States
+  const [periodMetric, setPeriodMetric] = useState<'all' | 'ton' | 'qty' | 'accuracy' | 'item'>('all');
+  const [stoPeriods, setStoPeriods] = useState<StockOpnamePeriodSummary[]>([]);
+  const [isLoadingPeriods, setIsLoadingPeriods] = useState<boolean>(false);
+
+  // Fetch STO periods history from API & merge with active uploaded items
+  useEffect(() => {
+    let active = true;
+    const fetchHistory = async () => {
+      setIsLoadingPeriods(true);
+      try {
+        const res = await fetch('/api/warehouse?sto_history=true');
+        const json = await res.json();
+        if (active && json?.success && Array.isArray(json.periods)) {
+          let list: StockOpnamePeriodSummary[] = [...json.periods];
+
+          if (items.length > 0) {
+            const currentPeriodKey = targetDate ? `snap_${targetDate}` : 'snap_current';
+            const existingIdx = list.findIndex(
+              (p) => p.periodKey === currentPeriodKey || (targetDate && p.lastUpdated === targetDate)
+            );
+
+            const currentSummary = calculateSTOPeriodSummary(
+              items,
+              currentPeriodKey,
+              targetDate || new Date().toISOString().slice(0, 10),
+              targetDate ? undefined : 'Sesi Aktif'
+            );
+
+            if (existingIdx >= 0) {
+              list[existingIdx] = currentSummary;
+            } else {
+              list.push(currentSummary);
+            }
+          }
+
+          list.sort((a, b) => a.lastUpdated.localeCompare(b.lastUpdated));
+          setStoPeriods(list);
+        }
+      } catch (err) {
+        console.warn('Gagal memuat riwayat STO:', err);
+      } finally {
+        if (active) setIsLoadingPeriods(false);
+      }
+    };
+
+    fetchHistory();
+    return () => {
+      active = false;
+    };
+  }, [items, targetDate]);
 
   // Sinkronisasi filter gudang per SLoc dengan filter gudang global bila berubah
   useEffect(() => {
@@ -473,22 +529,96 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
 
   // ==========================================
   // CHART 2: PERBANDINGAN SAP VS ACTUAL (BAR)
+  // Menampilkan 3 bar langsung: Item - Qty - Tonase (%) atau detail per metrik
   // ==========================================
   const compareChartData = useMemo(() => {
     const activeGudangs = gudangRecap.filter((g) => g.sapTon > 0 || g.actualTon > 0 || g.itemCount > 0);
     const labels = activeGudangs.map((g) => g.gudang);
-    const sapValues = activeGudangs.map((g) =>
-      compareMetric === 'ton' ? Number(g.sapTon.toFixed(2)) : g.sapQty
-    );
-    const actualValues = activeGudangs.map((g) =>
-      compareMetric === 'ton' ? Number(g.actualTon.toFixed(2)) : g.actualQty
-    );
+
+    // MODE 1: LANGSUNG 3 BAR (Item - Qty - Tonase)
+    if (compareMetric === 'all') {
+      const itemValues = activeGudangs.map((g) => {
+        const base = g.sapItemCount && g.sapItemCount > 0 ? g.sapItemCount : g.itemCount;
+        if (base <= 0) return 100;
+        const rate = ((g.actualItemCount ?? 0) / base) * 100;
+        return Number(Math.min(100, Math.max(0, rate)).toFixed(1));
+      });
+
+      const qtyValues = activeGudangs.map((g) => {
+        if (g.sapQty <= 0) return 100;
+        const rate = (g.actualQty / g.sapQty) * 100;
+        return Number(Math.min(100, Math.max(0, rate)).toFixed(1));
+      });
+
+      const tonValues = activeGudangs.map((g) => {
+        if (g.sapTon <= 0) return 100;
+        const rate = (g.actualTon / g.sapTon) * 100;
+        return Number(Math.min(100, Math.max(0, rate)).toFixed(1));
+      });
+
+      return {
+        labels,
+        datasets: [
+          {
+            label: 'Item (%)',
+            data: itemValues,
+            backgroundColor: 'rgba(99, 102, 241, 0.85)', // Indigo
+            borderColor: '#4f46e5',
+            borderWidth: 1,
+            borderRadius: 4,
+            maxBarThickness: selectedGudang !== 'ALL' ? 36 : 24,
+            barPercentage: 0.8,
+            categoryPercentage: 0.75,
+          },
+          {
+            label: 'Qty Pcs (%)',
+            data: qtyValues,
+            backgroundColor: 'rgba(16, 185, 129, 0.85)', // Emerald
+            borderColor: '#059669',
+            borderWidth: 1,
+            borderRadius: 4,
+            maxBarThickness: selectedGudang !== 'ALL' ? 36 : 24,
+            barPercentage: 0.8,
+            categoryPercentage: 0.75,
+          },
+          {
+            label: 'Tonase (%)',
+            data: tonValues,
+            backgroundColor: 'rgba(14, 165, 233, 0.85)', // Sky
+            borderColor: '#0284c7',
+            borderWidth: 1,
+            borderRadius: 4,
+            maxBarThickness: selectedGudang !== 'ALL' ? 36 : 24,
+            barPercentage: 0.8,
+            categoryPercentage: 0.75,
+          },
+        ],
+      };
+    }
+
+    // MODE 2: DETAIL SINGLE METRIC (Stock SAP vs Actual)
+    const sapValues = activeGudangs.map((g) => {
+      if (compareMetric === 'ton') return Number(g.sapTon.toFixed(2));
+      if (compareMetric === 'qty') return g.sapQty;
+      return g.sapItemCount ?? 0;
+    });
+    const actualValues = activeGudangs.map((g) => {
+      if (compareMetric === 'ton') return Number(g.actualTon.toFixed(2));
+      if (compareMetric === 'qty') return g.actualQty;
+      return g.actualItemCount ?? 0;
+    });
+
+    const getMetricLabel = (entity: 'Stock SAP' | 'Actual') => {
+      if (compareMetric === 'ton') return `${entity} (Ton)`;
+      if (compareMetric === 'qty') return `${entity} (Pcs)`;
+      return `${entity} (Item)`;
+    };
 
     return {
       labels,
       datasets: [
         {
-          label: compareMetric === 'ton' ? 'Stock SAP (Ton)' : 'Stock SAP (Btg)',
+          label: getMetricLabel('Stock SAP'),
           data: sapValues,
           backgroundColor: 'rgba(100, 116, 139, 0.85)',
           borderColor: '#475569',
@@ -499,7 +629,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           categoryPercentage: 0.7,
         },
         {
-          label: compareMetric === 'ton' ? 'Actual (Ton)' : 'Actual (Btg)',
+          label: getMetricLabel('Actual'),
           data: actualValues,
           backgroundColor: 'rgba(16, 185, 129, 0.85)',
           borderColor: '#059669',
@@ -513,10 +643,87 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
     };
   }, [gudangRecap, compareMetric, selectedGudang]);
 
+  // Keep references to current compareMetric to prevent stale closure in Chart.js inline plugins
+  const compareMetricRef = useRef(compareMetric);
+  useEffect(() => {
+    compareMetricRef.current = compareMetric;
+  }, [compareMetric]);
+
+  // Plugin label di atas bar: persentase untuk mode 'all', atau satuan (T, Pcs, Item) untuk mode spesifik
+  const compareDataLabelsPlugin = useMemo(
+    () => ({
+      id: 'compareDataLabels',
+      afterDatasetsDraw(chart: any) {
+        const currentMetric = compareMetricRef.current;
+        const { ctx } = chart;
+        chart.data.datasets.forEach((dataset: any, datasetIndex: number) => {
+          const meta = chart.getDatasetMeta(datasetIndex);
+          if (!meta || meta.hidden) return;
+          meta.data.forEach((element: any, index: number) => {
+            const val = dataset.data[index];
+            if (element && typeof val === 'number') {
+              let text = '';
+              let fillStyle = '#475569';
+
+              if (currentMetric === 'all') {
+                text = `${val.toFixed(1)}%`;
+                fillStyle = datasetIndex === 0 ? '#4338ca' : datasetIndex === 1 ? '#047857' : '#0369a1';
+              } else if (currentMetric === 'ton') {
+                text = `${val.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} T`;
+                fillStyle = datasetIndex === 0 ? '#475569' : '#047857';
+              } else if (currentMetric === 'qty') {
+                text = val >= 1000 ? `${(val / 1000).toFixed(0)}k Pcs` : `${Math.round(val).toLocaleString('id-ID')} Pcs`;
+                fillStyle = datasetIndex === 0 ? '#475569' : '#047857';
+              } else if (currentMetric === 'item') {
+                text = `${Math.round(val).toLocaleString('id-ID')} Item`;
+                fillStyle = datasetIndex === 0 ? '#475569' : '#047857';
+              }
+
+              ctx.save();
+              ctx.font = 'bold 9.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+              ctx.fillStyle = fillStyle;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(text, element.x, Math.max(element.y - 4, 12));
+              ctx.restore();
+            }
+          });
+        });
+      },
+    }),
+    []
+  );
+
   const compareChartOptions = useMemo(() => {
     return {
       responsive: true,
       maintainAspectRatio: false,
+      layout: {
+        padding: {
+          top: 20,
+        },
+      },
+      onClick: (_event: any, elements: any[]) => {
+        if (!elements || elements.length === 0) return;
+        const index = elements[0].index;
+        const clickedGudang = activeGudangs[index]?.gudang;
+        if (!clickedGudang) return;
+
+        if (selectedGudang === clickedGudang) {
+          setSelectedGudang('ALL');
+        } else {
+          setSelectedGudang(clickedGudang);
+          const tableEl = document.getElementById('table-sto-detail');
+          if (tableEl) {
+            tableEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+      },
+      onHover: (event: any, chartElement: any[]) => {
+        if (event.native?.target) {
+          event.native.target.style.cursor = chartElement.length ? 'pointer' : 'default';
+        }
+      },
       plugins: {
         legend: {
           display: false,
@@ -534,10 +741,62 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           borderColor: 'rgba(255, 255, 255, 0.1)',
           borderWidth: 1,
           callbacks: {
+            title: (items: any[]) => {
+              if (!items.length) return '';
+              const gName = items[0].label;
+              if (compareMetric === 'all') {
+                return `Gudang ${gName} • Komparasi Item, Qty, Tonase`;
+              }
+              const metricLabel =
+                compareMetric === 'ton' ? 'Tonase' : compareMetric === 'qty' ? 'Kuantitas (Pcs)' : 'Jumlah Item';
+              return `Gudang ${gName} • Komparasi ${metricLabel}`;
+            },
             label: (context: any) => {
               const val = context.raw;
-              const unit = compareMetric === 'ton' ? 'Ton' : 'Btg';
-              return ` ${context.dataset.label}: ${val} ${unit}`;
+              if (compareMetric === 'all') {
+                return ` ${context.dataset.label}: ${val}% kesesuaian`;
+              }
+              const unit = compareMetric === 'ton' ? 'Ton' : compareMetric === 'qty' ? 'Pcs' : 'Item';
+              return ` ${context.dataset.label}: ${Number(val).toLocaleString('id-ID')} ${unit}`;
+            },
+            afterBody: (context: any) => {
+              const idx = context[0]?.dataIndex;
+              const g = activeGudangs[idx];
+              if (!g) return [];
+              if (compareMetric === 'all') {
+                const sapItems = g.sapItemCount ?? 0;
+                const actItems = g.actualItemCount ?? 0;
+                const diffItems = actItems - sapItems;
+                const diffQty = g.actualQty - g.sapQty;
+                const diffTon = g.actualTon - g.sapTon;
+                return [
+                  `• Item: Actual ${actItems.toLocaleString('id-ID')} / SAP ${sapItems.toLocaleString('id-ID')} (${((actItems / (sapItems || 1)) * 100).toFixed(1)}% | ${diffItems >= 0 ? '+' : ''}${diffItems} item)`,
+                  `• Qty: Actual ${g.actualQty.toLocaleString('id-ID')} / SAP ${g.sapQty.toLocaleString('id-ID')} Pcs (${((g.actualQty / (g.sapQty || 1)) * 100).toFixed(1)}% | ${diffQty >= 0 ? '+' : ''}${diffQty.toLocaleString('id-ID')} Pcs)`,
+                  `• Tonase: Actual ${g.actualTon.toFixed(2)} / SAP ${g.sapTon.toFixed(2)} Ton (${((g.actualTon / (g.sapTon || 1)) * 100).toFixed(1)}% | ${diffTon >= 0 ? '+' : ''}${diffTon.toFixed(2)} Ton)`,
+                ];
+              }
+              if (compareMetric === 'item') {
+                const sapItems = g.sapItemCount ?? 0;
+                const actItems = g.actualItemCount ?? 0;
+                const diffItems = actItems - sapItems;
+                return [
+                  `• Total Baris Item: ${g.itemCount.toLocaleString('id-ID')} item`,
+                  `• Selisih Item: ${diffItems >= 0 ? '+' : ''}${diffItems.toLocaleString('id-ID')} item`,
+                  `• Item Sesuai (0): ${g.matchingCount.toLocaleString('id-ID')} item`,
+                  `• Item Selisih (-): ${g.minusCount.toLocaleString('id-ID')} item`,
+                  `• Item Selisih (+): ${g.plusCount.toLocaleString('id-ID')} item`,
+                ];
+              }
+              if (compareMetric === 'qty') {
+                return [
+                  `• Selisih Pcs: ${g.varianceQty >= 0 ? '+' : ''}${g.varianceQty.toLocaleString('id-ID')} Pcs`,
+                  `• Akurasi Item: ${(g.accuracyRate || 0).toFixed(1)}%`,
+                ];
+              }
+              return [
+                `• Selisih Ton: ${g.varianceTon >= 0 ? '+' : ''}${g.varianceTon.toFixed(2)} Ton`,
+                `• Akurasi Item: ${(g.accuracyRate || 0).toFixed(1)}%`,
+              ];
             },
           },
         },
@@ -551,16 +810,25 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           },
         },
         y: {
+          beginAtZero: true,
+          min: 0,
+          max: compareMetric === 'all' ? 105 : undefined,
+          grace: compareMetric === 'all' ? undefined : '14%',
           grid: { color: '#f1f5f9' },
           ticks: {
             color: '#94a3b8',
             font: { family: 'ui-monospace, monospace', size: 10 },
-            callback: (val: any) => `${val} ${compareMetric === 'ton' ? 'T' : 'B'}`,
+            callback: (val: any) => {
+              if (compareMetric === 'all') return val <= 100 ? `${val}%` : '';
+              if (compareMetric === 'ton') return `${val} T`;
+              if (compareMetric === 'qty') return val >= 1000 ? `${(val / 1000).toFixed(0)}k` : `${val} Pcs`;
+              return `${val} Item`;
+            },
           },
         },
       },
     };
-  }, [compareMetric]);
+  }, [compareMetric, activeGudangs, selectedGudang]);
 
   // ==========================================
   // CHART 3: DEVIASI SELISIH & AKURASI PER SLOC (BAR)
@@ -576,8 +844,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
         const valA = slocMetric === 'ton' ? Math.abs(a.varianceTon) : Math.abs(a.varianceQty);
         const valB = slocMetric === 'ton' ? Math.abs(b.varianceTon) : Math.abs(b.varianceQty);
         return valB - valA;
-      })
-      .slice(0, 10);
+      });
   }, [slocRecap, slocMetric]);
 
   const slocChartData = useMemo(() => {
@@ -675,22 +942,36 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
     };
   }, [sortedSLocs, slocMetric, slocGudangFilter, selectedSLoc]);
 
+  // Keep references to current state to prevent stale closure in Chart.js inline plugins
+  const slocMetricRef = useRef(slocMetric);
+  useEffect(() => {
+    slocMetricRef.current = slocMetric;
+  }, [slocMetric]);
+
+  const sortedSLocsRef = useRef(sortedSLocs);
+  useEffect(() => {
+    sortedSLocsRef.current = sortedSLocs;
+  }, [sortedSLocs]);
+
   // Plugin inline untuk menampilkan label nilai deviasi dan persentase akurasi SLoc tepat di atas batang
   const slocDataLabelsPlugin = useMemo(() => ({
     id: 'slocDataLabels',
     afterDatasetsDraw(chart: any) {
       const { ctx } = chart;
+      const currentMetric = slocMetricRef.current;
+      const currentSLocs = sortedSLocsRef.current;
+
       chart.data.datasets.forEach((dataset: any, datasetIndex: number) => {
         const meta = chart.getDatasetMeta(datasetIndex);
         if (!meta || meta.hidden) return;
         meta.data.forEach((element: any, index: number) => {
           const val = dataset.data[index];
-          const s = sortedSLocs[index];
+          const s = currentSLocs[index];
           if (element && typeof val === 'number') {
             ctx.save();
             ctx.textAlign = 'center';
 
-            if (slocMetric === 'percent') {
+            if (currentMetric === 'percent') {
               // Mode Akurasi (%): Tampilkan persentase akurasi di atas batang
               const text = `${val.toFixed(1)}%`;
               ctx.font = 'bold 9.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
@@ -700,12 +981,12 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
             } else {
               // Mode Deviasi Tonase / Qty:
               // Batang berdiri tegak dari baseline 0, label nilai (+/-) & akurasi ditampilkan rapi di atas ujung batang
-              const rawVal = slocMetric === 'ton' ? s?.varianceTon || 0 : s?.varianceQty || 0;
+              const rawVal = currentMetric === 'ton' ? s?.varianceTon || 0 : s?.varianceQty || 0;
               const sign = rawVal > 0 ? '+' : rawVal < 0 ? '-' : '';
-              const unit = slocMetric === 'ton' ? 'T' : 'B';
+              const unit = currentMetric === 'ton' ? 'T' : 'Pcs';
               const absVal = Math.abs(rawVal);
               const valFormatted =
-                slocMetric === 'ton'
+                currentMetric === 'ton'
                   ? absVal.toFixed(1)
                   : Math.round(absVal).toLocaleString('id-ID');
               const valText = `${sign}${valFormatted} ${unit}`;
@@ -713,7 +994,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
 
               const isDeficit = rawVal < 0;
               const isSurplus = rawVal > 0;
-              const valColor = isDeficit ? '#e11d48' : isSurplus ? '#d97706' : '#059669';
+              const valColor = isDeficit ? '#e11d48' : isSurplus ? '#d97706' : '#047857';
 
               // Nilai deviasi bertanda (+/-) dengan warna defisit/surplus
               ctx.textBaseline = 'bottom';
@@ -731,7 +1012,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
         });
       });
     },
-  }), [sortedSLocs, slocMetric]);
+  }), []);
 
   const slocChartOptions = useMemo(() => {
     return {
@@ -796,12 +1077,12 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
               }
               const rawVal = slocMetric === 'ton' ? s.varianceTon : s.varianceQty;
               const sign = rawVal > 0 ? '+' : '';
-              const unit = slocMetric === 'ton' ? 'Ton' : 'Btg';
+              const unit = slocMetric === 'ton' ? 'Ton' : 'Pcs';
               const valFormatted =
                 slocMetric === 'ton'
                   ? rawVal.toFixed(2)
                   : Math.round(rawVal).toLocaleString('id-ID');
-              const status = rawVal < 0 ? ' (Defisit)' : rawVal > 0 ? ' (Surplus)' : ' (Sesuai)';
+              const status = rawVal < 0 ? ' (Selisih -)' : rawVal > 0 ? ' (Selisih +)' : ' (Sesuai)';
               return ` Selisih: ${sign}${valFormatted} ${unit}${status}`;
             },
             afterBody: (context: any) => {
@@ -827,8 +1108,9 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           },
           ticks: {
             color: '#475569',
-            font: { family: 'ui-monospace, monospace', size: 11, weight: 'bold' as const },
+            font: { family: 'ui-monospace, monospace', size: 10.5, weight: 'bold' as const },
             padding: 6,
+            autoSkip: false,
           },
         },
         y: {
@@ -849,7 +1131,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
               if (slocMetric === 'percent') {
                 return val <= 100 ? `${val}%` : '';
               }
-              return `${val} ${slocMetric === 'ton' ? 'T' : 'B'}`;
+              return `${val} ${slocMetric === 'ton' ? 'T' : 'Pcs'}`;
             },
           },
         },
@@ -918,6 +1200,373 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
     };
   }, [summary]);
 
+  // ==========================================
+  // CHART 5: PERBANDINGAN STO PER PERIODE
+  // ==========================================
+  const periodChartData = useMemo(() => {
+    if (stoPeriods.length === 0) {
+      return { labels: [], datasets: [] };
+    }
+
+    const labels = stoPeriods.map((p) => p.label || p.lastUpdated);
+
+    const periodValues = stoPeriods.map((p) => {
+      if (selectedGudang !== 'ALL' && p.gudangBreakdown?.[selectedGudang]) {
+        const g = p.gudangBreakdown[selectedGudang];
+        return {
+          accuracy: Number((g.accuracyRate || 0).toFixed(1)),
+          sapTon: Number((g.sapTon || 0).toFixed(2)),
+          actualTon: Number((g.actualTon || 0).toFixed(2)),
+          varianceTon: Number((g.varianceTon || 0).toFixed(2)),
+          sapQty: g.sapQty || 0,
+          actualQty: g.actualQty || 0,
+          varianceQty: (g.actualQty || 0) - (g.sapQty || 0),
+          itemCount: g.itemCount || 0,
+          matchingCount: g.matchingCount || 0,
+        };
+      }
+      return {
+        accuracy: Number((p.accuracyRate || 0).toFixed(1)),
+        sapTon: Number((p.sapTon || 0).toFixed(2)),
+        actualTon: Number((p.actualTon || 0).toFixed(2)),
+        varianceTon: Number((p.varianceTon || 0).toFixed(2)),
+        sapQty: p.sapQty || 0,
+        actualQty: p.actualQty || 0,
+        varianceQty: p.varianceQty || 0,
+        itemCount: p.totalItems || 0,
+        matchingCount: p.matchingCount || 0,
+      };
+    });
+
+    if (periodMetric === 'all') {
+      return {
+        labels,
+        datasets: [
+          {
+            type: 'bar' as const,
+            label: 'Stock SAP (Ton)',
+            data: periodValues.map((v) => v.sapTon),
+            backgroundColor: 'rgba(100, 116, 139, 0.85)',
+            borderColor: '#475569',
+            borderWidth: 1,
+            borderRadius: 5,
+            maxBarThickness: 44,
+            yAxisID: 'y',
+            order: 2,
+          },
+          {
+            type: 'bar' as const,
+            label: 'Actual (Ton)',
+            data: periodValues.map((v) => v.actualTon),
+            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+            borderColor: '#059669',
+            borderWidth: 1,
+            borderRadius: 5,
+            maxBarThickness: 44,
+            yAxisID: 'y',
+            order: 2,
+          },
+          {
+            type: 'line' as const,
+            label: 'Akurasi STO (%)',
+            data: periodValues.map((v) => v.accuracy),
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99, 102, 241, 0.12)',
+            pointBackgroundColor: '#6366f1',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            borderWidth: 2.5,
+            tension: 0.25,
+            yAxisID: 'y1',
+            order: 1,
+          },
+        ],
+      };
+    }
+
+    if (periodMetric === 'ton') {
+      return {
+        labels,
+        datasets: [
+          {
+            type: 'bar' as const,
+            label: 'Stock SAP (Ton)',
+            data: periodValues.map((v) => v.sapTon),
+            backgroundColor: 'rgba(100, 116, 139, 0.85)',
+            borderColor: '#475569',
+            borderWidth: 1,
+            borderRadius: 5,
+            maxBarThickness: 44,
+            yAxisID: 'y',
+          },
+          {
+            type: 'bar' as const,
+            label: 'Actual (Ton)',
+            data: periodValues.map((v) => v.actualTon),
+            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+            borderColor: '#059669',
+            borderWidth: 1,
+            borderRadius: 5,
+            maxBarThickness: 44,
+            yAxisID: 'y',
+          },
+        ],
+      };
+    }
+
+    if (periodMetric === 'qty') {
+      return {
+        labels,
+        datasets: [
+          {
+            type: 'bar' as const,
+            label: 'Stock SAP (Pcs)',
+            data: periodValues.map((v) => v.sapQty),
+            backgroundColor: 'rgba(100, 116, 139, 0.85)',
+            borderColor: '#475569',
+            borderWidth: 1,
+            borderRadius: 5,
+            maxBarThickness: 44,
+            yAxisID: 'y',
+          },
+          {
+            type: 'bar' as const,
+            label: 'Actual (Pcs)',
+            data: periodValues.map((v) => v.actualQty),
+            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+            borderColor: '#059669',
+            borderWidth: 1,
+            borderRadius: 5,
+            maxBarThickness: 44,
+            yAxisID: 'y',
+          },
+        ],
+      };
+    }
+
+    if (periodMetric === 'accuracy') {
+      return {
+        labels,
+        datasets: [
+          {
+            type: 'line' as const,
+            label: 'Akurasi STO (%)',
+            data: periodValues.map((v) => v.accuracy),
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99, 102, 241, 0.15)',
+            fill: true,
+            pointBackgroundColor: '#4f46e5',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            borderWidth: 2.5,
+            tension: 0.25,
+            yAxisID: 'y',
+          },
+        ],
+      };
+    }
+
+    return {
+      labels,
+      datasets: [
+        {
+          type: 'bar' as const,
+          label: 'Total Item Sensus',
+          data: periodValues.map((v) => v.itemCount),
+          backgroundColor: 'rgba(100, 116, 139, 0.85)',
+          borderColor: '#475569',
+          borderWidth: 1,
+          borderRadius: 5,
+          maxBarThickness: 44,
+          yAxisID: 'y',
+        },
+        {
+          type: 'bar' as const,
+          label: 'Item Sesuai (Akurat)',
+          data: periodValues.map((v) => v.matchingCount),
+          backgroundColor: 'rgba(16, 185, 129, 0.85)',
+          borderColor: '#059669',
+          borderWidth: 1,
+          borderRadius: 5,
+          maxBarThickness: 44,
+          yAxisID: 'y',
+        },
+      ],
+    };
+  }, [stoPeriods, periodMetric, selectedGudang]);
+
+  const periodMetricRef = useRef(periodMetric);
+  useEffect(() => {
+    periodMetricRef.current = periodMetric;
+  }, [periodMetric]);
+
+  const periodDataLabelsPlugin = useMemo(
+    () => ({
+      id: 'periodDataLabels',
+      afterDatasetsDraw(chart: any) {
+        const currentMetric = periodMetricRef.current;
+        const { ctx } = chart;
+        chart.data.datasets.forEach((dataset: any, datasetIndex: number) => {
+          const meta = chart.getDatasetMeta(datasetIndex);
+          if (!meta || meta.hidden) return;
+          meta.data.forEach((element: any, index: number) => {
+            const val = dataset.data[index];
+            if (element && typeof val === 'number') {
+              let text = '';
+              let fillStyle = '#475569';
+              let yOffset = -9;
+
+              if (currentMetric === 'all') {
+                if (dataset.type === 'line') {
+                  text = `${val.toFixed(1)}%`;
+                  fillStyle = '#4f46e5';
+                  yOffset = -14;
+                } else if (datasetIndex === 0) {
+                  text = `${val.toLocaleString('id-ID', { maximumFractionDigits: 1 })} T`;
+                  fillStyle = '#475569';
+                } else {
+                  text = `${val.toLocaleString('id-ID', { maximumFractionDigits: 1 })} T`;
+                  fillStyle = '#047857';
+                }
+              } else if (currentMetric === 'ton') {
+                text = `${val.toLocaleString('id-ID', { maximumFractionDigits: 1 })} T`;
+                fillStyle = datasetIndex === 0 ? '#475569' : '#047857';
+              } else if (currentMetric === 'qty') {
+                text = val >= 1000 ? `${(val / 1000).toFixed(0)}k Pcs` : `${Math.round(val).toLocaleString('id-ID')} Pcs`;
+                fillStyle = datasetIndex === 0 ? '#475569' : '#047857';
+              } else if (currentMetric === 'accuracy') {
+                text = `${val.toFixed(1)}%`;
+                fillStyle = '#4f46e5';
+                yOffset = -14;
+              } else if (currentMetric === 'item') {
+                text = `${Math.round(val).toLocaleString('id-ID')} Item`;
+                fillStyle = datasetIndex === 0 ? '#475569' : '#047857';
+              }
+
+              ctx.save();
+              ctx.font = 'bold 9.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+              ctx.fillStyle = fillStyle;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(text, element.x, element.y + yOffset);
+              ctx.restore();
+            }
+          });
+        });
+      },
+    }),
+    []
+  );
+
+  const periodChartOptions = useMemo(() => {
+    const isCombo = periodMetric === 'all';
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index' as const,
+        intersect: false,
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top' as const,
+          align: 'end' as const,
+          labels: {
+            boxWidth: 12,
+            boxHeight: 12,
+            borderRadius: 3,
+            usePointStyle: isCombo,
+            font: {
+              family: 'ui-sans-serif, system-ui, sans-serif',
+              size: 11,
+              weight: 600,
+            },
+            color: '#475569',
+            padding: 12,
+          },
+        },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          titleFont: { family: 'ui-sans-serif, system-ui, sans-serif', size: 12, weight: 'bold' as const },
+          bodyFont: { family: 'ui-monospace, SFMono-Regular, monospace', size: 11 },
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label(context: any) {
+              const val = context.raw;
+              const label = context.dataset.label || '';
+              if (label.includes('%')) {
+                return ` ${label}: ${Number(val).toFixed(1)}%`;
+              }
+              if (label.includes('Ton')) {
+                return ` ${label}: ${Number(val).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} T`;
+              }
+              if (label.includes('Pcs')) {
+                return ` ${label}: ${Number(val).toLocaleString('id-ID')} Pcs`;
+              }
+              return ` ${label}: ${Number(val).toLocaleString('id-ID')}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 11, weight: 'bold' as const },
+            color: '#334155',
+          },
+        },
+        y: {
+          type: 'linear' as const,
+          display: true,
+          position: 'left' as const,
+          beginAtZero: true,
+          grace: '15%',
+          grid: { color: '#f1f5f9' },
+          ticks: {
+            font: { family: 'ui-monospace, monospace', size: 10 },
+            color: '#64748b',
+            callback: (v: any) => {
+              if (periodMetric === 'all' || periodMetric === 'ton') {
+                return `${v} T`;
+              }
+              if (periodMetric === 'qty') {
+                return v >= 1000 ? `${v / 1000}k` : v;
+              }
+              if (periodMetric === 'accuracy') {
+                return `${v}%`;
+              }
+              return v;
+            },
+          },
+        },
+        ...(isCombo
+          ? {
+              y1: {
+                type: 'linear' as const,
+                display: true,
+                position: 'right' as const,
+                min: 0,
+                max: 100,
+                grid: { drawOnChartArea: false },
+                ticks: {
+                  font: { family: 'ui-monospace, monospace', size: 10 },
+                  color: '#6366f1',
+                  callback: (v: any) => `${v}%`,
+                },
+              },
+            }
+          : {}),
+      },
+    };
+  }, [periodMetric]);
+
   // Helper render sort icon pada header tabel
   const renderSortIcon = (field: string) => {
     if (sortField !== field) {
@@ -963,7 +1612,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
         {/* Total Item */}
         <div className="group relative bg-gradient-to-b from-slate-50/80 via-white to-white rounded-2xl p-4 border border-slate-200/90 shadow-xs hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Total Item Disensus</span>
+            <span>Total Item STO</span>
             <div className="p-1.5 rounded-xl bg-slate-100 text-slate-600 border border-slate-200/60 group-hover:scale-110 transition-transform duration-200">
               <Layers className="h-3.5 w-3.5 text-slate-500" />
             </div>
@@ -1075,7 +1724,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
             </span>
             <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-slate-100 text-slate-600 border border-slate-200/70">
               {summary.netVarianceQty > 0 ? '+' : ''}
-              {formatQty(summary.netVarianceQty)} btg
+              {formatQty(summary.netVarianceQty)} pcs
             </span>
           </div>
           <div className="w-full bg-slate-100 rounded-full h-1 mt-2.5 overflow-hidden">
@@ -1268,7 +1917,11 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
         <CustomizableCard
           id="chart-sto-compare-bar"
           title="Perbandingan Stock SAP vs Actual"
-          subtitle="Komparasi total saldo Stock SAP terhadap actual sensus"
+          subtitle={
+            compareMetric === 'all'
+              ? 'Komparasi langsung 3 metrik: Item, Kuantitas (Pcs), dan Tonase'
+              : 'Komparasi total saldo Stock SAP terhadap actual sensus'
+          }
           icon={Scale}
           width={cards.find((c) => c.id === 'chart-sto-compare-bar')?.width || 'col-span-6'}
           isCustomizing={isCustomizing}
@@ -1277,13 +1930,21 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           canMoveRight={true}
           onMoveLeft={() => handleMove(1, 'left')}
           onMoveRight={() => handleMove(1, 'right')}
-          badge={
-            <span className="text-[10px] font-mono bg-slate-100 text-slate-700 font-bold px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs">
-              Komparasi
-            </span>
-          }
           headerAction={
             <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 text-[11px] font-mono">
+              <button
+                type="button"
+                onClick={() => setCompareMetric('all')}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
+                  compareMetric === 'all'
+                    ? 'bg-white text-indigo-700 shadow-2xs ring-1 ring-indigo-200/60'
+                    : 'text-slate-500 hover:text-slate-800'
+                )}
+                title="Semua Metrik: Item, Qty, Tonase"
+              >
+                All
+              </button>
               <button
                 type="button"
                 onClick={() => setCompareMetric('ton')}
@@ -1306,7 +1967,19 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                     : 'text-slate-500 hover:text-slate-800'
                 )}
               >
-                Qty Btg
+                Qty Pcs
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompareMetric('item')}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
+                  compareMetric === 'item'
+                    ? 'bg-white text-emerald-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                )}
+              >
+                Item
               </button>
             </div>
           }
@@ -1315,16 +1988,33 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
             <div className="flex flex-col justify-between h-full w-full">
               <div>
                 {/* Custom Clean Legend */}
-                <div className="flex flex-wrap items-center gap-4 mb-2.5">
-                  <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                    <span className="h-2.5 w-2.5 rounded-full bg-slate-500 shadow-xs shadow-slate-500/30 shrink-0" />
-                    <span>Stock SAP</span>
+                {compareMetric === 'all' ? (
+                  <div className="flex flex-wrap items-center gap-4 mb-2.5">
+                    <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                      <span className="h-2.5 w-2.5 rounded-full bg-indigo-600 shadow-xs shadow-indigo-600/30 shrink-0" />
+                      <span>Item (%)</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-600 shadow-xs shadow-emerald-600/30 shrink-0" />
+                      <span>Qty Pcs (%)</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                      <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shadow-xs shadow-sky-500/30 shrink-0" />
+                      <span>Tonase (%)</span>
+                    </div>
                   </div>
-                  <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/30 shrink-0" />
-                    <span>Actual</span>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-4 mb-2.5">
+                    <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                      <span className="h-2.5 w-2.5 rounded-full bg-slate-500 shadow-xs shadow-slate-500/30 shrink-0" />
+                      <span>Stock SAP</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/30 shrink-0" />
+                      <span>Actual</span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className={cn("w-full pt-1", expanded ? "h-96" : "h-56 sm:h-64")}>
@@ -1336,21 +2026,25 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                     </p>
                   </div>
                 ) : (
-                  <Bar data={compareChartData} options={compareChartOptions} />
+                  <Bar
+                    data={compareChartData}
+                    options={compareChartOptions}
+                    plugins={[compareDataLabelsPlugin]}
+                  />
                 )}
               </div>
             </div>
           )}
         </CustomizableCard>
 
-        {/* CARD 3: DEVIASI SELISIH PER SLOC */}
+        {/* CARD 3: HASIL STO PER SLOC */}
         <CustomizableCard
           id="chart-sto-sloc-bar"
-          title="Deviasi Selisih per SLoc"
+          title="Hasil STO Per Sloc"
           subtitle={
             slocMetric === 'percent'
-              ? `Top 10 SLoc akurasi terendah di ${slocGudangFilter !== 'ALL' ? slocGudangFilter : 'semua gudang'}`
-              : `Top 10 SLoc deviasi ${slocMetric === 'ton' ? 'tonase' : 'kuantitas'} terbesar di ${slocGudangFilter !== 'ALL' ? slocGudangFilter : 'semua gudang'}`
+              ? `Deviasi akurasi per SLoc di ${slocGudangFilter !== 'ALL' ? slocGudangFilter : 'semua gudang'} (${sortedSLocs.length} SLoc)`
+              : `Deviasi ${slocMetric === 'ton' ? 'tonase' : 'kuantitas'} per SLoc di ${slocGudangFilter !== 'ALL' ? slocGudangFilter : 'semua gudang'} (${sortedSLocs.length} SLoc)`
           }
           icon={MapPin}
           width={cards.find((c) => c.id === 'chart-sto-sloc-bar')?.width || 'col-span-8'}
@@ -1410,7 +2104,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                       : 'text-slate-500 hover:text-slate-800'
                   )}
                 >
-                  Qty Btg
+                  Qty Pcs
                 </button>
                 <button
                   type="button"
@@ -1452,11 +2146,11 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                     <>
                       <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
                         <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shadow-xs shadow-rose-500/30 shrink-0" />
-                        <span>Defisit (-)</span>
+                        <span>Selisih Minus (-)</span>
                       </div>
                       <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
                         <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shadow-xs shadow-amber-500/30 shrink-0" />
-                        <span>Surplus (+)</span>
+                        <span>Selisih Plus (+)</span>
                       </div>
                       <div className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-500 ml-1">
                         <span>(xx%) = Akurasi SLoc</span>
@@ -1475,7 +2169,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                 </div>
               </div>
 
-              <div className={cn("w-full pt-1", expanded ? "flex-1 min-h-[440px]" : "h-56 sm:h-64")}>
+              <div className={cn("w-full pt-1 overflow-x-auto", expanded ? "flex-1 min-h-[440px]" : "h-56 sm:h-64")}>
                 {slocChartData.labels.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
                     <MapPin className="h-7 w-7 text-slate-300 mb-1.5 stroke-1" />
@@ -1484,21 +2178,24 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                     </p>
                   </div>
                 ) : (
-                  <Bar
-                    data={slocChartData}
-                    options={slocChartOptions}
-                    plugins={[slocDataLabelsPlugin]}
-                  />
+                  <div className="h-full w-full" style={{ minWidth: sortedSLocs.length > 12 ? `${sortedSLocs.length * 52}px` : '100%' }}>
+                    <Bar
+                      key={`sloc-chart-${slocMetric}-${slocGudangFilter}-${selectedSLoc}-${sortedSLocs.length}`}
+                      data={slocChartData}
+                      options={slocChartOptions}
+                      plugins={[slocDataLabelsPlugin]}
+                    />
+                  </div>
                 )}
               </div>
             </div>
           )}
         </CustomizableCard>
 
-        {/* CARD 4: DOUGHNUT PROPORSI STATUS */}
+        {/* CARD 4: HASIL STO ALL (DOUGHNUT) */}
         <CustomizableCard
           id="chart-sto-donut"
-          title="Proporsi Hasil STO"
+          title="Hasil Sto All"
           subtitle="Persentase akurasi & status selisih"
           icon={PieChart}
           width={cards.find((c) => c.id === 'chart-sto-donut')?.width || 'col-span-4'}
@@ -1508,11 +2205,6 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           canMoveRight={true}
           onMoveLeft={() => handleMove(3, 'left')}
           onMoveRight={() => handleMove(3, 'right')}
-          badge={
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300/80 shadow-2xs">
-              {summary.accuracyRate.toFixed(1)}% Akurasi
-            </span>
-          }
         >
           {(expanded) => (
             <div className="flex flex-col justify-between h-full w-full">
@@ -1575,18 +2267,297 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           )}
         </CustomizableCard>
 
-        {/* CARD 5: TABEL DETAIL HASIL REKONSILIASI STO (MULTI-TAB) */}
+        {/* CARD 5: PERBANDINGAN STO PER PERIODE */}
+        <CustomizableCard
+          id="chart-sto-period-trend"
+          title="Perbandingan STO per Periode"
+          subtitle={
+            selectedGudang !== 'ALL'
+              ? `Tren komparasi hasil STO antar periode untuk ${selectedGudang}`
+              : 'Tren komparasi hasil sensus fisik antar periode STO yang telah di-upload'
+          }
+          icon={History}
+          width={cards.find((c) => c.id === 'chart-sto-period-trend')?.width || 'col-span-12'}
+          isCustomizing={isCustomizing}
+          onWidthChange={(w) => handleWidthChange('chart-sto-period-trend', w)}
+          canMoveLeft={true}
+          canMoveRight={true}
+          onMoveLeft={() => handleMove(4, 'left')}
+          onMoveRight={() => handleMove(4, 'right')}
+          badge={
+            <span className="text-[10px] font-mono bg-indigo-50 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full border border-indigo-200/80 shadow-2xs">
+              {stoPeriods.length} Periode
+            </span>
+          }
+          headerAction={
+            <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 text-[11px] font-mono">
+              <button
+                type="button"
+                onClick={() => setPeriodMetric('all')}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
+                  periodMetric === 'all'
+                    ? 'bg-white text-indigo-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                )}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setPeriodMetric('ton')}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
+                  periodMetric === 'ton'
+                    ? 'bg-white text-emerald-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                )}
+              >
+                Tonase
+              </button>
+              <button
+                type="button"
+                onClick={() => setPeriodMetric('qty')}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
+                  periodMetric === 'qty'
+                    ? 'bg-white text-emerald-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                )}
+              >
+                Qty Pcs
+              </button>
+              <button
+                type="button"
+                onClick={() => setPeriodMetric('accuracy')}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
+                  periodMetric === 'accuracy'
+                    ? 'bg-white text-indigo-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                )}
+              >
+                Akurasi (%)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPeriodMetric('item')}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
+                  periodMetric === 'item'
+                    ? 'bg-white text-slate-800 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                )}
+              >
+                Item
+              </button>
+            </div>
+          }
+        >
+          {(expanded) => (
+            <div className="flex flex-col justify-between h-full w-full">
+              {/* Top Sub-legend / indicator */}
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  {periodMetric === 'all' && (
+                    <>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-slate-500 shrink-0" />
+                        <span>Stock SAP (Ton)</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" />
+                        <span>Actual Sensus (Ton)</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600">
+                        <span className="h-2 w-3 rounded-full bg-indigo-500 shrink-0" />
+                        <span>Akurasi STO (%)</span>
+                      </div>
+                    </>
+                  )}
+                  {periodMetric === 'ton' && (
+                    <>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-slate-500 shrink-0" />
+                        <span>Stock SAP (Ton)</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" />
+                        <span>Actual Sensus (Ton)</span>
+                      </div>
+                    </>
+                  )}
+                  {periodMetric === 'qty' && (
+                    <>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-slate-500 shrink-0" />
+                        <span>Stock SAP (Pcs)</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" />
+                        <span>Actual Sensus (Pcs)</span>
+                      </div>
+                    </>
+                  )}
+                  {periodMetric === 'accuracy' && (
+                    <div className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-700">
+                      <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 shrink-0" />
+                      <span>Tren Persentase Akurasi STO (%)</span>
+                    </div>
+                  )}
+                  {periodMetric === 'item' && (
+                    <>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-slate-500 shrink-0" />
+                        <span>Total Item Disensus</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" />
+                        <span>Item Sesuai (Akurat)</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {selectedGudang !== 'ALL' && (
+                  <div className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                    <span>Filter Gudang:</span>
+                    <span className="font-bold">{selectedGudang}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Chart container */}
+              <div className={cn("w-full", expanded ? "flex-1 min-h-[420px]" : "h-64 sm:h-72")}>
+                {isLoadingPeriods ? (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
+                    <div className="h-6 w-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mb-2" />
+                    <p className="text-xs font-medium text-slate-500">
+                      Memuat riwayat data STO per periode...
+                    </p>
+                  </div>
+                ) : stoPeriods.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
+                    <History className="h-7 w-7 text-slate-300 mb-1.5 stroke-1" />
+                    <p className="text-xs font-medium text-slate-500">
+                      Belum ada riwayat periode STO
+                    </p>
+                  </div>
+                ) : (
+                  <Bar
+                    key={`period-chart-${periodMetric}-${selectedGudang}-${stoPeriods.length}`}
+                    data={periodChartData as any}
+                    options={periodChartOptions as any}
+                    plugins={[periodDataLabelsPlugin]}
+                  />
+                )}
+              </div>
+
+              {/* Period Summary Cards Grid */}
+              {stoPeriods.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 pt-3.5 border-t border-slate-100 mt-3">
+                  {stoPeriods.map((p) => {
+                    const stats = (selectedGudang !== 'ALL' && p.gudangBreakdown?.[selectedGudang])
+                      ? {
+                          accuracy: p.gudangBreakdown[selectedGudang].accuracyRate,
+                          sapTon: p.gudangBreakdown[selectedGudang].sapTon,
+                          actualTon: p.gudangBreakdown[selectedGudang].actualTon,
+                          varianceTon: p.gudangBreakdown[selectedGudang].varianceTon,
+                          sapQty: p.gudangBreakdown[selectedGudang].sapQty,
+                          actualQty: p.gudangBreakdown[selectedGudang].actualQty,
+                          totalItems: p.gudangBreakdown[selectedGudang].itemCount,
+                          matching: p.gudangBreakdown[selectedGudang].matchingCount,
+                        }
+                      : {
+                          accuracy: p.accuracyRate,
+                          sapTon: p.sapTon,
+                          actualTon: p.actualTon,
+                          varianceTon: p.varianceTon,
+                          sapQty: p.sapQty,
+                          actualQty: p.actualQty,
+                          totalItems: p.totalItems,
+                          matching: p.matchingCount,
+                        };
+
+                    const isHigh = stats.accuracy >= 95;
+                    const isMed = stats.accuracy >= 85 && stats.accuracy < 95;
+
+                    return (
+                      <div
+                        key={p.periodKey}
+                        className="flex flex-col p-2.5 rounded-xl bg-slate-50/70 hover:bg-slate-100/70 border border-slate-200/80 transition-all duration-200 shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between gap-1.5 mb-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Calendar className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                            <span className="text-xs font-bold text-slate-800 truncate">
+                              {p.label || p.lastUpdated}
+                            </span>
+                          </div>
+                          <span
+                            className={cn(
+                              "text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border shadow-2xs shrink-0",
+                              isHigh
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : isMed
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-rose-50 text-rose-700 border-rose-200"
+                            )}
+                          >
+                            {stats.accuracy.toFixed(1)}%
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
+                          <div className="bg-white/90 p-1.5 rounded-lg border border-slate-200/60">
+                            <span className="text-[9.5px] text-slate-400 block font-sans">Stock SAP</span>
+                            <span className="font-bold text-slate-700 truncate block">
+                              {stats.sapTon.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} T
+                            </span>
+                          </div>
+                          <div className="bg-white/90 p-1.5 rounded-lg border border-slate-200/60">
+                            <span className="text-[9.5px] text-slate-400 block font-sans">Actual Sensus</span>
+                            <span className="font-bold text-emerald-700 truncate block">
+                              {stats.actualTon.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} T
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-slate-200/50 text-[10px] font-mono text-slate-500">
+                          <span>Selisih Ton:</span>
+                          <span
+                            className={cn(
+                              "font-bold",
+                              stats.varianceTon < 0
+                                ? "text-rose-600"
+                                : stats.varianceTon > 0
+                                ? "text-amber-600"
+                                : "text-emerald-600"
+                            )}
+                          >
+                            {stats.varianceTon > 0 ? `+${stats.varianceTon.toFixed(2)}` : stats.varianceTon.toFixed(2)} T
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </CustomizableCard>
+
+        {/* CARD 6: TABEL DETAIL HASIL REKONSILIASI STO (MULTI-TAB) */}
         <CustomizableCard
           id="table-sto-detail"
           title="Detail Hasil Rekonsiliasi Stock Opname"
-          subtitle="Data per item material, batch, saldo awal, mutasi cut-off, dan hasil akhir sensus"
           icon={Table2}
           width={cards.find((c) => c.id === 'table-sto-detail')?.width || 'col-span-12'}
           isCustomizing={isCustomizing}
           onWidthChange={(w) => handleWidthChange('table-sto-detail', w)}
           canMoveLeft={true}
           canMoveRight={false}
-          onMoveLeft={() => handleMove(4, 'left')}
+          onMoveLeft={() => handleMove(5, 'left')}
           headerAction={
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-slate-500 font-mono font-medium bg-slate-100/80 px-2.5 py-1 rounded-xl border border-slate-200/60 shadow-2xs">
@@ -1744,7 +2715,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                         onClick={() => handleSort('sapInitialQty')}
                       >
                         <div className="flex items-center justify-end gap-1">
-                          <span>SAP Awal</span>
+                          <span>SAP</span>
                           {renderSortIcon('sapInitialQty')}
                         </div>
                       </th>
@@ -1753,28 +2724,8 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                         onClick={() => handleSort('qtySTO')}
                       >
                         <div className="flex items-center justify-end gap-1">
-                          <span>Actual Awal</span>
+                          <span>STO</span>
                           {renderSortIcon('qtySTO')}
-                        </div>
-                      </th>
-                      <th className="py-2.5 px-3 text-right">Susulan</th>
-                      <th className="py-2.5 px-3 text-center">Mutasi (IN/OUT)</th>
-                      <th
-                        className="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition-colors font-bold text-slate-900 group"
-                        onClick={() => handleSort('sapFinalQty')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          <span>SAP Final</span>
-                          {renderSortIcon('sapFinalQty')}
-                        </div>
-                      </th>
-                      <th
-                        className="py-2.5 px-3 text-right cursor-pointer hover:bg-emerald-100/60 transition-colors font-bold text-emerald-800 bg-emerald-50/50 group"
-                        onClick={() => handleSort('actualFinalQty')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          <span>Actual Final</span>
-                          {renderSortIcon('actualFinalQty')}
                         </div>
                       </th>
                       <th
@@ -1801,7 +2752,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                   <tbody className="divide-y divide-slate-100 font-mono">
                     {paginatedItems.length === 0 ? (
                       <tr>
-                        <td colSpan={13} className="py-12 text-center text-slate-400 font-sans">
+                        <td colSpan={9} className="py-12 text-center text-slate-400 font-sans">
                           <ClipboardCheck className="h-9 w-9 mx-auto mb-2 text-slate-300 stroke-[1.5]" />
                           <p className="font-semibold text-slate-600">Tidak ada data stock opname</p>
                           <p className="text-xs text-slate-400 mt-0.5">
@@ -1841,24 +2792,6 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                             </td>
                             <td className="py-2 px-3 text-right text-slate-700 font-medium tabular-nums">
                               {formatQty(item.qtySTO)}
-                            </td>
-                            <td className="py-2 px-3 text-right text-slate-500 text-[11px] tabular-nums">
-                              {item.additionalSTO > 0 ? `+${formatQty(item.additionalSTO)}` : '-'}
-                            </td>
-                            <td className="py-2 px-3 text-center text-slate-500 text-[10.5px] whitespace-nowrap tabular-nums">
-                              {item.qtyIn > 0 || item.qtyOut > 0 ? (
-                                <span>
-                                  +{item.qtyIn} / -{item.qtyOut}
-                                </span>
-                              ) : (
-                                <span className="text-slate-300">-</span>
-                              )}
-                            </td>
-                            <td className="py-2 px-3 text-right font-bold text-slate-900 bg-slate-50/40 tabular-nums">
-                              {formatQty(item.sapFinalQty)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-bold text-emerald-800 bg-emerald-50/30 tabular-nums">
-                              {formatQty(item.actualFinalQty)}
                             </td>
                             <td
                               className={cn(
@@ -1924,18 +2857,6 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                         </td>
                         <td className="py-2.5 px-3 text-right text-slate-700 tabular-nums">
                           {formatQty(filteredItems.reduce((acc, i) => acc + i.qtySTO, 0))}
-                        </td>
-                        <td className="py-2.5 px-3 text-right text-slate-500 tabular-nums">
-                          {formatQty(filteredItems.reduce((acc, i) => acc + i.additionalSTO, 0))}
-                        </td>
-                        <td className="py-2.5 px-3 text-center text-slate-500 text-[10px] tabular-nums">
-                          +{filteredItems.reduce((acc, i) => acc + i.qtyIn, 0)} / -{filteredItems.reduce((acc, i) => acc + i.qtyOut, 0)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right text-slate-900 bg-slate-200/60 tabular-nums">
-                          {formatQty(summary.totalSapQty)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right text-emerald-900 bg-emerald-100/50 tabular-nums">
-                          {formatQty(summary.totalActualQty)}
                         </td>
                         <td
                           className={cn(

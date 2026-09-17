@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { NCProgressTransaction, NCProgressPipelineItem, NCProgressSummary } from '../types/warehouse';
 import { formatExcelDate, formatExcelTime, parseMaterialUkuran } from './parseNCProgress';
+import { getPipeType } from './parser';
 
 export function exportNCProgressToExcel(
   transactions: NCProgressTransaction[],
@@ -17,6 +18,7 @@ export function exportNCProgressToExcel(
     'No NCR': item.ncrNumber || '-',
     'Keterangan Masalah': item.problemRemark || '-',
     'Customer': item.customer || '-',
+    'Tipe Pipa': getPipeType(item.material, item.materialDescription),
     'Ukuran': parseMaterialUkuran(item.material, item.materialDescription),
     'Kode Material': item.material,
     'Deskripsi Material': item.materialDescription,
@@ -55,6 +57,7 @@ export function exportNCProgressToExcel(
       'No NCR': t.ncrNumber || '-',
       'Keterangan / Defect': t.problemRemark || t.text || '-',
       'Customer': t.customer || '-',
+      'Tipe Pipa': getPipeType(t.material, t.materialDescription),
       'Ukuran': parseMaterialUkuran(t.material, t.materialDescription),
       'Material': t.material,
       'Material Description': t.materialDescription,
@@ -84,6 +87,7 @@ export function exportNCProgressToExcel(
       'No Order': t.order || '-',
       'Work Center': t.workCenter || '-',
       'Customer': t.customer || '-',
+      'Tipe Pipa': getPipeType(t.material, t.materialDescription),
       'Ukuran': parseMaterialUkuran(t.material, t.materialDescription),
       'Material': t.material,
       'Material Description': t.materialDescription,
@@ -110,6 +114,7 @@ export function exportNCProgressToExcel(
       'No Order': t.order || '-',
       'Work Center': t.workCenter || '-',
       'Customer': t.customer || '-',
+      'Tipe Pipa': getPipeType(t.material, t.materialDescription),
       'Ukuran': parseMaterialUkuran(t.material, t.materialDescription),
       'Material': t.material,
       'Material Description': t.materialDescription,
@@ -142,6 +147,7 @@ export function exportNCProgressToExcel(
       'No SPK Repair': item.order && item.order !== '0' ? item.order : '-',
       'Work Center': item.workCenter || '-',
       'Customer': item.customer || '-',
+      'Tipe Pipa': getPipeType(item.material, item.materialDescription),
       'Ukuran': parseMaterialUkuran(item.material, item.materialDescription),
       'Kode Material': item.material,
       'Deskripsi Material': item.materialDescription,
@@ -177,6 +183,7 @@ export function exportNCProgressToExcel(
     'SLoc': t.storageLocation,
     'Mvt': t.movementType,
     'Customer': t.customer,
+    'Tipe Pipa': getPipeType(t.material, t.materialDescription),
     'Order': t.order,
     'Work Center': t.workCenter,
     'Ukuran': parseMaterialUkuran(t.material, t.materialDescription),

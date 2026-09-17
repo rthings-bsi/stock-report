@@ -8,6 +8,7 @@ import {
   StockOpnameSummary,
   StockOpnameGudangRecap,
   StockOpnameSLocRecap,
+  StockOpnamePeriodSummary,
   STODifferenceStatus,
   ALL_SPINDO_GUDANGS,
 } from '@/types/warehouse';
@@ -250,8 +251,14 @@ export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
         kgDiffFinal = -kgDiff;
       } else if (sapInitialQty !== 0 && sapEomWeight !== 0) {
         kgDiffFinal = (differencesFinalQty / Math.abs(sapInitialQty)) * sapEomWeight;
+      } else if (qtySTO > 0 && kgSTO > 0) {
+        kgDiffFinal = differencesFinalQty * (kgSTO / qtySTO);
+      } else if (qtyIn > 0 && kgIn > 0) {
+        kgDiffFinal = differencesFinalQty * (kgIn / qtyIn);
+      } else if (qtyOut > 0 && kgOut > 0) {
+        kgDiffFinal = differencesFinalQty * (kgOut / qtyOut);
       } else {
-        kgDiffFinal = differencesFinalQty * 50;
+        kgDiffFinal = differencesFinalQty * 2.5;
       }
     }
     const tonDiffFinal = kgDiffFinal / 1000;
@@ -293,6 +300,67 @@ export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
 }
 
 /**
+ * Helper untuk menghitung berat dan tonase item STO secara presisi
+ * Menggunakan berat per batang riil dari file (KG STO / Qty STO, KG Difference, atau Mutasi)
+ * bukan fallback statis 0.05 Ton (50 kg) yang mendistorsi gudang pipa kecil.
+ */
+export function getItemWeights(item: StockOpnameItem): {
+  unitWeightKg: number;
+  actualWeightKg: number;
+  sapWeightKg: number;
+  actualTon: number;
+  sapTon: number;
+  diffTon: number;
+} {
+  // 1. Dapatkan berat satuan (kg/pcs) dari data yang tersedia
+  let unitWeightKg = 0;
+  if (item.qtySTO > 0 && item.kgSTO > 0) {
+    unitWeightKg = item.kgSTO / item.qtySTO;
+  } else if (item.sapInitialQty > 0 && (item.kgSTO + item.kgDifference) > 0) {
+    unitWeightKg = (item.kgSTO + item.kgDifference) / item.sapInitialQty;
+  } else if (item.differencesQty !== 0 && item.kgDifference !== 0) {
+    unitWeightKg = Math.abs(item.kgDifference / item.differencesQty);
+  } else if (item.qtyIn > 0 && item.kgIn > 0) {
+    unitWeightKg = item.kgIn / item.qtyIn;
+  } else if (item.qtyOut > 0 && item.kgOut > 0) {
+    unitWeightKg = item.kgOut / item.qtyOut;
+  }
+
+  // 2. Hitung berat Actual (KG)
+  let actualWeightKg = 0;
+  if (item.kgSTO > 0 || item.kgAdditionalSTO > 0 || item.kgIn > 0 || item.kgOut > 0) {
+    actualWeightKg = (item.kgSTO + item.kgAdditionalSTO) + item.kgIn - item.kgOut;
+  } else if (unitWeightKg > 0) {
+    actualWeightKg = item.actualFinalQty * unitWeightKg;
+  }
+
+  // 3. Hitung berat SAP (KG)
+  let sapWeightKg = 0;
+  if (item.kgDifference !== 0 || item.kgSTO > 0) {
+    const sapInitialKg = (item.kgSTO + item.kgAdditionalSTO) + item.kgDifference;
+    sapWeightKg = sapInitialKg + item.kgIn - item.kgOut;
+  } else if (unitWeightKg > 0) {
+    sapWeightKg = item.sapFinalQty * unitWeightKg;
+  }
+
+  // 4. Hitung selisih berat (Actual - SAP)
+  let diffWeightKg = 0;
+  if (item.differencesFinalQty === 0) {
+    diffWeightKg = 0;
+    if (actualWeightKg > 0 && sapWeightKg === 0) sapWeightKg = actualWeightKg;
+    if (sapWeightKg > 0 && actualWeightKg === 0) actualWeightKg = sapWeightKg;
+  } else {
+    diffWeightKg = actualWeightKg - sapWeightKg;
+  }
+
+  const actualTon = Math.abs(actualWeightKg) / 1000;
+  const sapTon = Math.abs(sapWeightKg) / 1000;
+  const diffTon = item.tonDiffFinal !== undefined && item.tonDiffFinal !== 0 ? item.tonDiffFinal : (diffWeightKg / 1000);
+
+  return { unitWeightKg, actualWeightKg, sapWeightKg, actualTon, sapTon, diffTon };
+}
+
+/**
  * Hitung ringkasan statistik KPI Stock Opname
  */
 export function calculateSTOSummary(items: StockOpnameItem[]): StockOpnameSummary {
@@ -311,20 +379,18 @@ export function calculateSTOSummary(items: StockOpnameItem[]): StockOpnameSummar
     totalSapQty += item.sapFinalQty;
     totalActualQty += item.actualFinalQty;
 
-    // Tonase estimasi
-    const sapTon = Math.abs(item.kgSTO > 0 ? (item.kgSTO / 1000) * (item.sapFinalQty / Math.max(item.actualFinalQty, 1)) : item.sapInitialQty * 0.05);
-    const actualTon = Math.abs(item.kgSTO > 0 ? item.kgSTO / 1000 : item.actualFinalQty * 0.05);
-    totalSapTon += sapTon;
-    totalActualTon += actualTon;
+    const weights = getItemWeights(item);
+    totalSapTon += weights.sapTon;
+    totalActualTon += weights.actualTon;
 
     if (item.status === 'SESUAI') {
       matchingItems++;
     } else if (item.status === 'SELISIH_MINUS') {
       minusItems++;
-      totalMinusTon += Math.abs(item.tonDiffFinal || (item.differencesFinalQty * 0.05));
+      totalMinusTon += Math.abs(weights.diffTon);
     } else if (item.status === 'SELISIH_PLUS') {
       plusItems++;
-      totalPlusTon += Math.abs(item.tonDiffFinal || (item.differencesFinalQty * 0.05));
+      totalPlusTon += Math.abs(weights.diffTon);
     }
   }
 
@@ -368,6 +434,8 @@ export function calculateSTOGudangRecap(items: StockOpnameItem[]): StockOpnameGu
     matchingQty: number;
     minusQty: number;
     plusQty: number;
+    sapItemCount: number;
+    actualItemCount: number;
   }>();
 
   // Inisialisasi seluruh gudang Spindo
@@ -387,6 +455,8 @@ export function calculateSTOGudangRecap(items: StockOpnameItem[]): StockOpnameGu
       matchingQty: 0,
       minusQty: 0,
       plusQty: 0,
+      sapItemCount: 0,
+      actualItemCount: 0,
     });
   }
 
@@ -408,18 +478,20 @@ export function calculateSTOGudangRecap(items: StockOpnameItem[]): StockOpnameGu
         matchingQty: 0,
         minusQty: 0,
         plusQty: 0,
+        sapItemCount: 0,
+        actualItemCount: 0,
       };
       map.set(item.gudang, entry);
     }
 
-    const approxWeightTon = Math.abs(item.kgSTO > 0 ? item.kgSTO / 1000 : item.actualFinalQty * 0.05);
-    const diffTon = Math.abs(item.tonDiffFinal || (item.differencesFinalQty * 0.05));
+    const weights = getItemWeights(item);
+    const diffTon = Math.abs(weights.diffTon);
     const diffQty = Math.abs(item.differencesFinalQty);
 
     if (item.status === 'SESUAI') {
       entry.matchingCount++;
       entry.matchingQty += item.actualFinalQty;
-      entry.matchingTon += approxWeightTon;
+      entry.matchingTon += weights.actualTon;
     } else if (item.status === 'SELISIH_MINUS') {
       entry.minusCount++;
       entry.minusQty += diffQty;
@@ -433,9 +505,16 @@ export function calculateSTOGudangRecap(items: StockOpnameItem[]): StockOpnameGu
     entry.sapQty += item.sapFinalQty;
     entry.actualQty += item.actualFinalQty;
 
-    entry.actualTon += approxWeightTon;
-    entry.sapTon += Math.abs(item.sapFinalQty * (item.actualFinalQty > 0 ? approxWeightTon / item.actualFinalQty : 0.05));
-    entry.varianceTon += item.tonDiffFinal || (item.differencesFinalQty * 0.05);
+    if (item.sapFinalQty !== 0 || item.sapInitialQty > 0) {
+      entry.sapItemCount++;
+    }
+    if (item.actualFinalQty !== 0 || item.qtySTO > 0 || item.additionalSTO > 0) {
+      entry.actualItemCount++;
+    }
+
+    entry.actualTon += weights.actualTon;
+    entry.sapTon += weights.sapTon;
+    entry.varianceTon += weights.diffTon;
   }
 
   const result: StockOpnameGudangRecap[] = [];
@@ -460,6 +539,8 @@ export function calculateSTOGudangRecap(items: StockOpnameItem[]): StockOpnameGu
       matchingQty: val.matchingQty,
       minusQty: val.minusQty,
       plusQty: val.plusQty,
+      sapItemCount: val.sapItemCount,
+      actualItemCount: val.actualItemCount,
     });
   }
 
@@ -481,6 +562,8 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
     actualQty: number;
     sapTon: number;
     actualTon: number;
+    sapItemCount: number;
+    actualItemCount: number;
   }>();
 
   for (const item of items) {
@@ -498,20 +581,27 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
         actualQty: 0,
         sapTon: 0,
         actualTon: 0,
+        sapItemCount: 0,
+        actualItemCount: 0,
       };
       map.set(key, entry);
     }
+
+    const weights = getItemWeights(item);
 
     if (item.status === 'SESUAI') entry.matchingCount++;
     else if (item.status === 'SELISIH_MINUS') entry.minusCount++;
     else if (item.status === 'SELISIH_PLUS') entry.plusCount++;
 
+    if (item.sapFinalQty !== 0 || item.sapInitialQty > 0) entry.sapItemCount++;
+    if (item.actualFinalQty !== 0 || item.qtySTO > 0 || item.additionalSTO > 0) entry.actualItemCount++;
+
     entry.varianceQty += item.differencesFinalQty;
-    entry.varianceTon += item.tonDiffFinal;
+    entry.varianceTon += weights.diffTon;
     entry.sapQty += item.sapFinalQty;
     entry.actualQty += item.actualFinalQty;
-    entry.actualTon += (item.kgSTO + item.kgAdditionalSTO) / 1000;
-    entry.sapTon += item.sapFinalQty * (item.actualFinalQty > 0 ? ((item.kgSTO + item.kgAdditionalSTO) / 1000) / item.actualFinalQty : 0.05);
+    entry.actualTon += weights.actualTon;
+    entry.sapTon += weights.sapTon;
   }
 
   const result: StockOpnameSLocRecap[] = [];
@@ -531,11 +621,98 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
       actualQty: val.actualQty,
       sapTon: val.sapTon,
       actualTon: val.actualTon,
+      sapItemCount: val.sapItemCount,
+      actualItemCount: val.actualItemCount,
     });
   }
 
   // Urutkan berdasarkan selisih absolut terbesar
   return result.sort((a, b) => Math.abs(b.varianceQty) - Math.abs(a.varianceQty));
+}
+
+/**
+ * Hitung ringkasan STO per Periode (untuk grafik tren & komparasi antar periode/snapshot)
+ */
+export function calculateSTOPeriodSummary(
+  items: StockOpnameItem[],
+  periodKey: string,
+  lastUpdated: string,
+  customLabel?: string
+): StockOpnamePeriodSummary {
+  const summary = calculateSTOSummary(items);
+  const gudangs = calculateSTOGudangRecap(items);
+
+  let sapItems = 0;
+  let actualItems = 0;
+  for (const g of gudangs) {
+    sapItems += g.sapItemCount ?? 0;
+    actualItems += g.actualItemCount ?? 0;
+  }
+
+  const gudangBreakdown: Record<string, {
+    itemCount: number;
+    matchingCount: number;
+    accuracyRate: number;
+    sapQty: number;
+    actualQty: number;
+    sapTon: number;
+    actualTon: number;
+    varianceTon: number;
+  }> = {};
+
+  for (const g of gudangs) {
+    gudangBreakdown[g.gudang] = {
+      itemCount: g.itemCount,
+      matchingCount: g.matchingCount,
+      accuracyRate: Number(g.accuracyRate.toFixed(1)),
+      sapQty: g.sapQty,
+      actualQty: g.actualQty,
+      sapTon: Number(g.sapTon.toFixed(2)),
+      actualTon: Number(g.actualTon.toFixed(2)),
+      varianceTon: Number(g.varianceTon.toFixed(2)),
+    };
+  }
+
+  // Format label periode: "17 Sep 2026", "19 Jul 2026", dst.
+  let label = customLabel || '';
+  if (!label) {
+    const match = periodKey.match(/snap_(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const [, yr, mo, da] = match;
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      const monthName = months[parseInt(mo, 10) - 1] || mo;
+      label = `${parseInt(da, 10)} ${monthName} ${yr}`;
+    } else if (lastUpdated) {
+      const parts = lastUpdated.split(/[/, ]/);
+      if (parts.length >= 3) {
+        const [d, m, y] = parts;
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const monthName = months[parseInt(m, 10) - 1] || m;
+        if (y && monthName) label = `${d} ${monthName} ${y}`;
+      }
+    }
+    if (!label) label = periodKey.replace('snap_', '');
+  }
+
+  return {
+    periodKey,
+    label,
+    lastUpdated,
+    totalItems: summary.totalItems,
+    matchingCount: summary.matchingItems,
+    minusCount: summary.minusItems,
+    plusCount: summary.plusItems,
+    accuracyRate: Number(summary.accuracyRate.toFixed(1)),
+    sapQty: summary.totalSapQty,
+    actualQty: summary.totalActualQty,
+    varianceQty: summary.netVarianceQty,
+    sapTon: Number(summary.totalSapTon.toFixed(2)),
+    actualTon: Number(summary.totalActualTon.toFixed(2)),
+    varianceTon: Number(summary.netVarianceTon.toFixed(2)),
+    sapItemCount: sapItems,
+    actualItemCount: actualItems,
+    gudangBreakdown,
+  };
 }
 
 /**

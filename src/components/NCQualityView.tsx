@@ -6,8 +6,9 @@ import {
   registerables
 } from 'chart.js';
 import { Chart, Doughnut } from 'react-chartjs-2';
-import { PipeNCWarehouse, PipeNCItem } from '../types/warehouse';
+import { PipeNCWarehouse, PipeNCItem, WarehousePipeCapacity } from '../types/warehouse';
 import { formatTon, formatPercent, cn } from '@/lib/utils';
+import { getPipeType, extractPipeDimension } from '@/lib/parser';
 import {
   ShieldAlert,
   Table2,
@@ -34,6 +35,7 @@ ChartJS.register(...registerables);
 interface NCQualityViewProps {
   ncWarehouseData: PipeNCWarehouse[];
   ncItems: PipeNCItem[];
+  pipeCapacities?: WarehousePipeCapacity[];
   isCustomizing?: boolean;
 }
 
@@ -53,9 +55,11 @@ const DEFAULT_CARDS: CardState[] = [
 export const NCQualityView: React.FC<NCQualityViewProps> = ({
   ncWarehouseData = [],
   ncItems = [],
+  pipeCapacities = [],
   isCustomizing = false
 }) => {
   const [selectedGudang, setSelectedGudang] = useState<string>('ALL');
+  const [selectedPipeType, setSelectedPipeType] = useState<'ALL' | 'LT' | 'ST'>('ALL');
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -72,6 +76,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
   // NC Stock Drilldown Modal State
   const [selectedNCModalGrade, setSelectedNCModalGrade] = useState<'ALL' | 'Grade E' | 'Grade C' | null>(null);
   const [modalGudangFilter, setModalGudangFilter] = useState<string>('ALL');
+  const [modalPipeTypeFilter, setModalPipeTypeFilter] = useState<'ALL' | 'LT' | 'ST'>('ALL');
   const [modalSearchQuery, setModalSearchQuery] = useState<string>('');
   const [modalSortField, setModalSortField] = useState<keyof PipeNCItem>('totalTon');
   const [modalSortDir, setModalSortDir] = useState<'asc' | 'desc'>('desc');
@@ -120,25 +125,107 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     setCards(newCards);
   };
 
+  // Normalisasi data item NC (memastikan type LT/ST dan ukuran akurat sesuai rumus panjang terkini)
+  const normalizedNCItems = useMemo<PipeNCItem[]>(() => {
+    return (ncItems || []).map((item) => {
+      const pType = getPipeType(item.kodeMaterial, item.ukuran);
+      const { dimension } = extractPipeDimension(item.ukuran, item.kodeMaterial);
+      return {
+        ...item,
+        type: pType,
+        ukuran: dimension && dimension !== 'N/A' && dimension !== item.kodeMaterial ? dimension : item.ukuran,
+      };
+    });
+  }, [ncItems]);
+
   // Available gudang list for filter
   const availableGudangs = useMemo(() => {
     const set = new Set<string>();
     ncWarehouseData.forEach((w) => {
       if (w.gudang) set.add(w.gudang);
     });
-    ncItems.forEach((i) => {
+    normalizedNCItems.forEach((i) => {
       if (i.gudang) set.add(i.gudang);
     });
     return ['ALL', ...Array.from(set).sort()];
-  }, [ncWarehouseData, ncItems]);
+  }, [ncWarehouseData, normalizedNCItems]);
 
-  // Filtered items by selected gudang
+  // Filtered items by selected gudang and selected pipe type (LT vs ST)
   const filteredItems = useMemo(() => {
-    return ncItems.filter((item) => {
+    return normalizedNCItems.filter((item) => {
+      if (selectedPipeType !== 'ALL' && item.type !== selectedPipeType) return false;
       if (selectedGudang !== 'ALL' && item.gudang !== selectedGudang) return false;
       return true;
     });
-  }, [ncItems, selectedGudang]);
+  }, [normalizedNCItems, selectedGudang, selectedPipeType]);
+
+  // Agregasi warehouse berdasarkan Tipe Pipa (ALL / LT / ST)
+  const effectiveWarehouseData = useMemo<PipeNCWarehouse[]>(() => {
+    if (selectedPipeType === 'ALL') {
+      return ncWarehouseData;
+    }
+
+    return ncWarehouseData.map((w) => {
+      const isLT = selectedPipeType === 'LT';
+
+      // 1. Ambil gradeE & gradeC langsung dari normalizedNCItems agar sinkron sempurna dengan filter LT/ST
+      const matchingItems = normalizedNCItems.filter((i) => i.gudang === w.gudang && i.type === selectedPipeType);
+      const gradeE = Number(
+        matchingItems
+          .filter((i) => i.grade === 'Grade E')
+          .reduce((sum, i) => sum + (i.totalTon || 0), 0)
+          .toFixed(1)
+      );
+      const gradeC = Number(
+        matchingItems
+          .filter((i) => i.grade === 'Grade C')
+          .reduce((sum, i) => sum + (i.totalTon || 0), 0)
+          .toFixed(1)
+      );
+
+      // 2. Ambil prime
+      let prime = 0;
+      if (isLT && w.primeLt !== undefined && w.primeLt > 0) {
+        prime = w.primeLt;
+      } else if (!isLT && w.primeSt !== undefined && w.primeSt > 0) {
+        prime = w.primeSt;
+      } else if (pipeCapacities && pipeCapacities.length > 0) {
+        const cap = pipeCapacities.find((p) => p.gudang === w.gudang);
+        if (cap) {
+          const totalStockType = isLT
+            ? (cap.fgLt || 0) + (cap.wipLt || 0)
+            : (cap.fgSt || 0) + (cap.wipSt || 0);
+          prime = Math.max(0, totalStockType - (gradeE + gradeC));
+          prime = Number(prime.toFixed(1));
+        } else {
+          const totalNCAll = (w.gradeE || 0) + (w.gradeC || 0);
+          const ratio = totalNCAll > 0 ? (gradeE + gradeC) / totalNCAll : (isLT ? 0.8 : 0.2);
+          prime = Number((w.prime * ratio).toFixed(1));
+        }
+      } else {
+        const totalNCAll = (w.gradeE || 0) + (w.gradeC || 0);
+        const ratio = totalNCAll > 0 ? (gradeE + gradeC) / totalNCAll : (isLT ? 0.8 : 0.2);
+        prime = Number((w.prime * ratio).toFixed(1));
+      }
+
+      const totalWh = prime + gradeE + gradeC;
+      const persenGradeE = totalWh > 0 ? (gradeE / totalWh) * 100 : 0;
+
+      return {
+        gudang: w.gudang,
+        prime,
+        gradeE,
+        gradeC,
+        persenGradeE: Number(persenGradeE.toFixed(1)),
+        primeLt: w.primeLt,
+        primeSt: w.primeSt,
+        gradeELt: w.gradeELt,
+        gradeESt: w.gradeESt,
+        gradeCLt: w.gradeCLt,
+        gradeCSt: w.gradeCSt,
+      };
+    });
+  }, [ncWarehouseData, normalizedNCItems, pipeCapacities, selectedPipeType]);
 
   // Strictly Top 10 Terbesar Grade E (Hold Mutu)
   const top10GradeE = useMemo(() => {
@@ -157,9 +244,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
   }, [filteredItems]);
 
   // Global metric sums
-  const totalPrime = ncWarehouseData.reduce((acc, curr) => acc + curr.prime, 0);
-  const totalGradeE = ncWarehouseData.reduce((acc, curr) => acc + curr.gradeE, 0);
-  const totalGradeC = ncWarehouseData.reduce((acc, curr) => acc + curr.gradeC, 0);
+  const totalPrime = effectiveWarehouseData.reduce((acc, curr) => acc + curr.prime, 0);
+  const totalGradeE = effectiveWarehouseData.reduce((acc, curr) => acc + curr.gradeE, 0);
+  const totalGradeC = effectiveWarehouseData.reduce((acc, curr) => acc + curr.gradeC, 0);
   const totalNC = totalGradeE + totalGradeC;
   const totalAll = totalPrime + totalNC;
 
@@ -169,30 +256,30 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
 
   // Top 3 largest warehouses by Grade E tonnage (for warning indicator)
   const top3GradeEGudangs = useMemo(() => {
-    return [...ncWarehouseData]
+    return [...effectiveWarehouseData]
       .sort((a, b) => b.gradeE - a.gradeE)
       .slice(0, 3)
       .map((d) => d.gudang);
-  }, [ncWarehouseData]);
+  }, [effectiveWarehouseData]);
 
   // Top 3 largest warehouses by Grade C tonnage (for warning indicator)
   const top3GradeCGudangs = useMemo(() => {
-    return [...ncWarehouseData]
+    return [...effectiveWarehouseData]
       .sort((a, b) => b.gradeC - a.gradeC)
       .slice(0, 3)
       .map((d) => d.gudang);
-  }, [ncWarehouseData]);
+  }, [effectiveWarehouseData]);
 
-  const isEmpty = ncWarehouseData.length === 0 && ncItems.length === 0;
+  const isEmpty = effectiveWarehouseData.length === 0 && ncItems.length === 0;
 
   // Chart data (Distribution per Warehouse: PRIME vs Grade C vs Grade E)
   const chartData = {
-    labels: ncWarehouseData.map((d) => d.gudang),
+    labels: effectiveWarehouseData.map((d) => d.gudang),
     datasets: [
       {
         type: 'bar' as const,
         label: 'PRIME (Ton)',
-        data: ncWarehouseData.map((d) => d.prime),
+        data: effectiveWarehouseData.map((d) => d.prime),
         backgroundColor: '#059669',
         hoverBackgroundColor: '#047857',
         borderRadius: 2,
@@ -200,7 +287,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
       {
         type: 'bar' as const,
         label: 'Grade C (Ton)',
-        data: ncWarehouseData.map((d) => d.gradeC),
+        data: effectiveWarehouseData.map((d) => d.gradeC),
         backgroundColor: '#f59e0b',
         hoverBackgroundColor: '#d97706',
         borderRadius: 2,
@@ -208,7 +295,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
       {
         type: 'bar' as const,
         label: 'Grade E (Ton)',
-        data: ncWarehouseData.map((d) => d.gradeE),
+        data: effectiveWarehouseData.map((d) => d.gradeE),
         backgroundColor: '#dc2626',
         hoverBackgroundColor: '#b91c1c',
         borderRadius: 2,
@@ -242,7 +329,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
           title: function (items: any[]) {
             if (items.length > 0) {
               const idx = items[0].dataIndex;
-              const w = ncWarehouseData[idx];
+              const w = effectiveWarehouseData[idx];
               const totalW = w ? w.prime + w.gradeC + w.gradeE : 0;
               return `${w?.gudang} (Total: ${formatTon(totalW)})`;
             }
@@ -268,8 +355,8 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
   // Active warehouse selection metrics for donut
   const activeWarehouseNC = useMemo(() => {
     if (selectedGudang === 'ALL') return null;
-    return ncWarehouseData.find((d) => d.gudang === selectedGudang) || null;
-  }, [ncWarehouseData, selectedGudang]);
+    return effectiveWarehouseData.find((d) => d.gudang === selectedGudang) || null;
+  }, [effectiveWarehouseData, selectedGudang]);
 
   const donutPrime = activeWarehouseNC ? activeWarehouseNC.prime : totalPrime;
   const donutGradeE = activeWarehouseNC ? activeWarehouseNC.gradeE : totalGradeE;
@@ -310,14 +397,17 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
           // Grade E
           setSelectedNCModalGrade('Grade E');
           setModalGudangFilter(selectedGudang);
+          setModalPipeTypeFilter(selectedPipeType);
         } else if (index === 2) {
           // Grade C
           setSelectedNCModalGrade('Grade C');
           setModalGudangFilter(selectedGudang);
+          setModalPipeTypeFilter(selectedPipeType);
         } else if (index === 0) {
           // PRIME - open ALL NC
           setSelectedNCModalGrade('ALL');
           setModalGudangFilter(selectedGudang);
+          setModalPipeTypeFilter(selectedPipeType);
         }
       }
     },
@@ -449,6 +539,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                 onClick={() => {
                   setSelectedNCModalGrade(targetGrade);
                   setModalGudangFilter(selectedGudang);
+                  setModalPipeTypeFilter(selectedPipeType);
                   setModalSearchQuery(item.ukuran);
                 }}
                 className={`hover:bg-emerald-50/30 transition-all duration-150 cursor-pointer group ${
@@ -482,7 +573,12 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   </span>
                 </td>
                 <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 border border-slate-200/80 text-slate-700">
+                  <span className={cn(
+                    "inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono border shadow-2xs",
+                    item.type === 'ST'
+                      ? "bg-amber-100 text-amber-800 border-amber-300"
+                      : "bg-blue-100 text-blue-800 border-blue-300"
+                  )}>
                     {item.type}
                   </span>
                 </td>
@@ -531,6 +627,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   onClick={() => {
                     setSelectedNCModalGrade(targetGrade);
                     setModalGudangFilter(selectedGudang);
+                    setModalPipeTypeFilter(selectedPipeType);
                   }}
                   className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 hover:underline inline-flex items-center gap-1 cursor-pointer"
                 >
@@ -556,9 +653,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
       }
     };
 
-    const sorted = sortItems(ncWarehouseData, recapSortField, recapSortDir);
-    const maxGradeE = Math.max(...ncWarehouseData.map((d) => d.gradeE), 1);
-    const maxGradeC = Math.max(...ncWarehouseData.map((d) => d.gradeC), 1);
+    const sorted = sortItems(effectiveWarehouseData, recapSortField, recapSortDir);
+    const maxGradeE = Math.max(...effectiveWarehouseData.map((d) => d.gradeE), 1);
+    const maxGradeC = Math.max(...effectiveWarehouseData.map((d) => d.gradeC), 1);
 
     return (
       <div className={cn("overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white", isExpanded ? "flex-1 overflow-auto max-h-none" : "max-h-[520px] overflow-y-auto")}>
@@ -680,11 +777,14 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
 
   // Filtered items for NC Drilldown Modal
   const modalNCItems = useMemo(() => {
-    return ncItems.filter((item) => {
+    return normalizedNCItems.filter((item) => {
       if (selectedNCModalGrade && selectedNCModalGrade !== 'ALL') {
         if (item.grade !== selectedNCModalGrade) return false;
       }
       if (modalGudangFilter !== 'ALL' && item.gudang !== modalGudangFilter) {
+        return false;
+      }
+      if (modalPipeTypeFilter !== 'ALL' && item.type !== modalPipeTypeFilter) {
         return false;
       }
       if (modalSearchQuery.trim()) {
@@ -699,7 +799,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
       }
       return true;
     });
-  }, [ncItems, selectedNCModalGrade, modalGudangFilter, modalSearchQuery]);
+  }, [normalizedNCItems, selectedNCModalGrade, modalGudangFilter, modalPipeTypeFilter, modalSearchQuery]);
 
   const sortedModalNCItems = useMemo(() => {
     return sortItems(modalNCItems, modalSortField, modalSortDir);
@@ -721,9 +821,20 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
       }
     };
 
-    const countAll = ncItems.filter((i) => modalGudangFilter === 'ALL' || i.gudang === modalGudangFilter).length;
-    const countGradeE = ncItems.filter((i) => i.grade === 'Grade E' && (modalGudangFilter === 'ALL' || i.gudang === modalGudangFilter)).length;
-    const countGradeC = ncItems.filter((i) => i.grade === 'Grade C' && (modalGudangFilter === 'ALL' || i.gudang === modalGudangFilter)).length;
+    const countAll = normalizedNCItems.filter((i) =>
+      (modalGudangFilter === 'ALL' || i.gudang === modalGudangFilter) &&
+      (modalPipeTypeFilter === 'ALL' || i.type === modalPipeTypeFilter)
+    ).length;
+    const countGradeE = normalizedNCItems.filter((i) =>
+      i.grade === 'Grade E' &&
+      (modalGudangFilter === 'ALL' || i.gudang === modalGudangFilter) &&
+      (modalPipeTypeFilter === 'ALL' || i.type === modalPipeTypeFilter)
+    ).length;
+    const countGradeC = normalizedNCItems.filter((i) =>
+      i.grade === 'Grade C' &&
+      (modalGudangFilter === 'ALL' || i.gudang === modalGudangFilter) &&
+      (modalPipeTypeFilter === 'ALL' || i.type === modalPipeTypeFilter)
+    ).length;
 
     const handleCopyTable = () => {
       const header = 'No\tGudang\tUkuran\tCustomer\tKode Material\tTipe\tGrade\tFG (Ton)\tWIP (Ton)\tTotal (Ton)\tRemark / No NC';
@@ -826,8 +937,51 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               </button>
             </div>
 
-            {/* GUDANG SELECTOR & SEARCH */}
+            {/* GUDANG SELECTOR, PIPE TYPE & SEARCH */}
             <div className="flex items-center gap-2.5 flex-wrap">
+              {/* TIPE PIPA (All / LT / ST) */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-mono shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setModalPipeTypeFilter('ALL')}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer font-bold",
+                    modalPipeTypeFilter === 'ALL'
+                      ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalPipeTypeFilter('LT')}
+                  title="Pipa LT (Panjang ≥ 3000 mm)"
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer font-bold",
+                    modalPipeTypeFilter === 'LT'
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  LT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalPipeTypeFilter('ST')}
+                  title="Pipa ST (Panjang < 3000 mm)"
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer font-bold",
+                    modalPipeTypeFilter === 'ST'
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  ST
+                </button>
+              </div>
+
+              {/* GUDANG SELECTOR */}
               <div className="flex items-center gap-1.5 font-mono">
                 <span className="text-[11px] font-bold text-slate-500 uppercase">Gudang:</span>
                 <select
@@ -894,7 +1048,12 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                         {item.kodeMaterial || '-'}
                       </td>
                       <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 border border-slate-200/80 text-slate-700 font-mono">
+                        <span className={cn(
+                          "inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono border shadow-2xs",
+                          item.type === 'ST'
+                            ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : "bg-blue-100 text-blue-800 border-blue-300"
+                        )}>
                           {item.type}
                         </span>
                       </td>
@@ -957,7 +1116,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
           {/* MODAL FOOTER */}
           <div className="p-3.5 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
             <span className="text-[11px] text-slate-500">
-              Menampilkan {sortedModalNCItems.length} dari {ncItems.length} total baris NC
+              Menampilkan {sortedModalNCItems.length} dari {normalizedNCItems.length} total baris NC
             </span>
             <button
               type="button"
@@ -987,6 +1146,48 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
 
         {/* FILTERS */}
         <div className="flex items-center gap-2.5 flex-wrap font-mono text-xs">
+          {/* Quick Segment Filter LT / ST */}
+          <div className="flex items-center bg-emerald-950/70 p-0.5 rounded-lg border border-emerald-700/60 text-xs shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setSelectedPipeType('ALL')}
+              className={cn(
+                "px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer",
+                selectedPipeType === 'ALL'
+                  ? "bg-emerald-500 text-white font-bold shadow-2xs"
+                  : "text-emerald-200 hover:text-white font-medium"
+              )}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedPipeType('LT')}
+              title="Pipa LT (Panjang ≥ 3000 mm)"
+              className={cn(
+                "px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer",
+                selectedPipeType === 'LT'
+                  ? "bg-emerald-500 text-white font-bold shadow-2xs"
+                  : "text-emerald-200 hover:text-white font-medium"
+              )}
+            >
+              LT
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedPipeType('ST')}
+              title="Pipa ST (Panjang < 3000 mm)"
+              className={cn(
+                "px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer",
+                selectedPipeType === 'ST'
+                  ? "bg-emerald-500 text-white font-bold shadow-2xs"
+                  : "text-emerald-200 hover:text-white font-medium"
+              )}
+            >
+              ST
+            </button>
+          </div>
+
           {/* GUDANG SELECTOR */}
           <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-700/80">
             <Warehouse className="h-3.5 w-3.5 text-amber-300 shrink-0" />
@@ -996,7 +1197,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               onChange={(e) => setSelectedGudang(e.target.value)}
               className="bg-emerald-900 border border-emerald-700 text-white text-xs font-bold rounded px-1.5 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer"
             >
-              <option value="ALL">Semua Gudang ({ncWarehouseData.length})</option>
+              <option value="ALL">Semua Gudang ({effectiveWarehouseData.length})</option>
               {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
                 <option key={g} value={g}>
                   {g}
@@ -1005,10 +1206,13 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
             </select>
           </div>
 
-          {selectedGudang !== 'ALL' && (
+          {(selectedGudang !== 'ALL' || selectedPipeType !== 'ALL') && (
             <button
               type="button"
-              onClick={() => setSelectedGudang('ALL')}
+              onClick={() => {
+                setSelectedGudang('ALL');
+                setSelectedPipeType('ALL');
+              }}
               className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
             >
               Reset Filter
@@ -1028,7 +1232,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           {cards.map((card, index) => {
             // CARD 2: REKAPITULASI STOCK NC PER GUDANG (TABEL)
-            if (card.id === 'recap-table' && ncWarehouseData.length > 0) {
+            if (card.id === 'recap-table' && effectiveWarehouseData.length > 0) {
               return (
                 <CustomizableCard
                   key={card.id}
@@ -1045,7 +1249,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   onWidthChange={(w) => handleWidthChange(card.id, w)}
                   badge={
                     <span className="text-[10px] font-mono bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-200">
-                      {ncWarehouseData.length} Gudang
+                      {effectiveWarehouseData.length} Gudang
                     </span>
                   }
                   headerAction={
@@ -1134,6 +1338,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                           onClick={() => {
                             setSelectedNCModalGrade('ALL');
                             setModalGudangFilter(selectedGudang);
+                            setModalPipeTypeFilter(selectedPipeType);
                           }}
                           className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-emerald-50/80 transition-colors"
                           title="Klik untuk melihat data stock"
@@ -1151,6 +1356,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                           onClick={() => {
                             setSelectedNCModalGrade('Grade E');
                             setModalGudangFilter(selectedGudang);
+                            setModalPipeTypeFilter(selectedPipeType);
                           }}
                           className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-rose-50/80 transition-colors"
                           title="Klik untuk melihat daftar stock Grade E & Remark No NC"
@@ -1168,6 +1374,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                           onClick={() => {
                             setSelectedNCModalGrade('Grade C');
                             setModalGudangFilter(selectedGudang);
+                            setModalPipeTypeFilter(selectedPipeType);
                           }}
                           className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-amber-50/80 transition-colors"
                           title="Klik untuk melihat daftar stock Grade C & Remark No NC"
@@ -1187,6 +1394,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                         onClick={() => {
                           setSelectedNCModalGrade('ALL');
                           setModalGudangFilter(selectedGudang);
+                          setModalPipeTypeFilter(selectedPipeType);
                         }}
                         className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-slate-100 hover:bg-emerald-50 hover:text-emerald-950 text-slate-700 text-xs font-bold border border-slate-300 hover:border-emerald-400 transition-all cursor-pointer shadow-2xs font-mono shrink-0"
                       >

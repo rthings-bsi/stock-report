@@ -46,6 +46,12 @@ export interface PipeNCWarehouse {
   gradeE: number;
   gradeC: number;
   persenGradeE: number;
+  primeLt?: number;
+  primeSt?: number;
+  gradeELt?: number;
+  gradeESt?: number;
+  gradeCLt?: number;
+  gradeCSt?: number;
 }
 
 export interface PipeNCItem {
@@ -470,6 +476,8 @@ export interface StockOpnameGudangRecap {
   matchingQty: number;
   minusQty: number;
   plusQty: number;
+  sapItemCount?: number;
+  actualItemCount?: number;
 }
 
 export interface StockOpnameSLocRecap {
@@ -486,6 +494,37 @@ export interface StockOpnameSLocRecap {
   actualQty?: number;
   sapTon?: number;
   actualTon?: number;
+  sapItemCount?: number;
+  actualItemCount?: number;
+}
+
+export interface StockOpnamePeriodSummary {
+  periodKey: string;
+  label: string;
+  lastUpdated: string;
+  totalItems: number;
+  matchingCount: number;
+  minusCount: number;
+  plusCount: number;
+  accuracyRate: number;
+  sapQty: number;
+  actualQty: number;
+  varianceQty: number;
+  sapTon: number;
+  actualTon: number;
+  varianceTon: number;
+  sapItemCount: number;
+  actualItemCount: number;
+  gudangBreakdown?: Record<string, {
+    itemCount: number;
+    matchingCount: number;
+    accuracyRate: number;
+    sapQty: number;
+    actualQty: number;
+    sapTon: number;
+    actualTon: number;
+    varianceTon: number;
+  }>;
 }
 
 
