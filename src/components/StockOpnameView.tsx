@@ -65,7 +65,7 @@ interface CardState {
 
 const DEFAULT_CARDS: CardState[] = [
   { id: 'chart-sto-variance-bar', width: 'col-span-6' },
-  { id: 'chart-sto-compare-bar', width: 'col-span-12' },
+  { id: 'chart-sto-compare-bar', width: 'col-span-6' },
   { id: 'chart-sto-sloc-bar', width: 'col-span-8' },
   { id: 'chart-sto-donut', width: 'col-span-4' },
   { id: 'chart-sto-period-trend', width: 'col-span-12' },
@@ -90,7 +90,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   useEffect(() => {
     setIsMounted(true);
     try {
-      const saved = localStorage.getItem('spindo_layout_stock_opname_v3');
+      const saved = localStorage.getItem('spindo_layout_stock_opname_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length === DEFAULT_CARDS.length) {
@@ -105,7 +105,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   useEffect(() => {
     if (!isMounted) return;
     try {
-      localStorage.setItem('spindo_layout_stock_opname_v3', JSON.stringify(cards));
+      localStorage.setItem('spindo_layout_stock_opname_v4', JSON.stringify(cards));
     } catch {}
   }, [cards, isMounted]);
 
@@ -2018,7 +2018,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
               </div>
 
               <div className="w-full flex-1 overflow-x-auto min-h-0">
-                <div className={cn("w-full pt-1", expanded ? "h-full min-h-[500px] min-w-[1050px]" : "h-64 sm:h-72 min-w-[700px]")}>
+                <div className={cn("w-full pt-1", expanded ? "h-full min-h-[500px] min-w-[1050px]" : compareChartData.labels.length > 0 ? "h-64 sm:h-72 min-w-[550px]" : "h-64 sm:h-72")}>
                   {compareChartData.labels.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
                       <Scale className="h-7 w-7 text-slate-300 mb-1.5 stroke-1" />
