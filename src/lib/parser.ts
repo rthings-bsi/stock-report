@@ -2148,7 +2148,37 @@ export async function readExcelWorkbookMultiSheets(
 
 export async function readExcelFileRawMatrix(file: File): Promise<unknown[][]> {
   const workbook = await parseWorkbookFromFile(file);
-  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) return [];
+
+  // Prioritaskan sheet berdasarkan kata kunci STO atau yang bukan sheet petunjuk/info
+  const sheetNames = workbook.SheetNames;
+  let targetSheetName = sheetNames[0];
+
+  const stoSheet = sheetNames.find((name) => {
+    const lower = name.toLowerCase();
+    return lower.includes('sto') || lower.includes('opname') || lower.includes('rekonsiliasi') || lower.includes('fisik');
+  });
+
+  if (stoSheet) {
+    targetSheetName = stoSheet;
+  } else {
+    // Cari sheet dengan baris data terbanyak yang bukan 'petunjuk' atau 'info'
+    let maxRows = 0;
+    for (const name of sheetNames) {
+      const lower = name.toLowerCase();
+      if (lower.includes('petunjuk') || lower.includes('info') || lower.includes('readme') || lower.includes('cover')) continue;
+      const ws = workbook.Sheets[name];
+      if (ws && ws['!ref']) {
+        const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' });
+        if (rows.length > maxRows) {
+          maxRows = rows.length;
+          targetSheetName = name;
+        }
+      }
+    }
+  }
+
+  const worksheet = workbook.Sheets[targetSheetName];
   if (!worksheet) return [];
   return XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '' });
 }

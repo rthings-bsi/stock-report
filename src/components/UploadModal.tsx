@@ -349,7 +349,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
       if (stoFile && canUploadSTO && stoRawMatrix.length > 0) {
         try {
-          parsedResult.stoData = parseStockOpnameFile(stoRawMatrix);
+          const parsedSto = parseStockOpnameFile(stoRawMatrix);
+          if (!parsedSto || parsedSto.length === 0) {
+            throw new Error('Tidak ada baris data Stock Opname yang valid ditemukan. Pastikan file Excel memuat kolom Material/Batch dan Qty/Actual.');
+          }
+          parsedResult.stoData = parsedSto;
           uploadedCategories.push('sto');
         } catch (e: unknown) {
           const m = e instanceof Error ? e.message : 'Format kolom Stock Opname tidak sesuai';

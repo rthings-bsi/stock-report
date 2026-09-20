@@ -181,16 +181,7 @@ export async function GET(request: Request) {
                 }
 
                 if (!hasArray(normData.stoData)) {
-                  try {
-                    const fbSto = db.prepare(`
-                      SELECT sto_data FROM warehouse_snapshots
-                      WHERE sto_data IS NOT NULL AND length(sto_data) > 5
-                      ORDER BY snapshot_key DESC LIMIT 1
-                    `).get();
-                    if (fbSto?.sto_data) {
-                      normData.stoData = parseJsonSafe(fbSto.sto_data, []);
-                    }
-                  } catch {}
+                  normData.stoData = [];
                 }
 
                 return NextResponse.json({ success: true, data: normData, source: 'sqlite' });
@@ -233,19 +224,7 @@ export async function GET(request: Request) {
               } catch {}
             }
 
-            let stoData = parseJsonSafe(row.sto_data, []);
-            if (!hasArray(stoData)) {
-              try {
-                const fbSto = db.prepare(`
-                  SELECT sto_data FROM warehouse_snapshots
-                  WHERE sto_data IS NOT NULL AND length(sto_data) > 5
-                  ORDER BY snapshot_key DESC LIMIT 1
-                `).get();
-                if (fbSto?.sto_data) {
-                  stoData = parseJsonSafe(fbSto.sto_data, []);
-                }
-              } catch {}
-            }
+            const stoData = parseJsonSafe(row.sto_data, []);
 
             const data = {
               snapshotKey: row.snapshot_key,
@@ -448,18 +427,6 @@ export async function POST(request: Request) {
           } catch {}
         }
 
-        if (!hasArray(prevStoData)) {
-          try {
-            const fbSto = db.prepare(`
-              SELECT sto_data FROM warehouse_snapshots
-              WHERE sto_data IS NOT NULL AND length(sto_data) > 5
-              ORDER BY snapshot_key DESC LIMIT 1
-            `).get() as any;
-            if (fbSto?.sto_data) {
-              prevStoData = parseJsonSafe(fbSto.sto_data, []);
-            }
-          } catch {}
-        }
       } catch (err) {
         console.warn('Failed to read existing SQLite row for merge:', err);
       }
@@ -525,7 +492,7 @@ export async function POST(request: Request) {
             if (!hasArray(prevDamagedPkg)) prevDamagedPkg = parseJsonSafe(sRow.damaged_packaging_data, []);
             if (!hasArray(prevIncomingPkg)) prevIncomingPkg = parseJsonSafe(sRow.incoming_packaging_data, []);
             if (!hasArray(prevNcProgress)) prevNcProgress = parseJsonSafe(sRow.nc_progress_data, []);
-            if (!hasArray(prevStoData)) prevStoData = parseJsonSafe(sRow.sto_data, []);
+            if (!hasArray(prevStoData) && sRow.snapshot_key === dateKey) prevStoData = parseJsonSafe(sRow.sto_data, []);
             if (!hasObject(prevCustBreakdown)) prevCustBreakdown = parseJsonSafe(sRow.customer_breakdown, {});
           }
         }
@@ -605,7 +572,7 @@ export async function POST(request: Request) {
     const finalDamagedPkg = uploadHasDamagedPkg && hasArray(damagedPackagingData) ? damagedPackagingData : prevDamagedPkg;
     const finalIncomingPkg = uploadHasIncomingPkg && hasArray(incomingPackagingData) ? incomingPackagingData : prevIncomingPkg;
     const finalNcProgress = uploadHasProgressNC && hasArray(ncProgressData) ? ncProgressData : prevNcProgress;
-    const finalStoData = uploadHasSTO && hasArray(stoData) ? stoData : prevStoData;
+    const finalStoData = uploadHasSTO ? (Array.isArray(stoData) ? stoData : []) : prevStoData;
     const finalCustBreakdown = uploadHasPipe && hasObject(customerBreakdown) ? customerBreakdown : prevCustBreakdown;
 
     let sqliteSaved = false;

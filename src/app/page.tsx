@@ -311,17 +311,14 @@ export default function Home() {
         setUnfifoPipeData(d.unfifoPipeData || []);
         setDamagedPackagingData(d.damagedPackagingData || []);
         setIncomingPackagingData(d.incomingPackagingData || []);
-        if (d.ncProgressData && Array.isArray(d.ncProgressData) && d.ncProgressData.length > 0) {
-          setNcProgressData(d.ncProgressData);
-        }
-        if (d.stoData && Array.isArray(d.stoData) && d.stoData.length > 0) {
-          setStoData(d.stoData);
-        }
+        setNcProgressData(Array.isArray(d.ncProgressData) ? d.ncProgressData : []);
+        setStoData(Array.isArray(d.stoData) ? d.stoData : []);
         setCustomerBreakdown(d.customerBreakdown || {});
         setLastUpdated(d.lastUpdated || '');
         setIsCustomData(true);
         try {
           localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(d));
+          localStorage.setItem('spindo_selected_snapshot_key', key);
         } catch {}
       } else {
         localStorage.removeItem('spindo_warehouse_saved_state');
@@ -395,8 +392,13 @@ export default function Home() {
 
       // 2. Sinkronkan dengan server database Supabase / SQLite
       try {
+        const savedSnapshotKey = typeof window !== 'undefined' ? localStorage.getItem('spindo_selected_snapshot_key') : null;
+        const whUrl = savedSnapshotKey && savedSnapshotKey !== 'latest'
+          ? `/api/warehouse?key=${encodeURIComponent(savedSnapshotKey)}`
+          : '/api/warehouse';
+
         const [whRes, pkgRes, capRes] = await Promise.allSettled([
-          fetch('/api/warehouse', { cache: 'no-store' }),
+          fetch(whUrl, { cache: 'no-store' }),
           fetch('/api/incoming-packaging', { cache: 'no-store' }),
           fetch('/api/settings?key=warehouse_capacity_config', { cache: 'no-store' })
         ]);
@@ -432,8 +434,9 @@ export default function Home() {
               if (d.unfifoCoilData?.length > 0) setUnfifoCoilData(d.unfifoCoilData);
               if (d.unfifoPipeData?.length > 0) setUnfifoPipeData(d.unfifoPipeData);
               if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
-              if (d.ncProgressData?.length > 0) setNcProgressData(d.ncProgressData);
-              if (d.stoData?.length > 0) setStoData(d.stoData);
+              if (d.ncProgressData) setNcProgressData(Array.isArray(d.ncProgressData) ? d.ncProgressData : []);
+              setStoData(Array.isArray(d.stoData) ? d.stoData : []);
+              if (d.snapshotKey) setSelectedSnapshotKey(d.snapshotKey);
               if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
               if (d.lastUpdated) setLastUpdated(d.lastUpdated);
               setIsCustomData(true);
@@ -693,9 +696,8 @@ export default function Home() {
       uploadedCategories: newState.uploadedCategories,
     };
 
-    // Auto-save ganda (LocalStorage + Server API)
+    // 1. Simpan ke database server (Prioritas utama)
     try {
-      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(mergedFullState));
       const res = await fetch('/api/warehouse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -720,6 +722,14 @@ export default function Home() {
     } catch (err) {
       console.error('Failed to sync uploaded data to server:', err);
     }
+
+    // 2. Cache ke LocalStorage (Diisolasi agar QuotaExceededError tidak menggagalkan save server)
+    try {
+      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(mergedFullState));
+      localStorage.setItem('spindo_selected_snapshot_key', snapshotKey);
+    } catch (lsErr) {
+      console.warn('LocalStorage quota exceeded (data tetap aman di server database):', lsErr);
+    }
   };
 
   const handleResetData = async () => {
@@ -728,6 +738,10 @@ export default function Home() {
     } catch (err) {
       console.error('Failed to reset warehouse snapshot:', err);
     }
+
+    try {
+      localStorage.removeItem('spindo_selected_snapshot_key');
+    } catch {}
 
     localStorage.removeItem('spindo_warehouse_saved_state');
     setSelectedSnapshotKey('latest');
@@ -1696,15 +1710,28 @@ export default function Home() {
                   setStoData(newData);
                   setIsCustomData(true);
                   try {
-                    const localSaved = localStorage.getItem('spindo_warehouse_saved_state');
+                    const localSaved = typeof window !== 'undefined' ? localStorage.getItem('spindo_warehouse_saved_state') : null;
                     const prev = localSaved ? JSON.parse(localSaved) : {};
-                    const updatedState = { ...prev, stoData: newData };
-                    localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(updatedState));
-                    await fetch('/api/warehouse', {
+                    const updatedState = { ...prev, stoData: newData, snapshotKey: selectedSnapshotKey };
+
+                    // Simpan ke database server terlebih dahulu
+                    const res = await fetch('/api/warehouse', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(updatedState),
                     });
+                    const resJson = await res.json().catch(() => null);
+                    if (!res.ok || !resJson?.success) {
+                      console.error('Server save error for STO update:', resJson);
+                    }
+
+                    // Cache ke LocalStorage secara terpisah (aman dari QuotaExceededError)
+                    try {
+                      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(updatedState));
+                      if (selectedSnapshotKey) {
+                        localStorage.setItem('spindo_selected_snapshot_key', selectedSnapshotKey);
+                      }
+                    } catch {}
                   } catch (err) {
                     console.error('Failed to sync STO data:', err);
                   }

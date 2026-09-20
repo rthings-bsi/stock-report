@@ -155,16 +155,16 @@ export function extractPipeUkuran(material: string, desc?: string): string {
 export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
   if (!Array.isArray(rawRows) || rawRows.length === 0) return [];
 
-  // Cari baris header (biasanya baris 0 s/d 10)
+  // Cari baris header (biasanya baris 0 s/d 15)
   let headerIndex = -1;
-  for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+  for (let i = 0; i < Math.min(rawRows.length, 20); i++) {
     const row = rawRows[i];
     if (Array.isArray(row)) {
       const rowStr = row.map((cell) => String(cell || '').toLowerCase()).join(' ');
       if (
-        (rowStr.includes('sloc') || rowStr.includes('storage')) &&
-        (rowStr.includes('material') || rowStr.includes('batch')) &&
-        (rowStr.includes('sap') || rowStr.includes('sto') || rowStr.includes('actual') || rowStr.includes('difference'))
+        (rowStr.includes('sloc') || rowStr.includes('storage') || rowStr.includes('gudang') || rowStr.includes('lokasi')) &&
+        (rowStr.includes('material') || rowStr.includes('batch') || rowStr.includes('barang') || rowStr.includes('deskripsi') || rowStr.includes('item')) &&
+        (rowStr.includes('sap') || rowStr.includes('sto') || rowStr.includes('actual') || rowStr.includes('difference') || rowStr.includes('fisik') || rowStr.includes('selisih') || rowStr.includes('counted') || rowStr.includes('opname'))
       ) {
         headerIndex = i;
         break;
@@ -172,63 +172,132 @@ export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
     }
   }
 
+  // Pemetaan kolom dinamis dari baris header jika terdeteksi
+  let colPlant = -1;
+  let colSloc = -1;
+  let colMaterial = -1;
+  let colDesc = -1;
+  let colBatch = -1;
+  let colLabel = -1;
+  let colSapInitial = -1;
+  let colSapEom = -1;
+  let colQtySto = -1;
+  let colKgSto = -1;
+  let colAddSto = -1;
+  let colKgAddSto = -1;
+  let colKgDiff = -1;
+  let colDiffQty = -1;
+  let colQtyIn = -1;
+  let colKgIn = -1;
+  let colQtyOut = -1;
+  let colKgOut = -1;
+  let colSapFinal = -1;
+  let colActualFinal = -1;
+  let colDiffFinal = -1;
+  let colRemarks = -1;
+
+  if (headerIndex >= 0 && Array.isArray(rawRows[headerIndex])) {
+    const headers = (rawRows[headerIndex] as unknown[]).map((c) => String(c || '').toLowerCase().trim());
+    headers.forEach((h, idx) => {
+      if (!h) return;
+      if (h.includes('plant') || h.includes('pabrik') || h.includes('werks')) colPlant = idx;
+      else if (h.includes('sloc') || h.includes('storage') || h.includes('gudang') || h.includes('lokasi')) colSloc = idx;
+      else if ((h.includes('material') || h.includes('matnr') || h.includes('kode')) && !h.includes('desc') && !h.includes('nama')) colMaterial = idx;
+      else if (h.includes('desc') || h.includes('nama') || h.includes('deskripsi') || h.includes('maktx')) colDesc = idx;
+      else if (h.includes('batch') || h.includes('lot') || h.includes('charg')) colBatch = idx;
+      else if (h.includes('label') || h.includes('nomor') || h.includes('no.')) colLabel = idx;
+      else if (h.includes('sap (initial)') || h.includes('sap initial') || h.includes('sap awal') || h.includes('stok sap') || h.includes('stock sap')) colSapInitial = idx;
+      else if (h.includes('eom') || h.includes('berat sap') || h.includes('sap kg')) colSapEom = idx;
+      else if (h.includes('qty sto') || h.includes('sto qty') || h.includes('actual qty') || h.includes('qty actual') || h.includes('fisik qty') || h.includes('counted')) colQtySto = idx;
+      else if (h.includes('kg sto') || h.includes('sto kg') || h.includes('berat sto') || h.includes('actual kg') || h.includes('berat fisik')) colKgSto = idx;
+      else if (h.includes('add') || h.includes('tambahan')) {
+        if (h.includes('kg') || h.includes('berat')) colKgAddSto = idx;
+        else colAddSto = idx;
+      }
+      else if (h.includes('kg diff') || h.includes('selisih kg') || h.includes('diff kg')) colKgDiff = idx;
+      else if (h.includes('differences (initial)') || h.includes('diff initial') || (h.includes('selisih') && !h.includes('final') && !h.includes('kg'))) colDiffQty = idx;
+      else if (h.includes('qty in') || h.includes('in qty') || h === 'in' || h.includes('masuk')) {
+        if (h.includes('kg') || h.includes('berat')) colKgIn = idx;
+        else colQtyIn = idx;
+      }
+      else if (h.includes('qty out') || h.includes('out qty') || h === 'out' || h.includes('keluar')) {
+        if (h.includes('kg') || h.includes('berat')) colKgOut = idx;
+        else colQtyOut = idx;
+      }
+      else if (h.includes('sap (final)') || h.includes('sap final') || h.includes('final sap') || h.includes('akhir sap')) colSapFinal = idx;
+      else if (h.includes('actual (final)') || h.includes('actual final') || h.includes('final actual') || h.includes('akhir fisik')) colActualFinal = idx;
+      else if (h.includes('differences (final)') || h.includes('diff final') || h.includes('final diff') || h.includes('selisih final') || h.includes('selisih akhir')) colDiffFinal = idx;
+      else if (h.includes('remark') || h.includes('catatan') || h.includes('keterangan') || h.includes('alasan')) colRemarks = idx;
+    });
+  }
+
+  // Fallback ke indeks kolom standar SAP jika pemetaan header tidak menemukan kolom
+  const idxPlant = colPlant >= 0 ? colPlant : 1;
+  const idxSloc = colSloc >= 0 ? colSloc : 2;
+  const idxMaterial = colMaterial >= 0 ? colMaterial : 3;
+  const idxBatch = colBatch >= 0 ? colBatch : 4;
+  const idxLabel = colLabel >= 0 ? colLabel : 0;
+  const idxSapInit = colSapInitial >= 0 ? colSapInitial : 5;
+  const idxSapEom = colSapEom >= 0 ? colSapEom : 6;
+  const idxQtySto = colQtySto >= 0 ? colQtySto : 7;
+  const idxKgSto = colKgSto >= 0 ? colKgSto : 8;
+  const idxAddSto = colAddSto >= 0 ? colAddSto : 9;
+  const idxKgAddSto = colKgAddSto >= 0 ? colKgAddSto : 10;
+  const idxKgDiff = colKgDiff >= 0 ? colKgDiff : 11;
+  const idxDiffQty = colDiffQty >= 0 ? colDiffQty : 12;
+  const idxQtyIn = colQtyIn >= 0 ? colQtyIn : 13;
+  const idxKgIn = colKgIn >= 0 ? colKgIn : 14;
+  const idxQtyOut = colQtyOut >= 0 ? colQtyOut : 15;
+  const idxKgOut = colKgOut >= 0 ? colKgOut : 16;
+  const idxSapFinal = colSapFinal >= 0 ? colSapFinal : 17;
+  const idxActualFinal = colActualFinal >= 0 ? colActualFinal : 18;
+  const idxDiffFinal = colDiffFinal >= 0 ? colDiffFinal : 19;
+  const idxDesc = colDesc >= 0 ? colDesc : 21;
+  const idxRemarks = colRemarks >= 0 ? colRemarks : 22;
+
   const dataRows = headerIndex >= 0 ? rawRows.slice(headerIndex + 1) : rawRows;
   const result: StockOpnameItem[] = [];
 
   for (let i = 0; i < dataRows.length; i++) {
     const r = dataRows[i];
-    if (!Array.isArray(r) || r.length < 5) continue;
+    if (!Array.isArray(r) || r.length < 4) continue;
 
     // Bersihkan nilai cell
     const cellVal = (idx: number): string => (r[idx] !== null && r[idx] !== undefined ? String(r[idx]).trim() : '');
 
     // Cek kolom Material & Batch tidak kosong
-    const rawMaterial = cellVal(3) || cellVal(2);
-    const rawBatch = cellVal(4) || cellVal(3);
-    const rawSloc = cellVal(2) || cellVal(1) || '5A01';
-    const rawPlant = cellVal(1) || '1105';
-    const rawLabelId = cellVal(0) || `LBL-${i + 1}`;
+    const rawMaterial = cellVal(idxMaterial) || cellVal(3) || cellVal(2);
+    const rawBatch = cellVal(idxBatch) || cellVal(4) || cellVal(3);
+    const rawSloc = cellVal(idxSloc) || cellVal(2) || cellVal(1) || '5A01';
+    const rawPlant = cellVal(idxPlant) || cellVal(1) || '1105';
+    const rawLabelId = cellVal(idxLabel) || `LBL-${i + 1}`;
 
     if (!rawMaterial && !rawBatch) continue;
-    if (rawMaterial.toLowerCase() === 'material' || rawMaterial.toLowerCase() === 'plant') continue;
+    const lowerMat = rawMaterial.toLowerCase();
+    if (lowerMat === 'material' || lowerMat === 'plant' || lowerMat === 'kode material') continue;
 
-    // Kolom-kolom sesuai urutan SAP screenshot:
-    // 5: SAP (Initial)
-    // 6: Eom / Berat SAP
-    // 7: Qty STO
-    // 8: KG STO
-    // 9: Additional STO
-    // 10: KG Additional STO
-    // 11: KG Difference
-    // 12: Differences (Initial)
-    // 13: IN
-    // 14: Berat IN
-    // 15: OUT
-    // 16: Berat OUT
-    // 17: SAP (Final)
-    // 18: Actual (Final)
-    // 19: Differences (Final)
-    // 20: Diff Sign
-    const sapInitialQty = parseSapNumber(r[5]);
-    const sapEomWeight = parseSapWeight(r[6]);
-    const qtySTO = parseSapNumber(r[7]);
-    const kgSTO = parseSapWeight(r[8]);
-    const additionalSTO = parseSapNumber(r[9]);
-    const kgAdditionalSTO = parseSapWeight(r[10]);
-    const kgDiff = parseSapWeight(r[11]);
-    const differencesQty = parseSapNumber(r[12]);
-    const qtyIn = parseSapNumber(r[13]);
-    const kgIn = parseSapWeight(r[14]);
-    const qtyOut = parseSapNumber(r[15]);
-    const kgOut = parseSapWeight(r[16]);
-    const sapFinalQty = r[17] !== undefined ? parseSapNumber(r[17]) : sapInitialQty;
-    const actualFinalQty = r[18] !== undefined ? parseSapNumber(r[18]) : qtySTO + additionalSTO;
+    const sapInitialQty = parseSapNumber(r[idxSapInit]);
+    const sapEomWeight = parseSapWeight(r[idxSapEom]);
+    const qtySTO = parseSapNumber(r[idxQtySto]);
+    const kgSTO = parseSapWeight(r[idxKgSto]);
+    const additionalSTO = parseSapNumber(r[idxAddSto]);
+    const kgAdditionalSTO = parseSapWeight(r[idxKgAddSto]);
+    const kgDiff = parseSapWeight(r[idxKgDiff]);
+    const differencesQty = parseSapNumber(r[idxDiffQty]);
+    const qtyIn = parseSapNumber(r[idxQtyIn]);
+    const kgIn = parseSapWeight(r[idxKgIn]);
+    const qtyOut = parseSapNumber(r[idxQtyOut]);
+    const kgOut = parseSapWeight(r[idxKgOut]);
+    const sapFinalQty = r[idxSapFinal] !== undefined ? parseSapNumber(r[idxSapFinal]) : sapInitialQty;
+    const actualFinalQty = r[idxActualFinal] !== undefined ? parseSapNumber(r[idxActualFinal]) : qtySTO + additionalSTO;
 
     // Deviasi Actual vs Stock SAP:
     // Actual > SAP -> Surplus (+)
-    // Actual < SAP -> Defisit (-) (misal 5M17 tidak ada STO / actual 0, stock SAP 14 -> defisit -14)
+    // Actual < SAP -> Defisit (-)
     // Actual === SAP -> Sesuai (0)
-    const differencesFinalQty = actualFinalQty - sapFinalQty;
+    const differencesFinalQty = r[idxDiffFinal] !== undefined && cellVal(idxDiffFinal) !== ''
+      ? parseSapNumber(r[idxDiffFinal])
+      : (actualFinalQty - sapFinalQty);
 
     let status: STODifferenceStatus = 'SESUAI';
     let diffSign = '(0)';
@@ -262,6 +331,7 @@ export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
       }
     }
     const tonDiffFinal = kgDiffFinal / 1000;
+    const desc = cellVal(idxDesc) || `Pipa Spindo ${rawMaterial}`;
 
     result.push({
       id: `sto-${rawSloc}-${rawMaterial}-${rawBatch}-${i}`,
@@ -270,8 +340,8 @@ export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
       sloc: rawSloc.toUpperCase(),
       gudang,
       material: rawMaterial.toUpperCase(),
-      materialDescription: cellVal(21) || `Pipa Spindo ${rawMaterial}`,
-      ukuran: extractPipeUkuran(rawMaterial, cellVal(21)),
+      materialDescription: desc,
+      ukuran: extractPipeUkuran(rawMaterial, desc),
       batch: rawBatch.toUpperCase(),
       sapInitialQty,
       uom,
@@ -292,7 +362,7 @@ export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
       kgDiffFinal,
       tonDiffFinal,
       status,
-      remarks: cellVal(22) || '',
+      remarks: cellVal(idxRemarks) || '',
     });
   }
 

@@ -65,7 +65,7 @@ interface CardState {
 
 const DEFAULT_CARDS: CardState[] = [
   { id: 'chart-sto-variance-bar', width: 'col-span-6' },
-  { id: 'chart-sto-compare-bar', width: 'col-span-6' },
+  { id: 'chart-sto-compare-bar', width: 'col-span-12' },
   { id: 'chart-sto-sloc-bar', width: 'col-span-8' },
   { id: 'chart-sto-donut', width: 'col-span-4' },
   { id: 'chart-sto-period-trend', width: 'col-span-12' },
@@ -90,7 +90,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   useEffect(() => {
     setIsMounted(true);
     try {
-      const saved = localStorage.getItem('spindo_layout_stock_opname_v2');
+      const saved = localStorage.getItem('spindo_layout_stock_opname_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length === DEFAULT_CARDS.length) {
@@ -105,7 +105,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   useEffect(() => {
     if (!isMounted) return;
     try {
-      localStorage.setItem('spindo_layout_stock_opname_v2', JSON.stringify(cards));
+      localStorage.setItem('spindo_layout_stock_opname_v3', JSON.stringify(cards));
     } catch {}
   }, [cards, isMounted]);
 
@@ -566,9 +566,9 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
             borderColor: '#4f46e5',
             borderWidth: 1,
             borderRadius: 4,
-            maxBarThickness: selectedGudang !== 'ALL' ? 36 : 24,
-            barPercentage: 0.8,
-            categoryPercentage: 0.75,
+            maxBarThickness: selectedGudang !== 'ALL' ? 44 : 34,
+            barPercentage: 0.9,
+            categoryPercentage: 0.88,
           },
           {
             label: 'Qty Pcs (%)',
@@ -577,9 +577,9 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
             borderColor: '#059669',
             borderWidth: 1,
             borderRadius: 4,
-            maxBarThickness: selectedGudang !== 'ALL' ? 36 : 24,
-            barPercentage: 0.8,
-            categoryPercentage: 0.75,
+            maxBarThickness: selectedGudang !== 'ALL' ? 44 : 34,
+            barPercentage: 0.9,
+            categoryPercentage: 0.88,
           },
           {
             label: 'Tonase (%)',
@@ -588,9 +588,9 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
             borderColor: '#0284c7',
             borderWidth: 1,
             borderRadius: 4,
-            maxBarThickness: selectedGudang !== 'ALL' ? 36 : 24,
-            barPercentage: 0.8,
-            categoryPercentage: 0.75,
+            maxBarThickness: selectedGudang !== 'ALL' ? 44 : 34,
+            barPercentage: 0.9,
+            categoryPercentage: 0.88,
           },
         ],
       };
@@ -624,9 +624,9 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           borderColor: '#475569',
           borderWidth: 1,
           borderRadius: 4,
-          maxBarThickness: selectedGudang !== 'ALL' ? 44 : 32,
-          barPercentage: 0.7,
-          categoryPercentage: 0.7,
+          maxBarThickness: selectedGudang !== 'ALL' ? 48 : 36,
+          barPercentage: 0.8,
+          categoryPercentage: 0.8,
         },
         {
           label: getMetricLabel('Actual'),
@@ -635,9 +635,9 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           borderColor: '#059669',
           borderWidth: 1,
           borderRadius: 4,
-          maxBarThickness: selectedGudang !== 'ALL' ? 44 : 32,
-          barPercentage: 0.7,
-          categoryPercentage: 0.7,
+          maxBarThickness: selectedGudang !== 'ALL' ? 48 : 36,
+          barPercentage: 0.8,
+          categoryPercentage: 0.8,
         },
       ],
     };
@@ -680,7 +680,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
               }
 
               ctx.save();
-              ctx.font = 'bold 9.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+              ctx.font = 'bold 9px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
               ctx.fillStyle = fillStyle;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'bottom';
@@ -700,7 +700,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
       maintainAspectRatio: false,
       layout: {
         padding: {
-          top: 20,
+          top: 24,
         },
       },
       onClick: (_event: any, elements: any[]) => {
@@ -812,7 +812,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
         y: {
           beginAtZero: true,
           min: 0,
-          max: compareMetric === 'all' ? 105 : undefined,
+          max: compareMetric === 'all' ? 108 : undefined,
           grace: compareMetric === 'all' ? undefined : '14%',
           grid: { color: '#f1f5f9' },
           ticks: {
@@ -2017,21 +2017,23 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                 )}
               </div>
 
-              <div className={cn("w-full pt-1", expanded ? "h-96" : "h-56 sm:h-64")}>
-                {compareChartData.labels.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
-                    <Scale className="h-7 w-7 text-slate-300 mb-1.5 stroke-1" />
-                    <p className="text-xs font-medium text-slate-500">
-                      Belum ada data perbandingan
-                    </p>
-                  </div>
-                ) : (
-                  <Bar
-                    data={compareChartData}
-                    options={compareChartOptions}
-                    plugins={[compareDataLabelsPlugin]}
-                  />
-                )}
+              <div className="w-full flex-1 overflow-x-auto min-h-0">
+                <div className={cn("w-full pt-1", expanded ? "h-full min-h-[500px] min-w-[1050px]" : "h-64 sm:h-72 min-w-[700px]")}>
+                  {compareChartData.labels.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
+                      <Scale className="h-7 w-7 text-slate-300 mb-1.5 stroke-1" />
+                      <p className="text-xs font-medium text-slate-500">
+                        Belum ada data perbandingan
+                      </p>
+                    </div>
+                  ) : (
+                    <Bar
+                      data={compareChartData}
+                      options={compareChartOptions}
+                      plugins={[compareDataLabelsPlugin]}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           )}

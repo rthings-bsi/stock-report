@@ -85,8 +85,8 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
 
   if (isExpanded) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 lg:p-6 animate-in fade-in duration-150">
-        <div className="flex flex-col w-full h-full max-w-7xl rounded-2xl border border-slate-300 bg-white shadow-2xl overflow-hidden">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-3 lg:p-4 animate-in fade-in duration-150">
+        <div className="flex flex-col w-full h-full max-w-[98vw] 2xl:max-w-[1880px] rounded-2xl border border-slate-300 bg-white shadow-2xl overflow-hidden">
           {/* Expanded Header */}
           <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50/90 backdrop-blur-xs shrink-0 gap-3">
             <div className="flex items-center gap-3 min-w-0">
