@@ -295,9 +295,7 @@ export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
     // Actual > SAP -> Surplus (+)
     // Actual < SAP -> Defisit (-)
     // Actual === SAP -> Sesuai (0)
-    const differencesFinalQty = r[idxDiffFinal] !== undefined && cellVal(idxDiffFinal) !== ''
-      ? parseSapNumber(r[idxDiffFinal])
-      : (actualFinalQty - sapFinalQty);
+    const differencesFinalQty = actualFinalQty - sapFinalQty;
 
     let status: STODifferenceStatus = 'SESUAI';
     let diffSign = '(0)';
@@ -329,6 +327,14 @@ export function parseStockOpnameFile(rawRows: unknown[][]): StockOpnameItem[] {
       } else {
         kgDiffFinal = differencesFinalQty * 2.5;
       }
+    }
+    // Pastikan tanda kgDiffFinal selalu konsisten dengan differencesFinalQty
+    if (differencesFinalQty < 0 && kgDiffFinal > 0) {
+      kgDiffFinal = -kgDiffFinal;
+    } else if (differencesFinalQty > 0 && kgDiffFinal < 0) {
+      kgDiffFinal = Math.abs(kgDiffFinal);
+    } else if (differencesFinalQty === 0) {
+      kgDiffFinal = 0;
     }
     const tonDiffFinal = kgDiffFinal / 1000;
     const desc = cellVal(idxDesc) || `Pipa Spindo ${rawMaterial}`;
@@ -425,9 +431,72 @@ export function getItemWeights(item: StockOpnameItem): {
 
   const actualTon = Math.abs(actualWeightKg) / 1000;
   const sapTon = Math.abs(sapWeightKg) / 1000;
-  const diffTon = item.tonDiffFinal !== undefined && item.tonDiffFinal !== 0 ? item.tonDiffFinal : (diffWeightKg / 1000);
+  let diffTon = item.tonDiffFinal !== undefined && item.tonDiffFinal !== 0 ? item.tonDiffFinal : (diffWeightKg / 1000);
+
+  // Pastikan diffTon selalu selaras dengan status dan differencesFinalQty
+  if (item.differencesFinalQty < 0 && diffTon > 0) {
+    diffTon = -diffTon;
+  } else if (item.differencesFinalQty > 0 && diffTon < 0) {
+    diffTon = Math.abs(diffTon);
+  } else if (item.differencesFinalQty === 0) {
+    diffTon = 0;
+  }
 
   return { unitWeightKg, actualWeightKg, sapWeightKg, actualTon, sapTon, diffTon };
+}
+
+/**
+ * Normalisasi item STO agar selalu memenuhi aturan deviasi fisik vs sistem SAP:
+ * 1. differencesFinalQty = actualFinalQty - sapFinalQty
+ * 2. status:
+ *    - actualFinalQty < sapFinalQty -> 'SELISIH_MINUS' (Defisit / Kurang)
+ *    - actualFinalQty > sapFinalQty -> 'SELISIH_PLUS' (Surplus / Lebih)
+ *    - actualFinalQty === sapFinalQty -> 'SESUAI' (Cocok / Nol)
+ * 3. diffSign: '(-)' jika minus, '(+)' jika plus, '(0)' jika sesuai
+ * 4. Tanda kgDiffFinal & tonDiffFinal selaras dengan differencesFinalQty
+ */
+export function normalizeStockOpnameItem(item: StockOpnameItem): StockOpnameItem {
+  const actualFinalQty = item.actualFinalQty !== undefined ? item.actualFinalQty : (item.qtySTO + item.additionalSTO);
+  const sapFinalQty = item.sapFinalQty !== undefined ? item.sapFinalQty : item.sapInitialQty;
+  const differencesFinalQty = actualFinalQty - sapFinalQty;
+
+  let status: STODifferenceStatus = 'SESUAI';
+  let diffSign = '(0)';
+  if (differencesFinalQty < 0) {
+    status = 'SELISIH_MINUS';
+    diffSign = '(-)';
+  } else if (differencesFinalQty > 0) {
+    status = 'SELISIH_PLUS';
+    diffSign = '(+)';
+  }
+
+  let kgDiffFinal = item.kgDiffFinal;
+  if (differencesFinalQty === 0) {
+    kgDiffFinal = 0;
+  } else if (kgDiffFinal === 0 && item.kgDifference !== 0) {
+    kgDiffFinal = -item.kgDifference;
+  }
+
+  if (differencesFinalQty < 0 && kgDiffFinal > 0) {
+    kgDiffFinal = -kgDiffFinal;
+  } else if (differencesFinalQty > 0 && kgDiffFinal < 0) {
+    kgDiffFinal = Math.abs(kgDiffFinal);
+  } else if (differencesFinalQty === 0) {
+    kgDiffFinal = 0;
+  }
+
+  const tonDiffFinal = kgDiffFinal / 1000;
+
+  return {
+    ...item,
+    actualFinalQty,
+    sapFinalQty,
+    differencesFinalQty,
+    diffSign,
+    status,
+    kgDiffFinal,
+    tonDiffFinal,
+  };
 }
 
 /**

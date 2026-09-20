@@ -16,7 +16,8 @@ import {
   calculateSTOSummary,
   calculateSTOGudangRecap,
   calculateSTOSLocRecap,
-  calculateSTOPeriodSummary
+  calculateSTOPeriodSummary,
+  normalizeStockOpnameItem
 } from '@/lib/parseStockOpname';
 import { exportStockOpnameToExcel } from '@/lib/exportStockOpnameExcel';
 import { formatTon, formatQty, formatPercent, cn } from '@/lib/utils';
@@ -78,13 +79,18 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   onDataUpdate,
   targetDate,
 }) => {
-  const [items, setItems] = useState<StockOpnameItem[]>(data || []);
+  const normalizedData = useMemo(() => {
+    if (!Array.isArray(data)) return [];
+    return data.map(normalizeStockOpnameItem);
+  }, [data]);
+
+  const [items, setItems] = useState<StockOpnameItem[]>(normalizedData);
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setItems(data || []);
-  }, [data]);
+    setItems(normalizedData);
+  }, [normalizedData]);
 
   // Layout persistence
   useEffect(() => {
@@ -262,6 +268,24 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
       return true;
     });
   }, [items, selectedGudang, selectedSLoc, activeTab, searchQuery]);
+
+  // Total terhitung untuk baris footer tabel terfilter
+  const filteredTotals = useMemo(() => {
+    let sapQty = 0;
+    let actualQty = 0;
+    let varianceQty = 0;
+    let varianceTon = 0;
+    let matchingCount = 0;
+    for (const i of filteredItems) {
+      sapQty += i.sapInitialQty;
+      actualQty += i.qtySTO;
+      varianceQty += i.differencesFinalQty;
+      varianceTon += (i.tonDiffFinal || 0);
+      if (i.status === 'SESUAI') matchingCount++;
+    }
+    const accuracy = filteredItems.length > 0 ? (matchingCount / filteredItems.length) * 100 : 0;
+    return { sapQty, actualQty, varianceQty, varianceTon, accuracy };
+  }, [filteredItems]);
 
   // Sorting
   const sortedItems = useMemo(() => {
@@ -2855,31 +2879,31 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                           Total Halaman Terfilter ({filteredItems.length} Item):
                         </td>
                         <td className="py-2.5 px-3 text-right text-slate-700 tabular-nums">
-                          {formatQty(filteredItems.reduce((acc, i) => acc + i.sapInitialQty, 0))}
+                          {formatQty(filteredTotals.sapQty)}
                         </td>
                         <td className="py-2.5 px-3 text-right text-slate-700 tabular-nums">
-                          {formatQty(filteredItems.reduce((acc, i) => acc + i.qtySTO, 0))}
+                          {formatQty(filteredTotals.actualQty)}
                         </td>
                         <td
                           className={cn(
                             'py-2.5 px-3 text-right font-bold tabular-nums',
-                            summary.netVarianceQty < 0 ? 'text-rose-600' : summary.netVarianceQty > 0 ? 'text-amber-700' : 'text-emerald-700'
+                            filteredTotals.varianceQty < 0 ? 'text-rose-600' : filteredTotals.varianceQty > 0 ? 'text-amber-700' : 'text-emerald-700'
                           )}
                         >
-                          {summary.netVarianceQty > 0 ? '+' : ''}
-                          {formatQty(summary.netVarianceQty)}
+                          {filteredTotals.varianceQty > 0 ? '+' : ''}
+                          {formatQty(filteredTotals.varianceQty)}
                         </td>
                         <td
                           className={cn(
                             'py-2.5 px-3 text-right font-bold tabular-nums',
-                            summary.netVarianceTon < 0 ? 'text-rose-600' : summary.netVarianceTon > 0 ? 'text-amber-700' : 'text-emerald-700'
+                            filteredTotals.varianceTon < 0 ? 'text-rose-600' : filteredTotals.varianceTon > 0 ? 'text-amber-700' : 'text-emerald-700'
                           )}
                         >
-                          {summary.netVarianceTon > 0 ? '+' : ''}
-                          {formatTon(summary.netVarianceTon)} T
+                          {filteredTotals.varianceTon > 0 ? '+' : ''}
+                          {formatTon(filteredTotals.varianceTon)} T
                         </td>
                         <td className="py-2.5 px-3 text-center text-[10px] text-slate-500 font-sans">
-                          {summary.accuracyRate.toFixed(1)}% Akurat
+                          {filteredTotals.accuracy.toFixed(1)}% Akurat
                         </td>
                       </tr>
                     </tfoot>
