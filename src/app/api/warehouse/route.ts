@@ -76,6 +76,20 @@ function parseJsonSafe(val: any, fallback: any = []) {
   return val ?? fallback;
 }
 
+function getLatestNonEmptySqliteCol(db: any, colName: string, minLength = 5): any {
+  if (!db) return null;
+  try {
+    const r = db.prepare(`
+      SELECT ${colName} FROM warehouse_snapshots
+      WHERE ${colName} IS NOT NULL AND length(${colName}) > ?
+      ORDER BY snapshot_key DESC LIMIT 1
+    `).get(minLength) as any;
+    return r ? r[colName] : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -210,40 +224,129 @@ export async function GET(request: Request) {
           }
 
           if (row) {
-            let ncProgressData = parseJsonSafe(row.nc_progress_data, []);
-            if (!hasArray(ncProgressData)) {
-              try {
-                const fbNc = db.prepare(`
-                  SELECT nc_progress_data FROM warehouse_snapshots
-                  WHERE nc_progress_data IS NOT NULL AND length(nc_progress_data) > 5
-                  ORDER BY snapshot_key DESC LIMIT 1
-                `).get();
-                if (fbNc?.nc_progress_data) {
-                  ncProgressData = parseJsonSafe(fbNc.nc_progress_data, []);
-                }
-              } catch {}
+            let pipeCapacities = parseJsonSafe(row.pipe_capacities, []);
+            if (!hasRealPipe(pipeCapacities)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'pipe_capacities', 10);
+              const p = parseJsonSafe(fb, []);
+              if (hasRealPipe(p)) pipeCapacities = p;
             }
 
-            const stoData = parseJsonSafe(row.sto_data, []);
+            let fastSlowData = parseJsonSafe(row.fast_slow_data, []);
+            if (!hasArray(fastSlowData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'fast_slow_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) fastSlowData = p;
+            }
+
+            let coilStripData = parseJsonSafe(row.coil_strip_data, []);
+            if (!hasRealCoil(coilStripData) && !hasArray(coilStripData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'coil_strip_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasRealCoil(p) || hasArray(p)) coilStripData = p;
+            }
+
+            let ncWarehouseData = parseJsonSafe(row.nc_warehouse_data, []);
+            if (!hasArray(ncWarehouseData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'nc_warehouse_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) ncWarehouseData = p;
+            }
+
+            let ncItems = parseJsonSafe(row.nc_items, []);
+            if (!hasArray(ncItems)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'nc_items', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) ncItems = p;
+            }
+
+            let looSTData = parseJsonSafe(row.loo_st_data, []);
+            if (!hasArray(looSTData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'loo_st_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) looSTData = p;
+            }
+
+            let looLTData = parseJsonSafe(row.loo_lt_data, []);
+            if (!hasArray(looLTData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'loo_lt_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) looLTData = p;
+            }
+
+            let unfifoData = parseJsonSafe(row.unfifo_data, []);
+            if (!hasArray(unfifoData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'unfifo_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) unfifoData = p;
+            }
+
+            let unfifoCoilData = parseJsonSafe(row.unfifo_coil_data, []);
+            if (!hasArray(unfifoCoilData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'unfifo_coil_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) unfifoCoilData = p;
+            }
+
+            let unfifoPipeData = parseJsonSafe(row.unfifo_pipe_data, []);
+            if (!hasArray(unfifoPipeData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'unfifo_pipe_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) unfifoPipeData = p;
+            }
+
+            let damagedPackagingData = parseJsonSafe(row.damaged_packaging_data, []);
+            if (!hasArray(damagedPackagingData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'damaged_packaging_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) damagedPackagingData = p;
+            }
+
+            let incomingPackagingData = parseJsonSafe(row.incoming_packaging_data, []);
+            if (!hasArray(incomingPackagingData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'incoming_packaging_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) incomingPackagingData = p;
+            }
+
+            let ncProgressData = parseJsonSafe(row.nc_progress_data, []);
+            if (!hasArray(ncProgressData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'nc_progress_data', 5);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) ncProgressData = p;
+            }
+
+            let stoData = parseJsonSafe(row.sto_data, []);
+            if (!hasArray(stoData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'sto_data', 10);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) stoData = p;
+            }
+
+            let customerBreakdown = parseJsonSafe(row.customer_breakdown, {});
+            if (!hasObject(customerBreakdown)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'customer_breakdown', 5);
+              const p = parseJsonSafe(fb, {});
+              if (hasObject(p)) customerBreakdown = p;
+            }
 
             const data = {
               snapshotKey: row.snapshot_key,
               lastUpdated: row.last_updated,
-              pipeCapacities: parseJsonSafe(row.pipe_capacities, []),
-              fastSlowData: parseJsonSafe(row.fast_slow_data, []),
-              coilStripData: parseJsonSafe(row.coil_strip_data, []),
-              ncWarehouseData: parseJsonSafe(row.nc_warehouse_data, []),
-              ncItems: parseJsonSafe(row.nc_items, []),
-              looSTData: parseJsonSafe(row.loo_st_data, []),
-              looLTData: parseJsonSafe(row.loo_lt_data, []),
-              unfifoData: parseJsonSafe(row.unfifo_data, []),
-              unfifoCoilData: parseJsonSafe(row.unfifo_coil_data, []),
-              unfifoPipeData: parseJsonSafe(row.unfifo_pipe_data, []),
-              damagedPackagingData: parseJsonSafe(row.damaged_packaging_data, []),
-              incomingPackagingData: parseJsonSafe(row.incoming_packaging_data, []),
+              pipeCapacities,
+              fastSlowData,
+              coilStripData,
+              ncWarehouseData,
+              ncItems,
+              looSTData,
+              looLTData,
+              unfifoData,
+              unfifoCoilData,
+              unfifoPipeData,
+              damagedPackagingData,
+              incomingPackagingData,
               ncProgressData,
               stoData,
-              customerBreakdown: parseJsonSafe(row.customer_breakdown, {}),
+              customerBreakdown,
               createdAt: row.created_at,
             };
             return NextResponse.json({ success: true, data, source: 'sqlite' });
@@ -414,17 +517,82 @@ export async function POST(request: Request) {
           prevCustBreakdown = parseJsonSafe(existingRow.customer_breakdown, {});
         }
 
+        // Multi-snapshot fallback: jika snapshot saat ini/terakhir kekurangan modul data tertentu,
+        // cari mundur ke snapshot sebelumnya yang memuat data valid
+        if (!hasRealPipe(prevPipe)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'pipe_capacities', 10);
+          const p = parseJsonSafe(raw, []);
+          if (hasRealPipe(p)) prevPipe = p;
+        }
+        if (!hasArray(prevFastSlow)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'fast_slow_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevFastSlow = p;
+        }
+        if (!hasRealCoil(prevCoil) && !hasArray(prevCoil)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'coil_strip_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasRealCoil(p) || hasArray(p)) prevCoil = p;
+        }
+        if (!hasArray(prevNcWh)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'nc_warehouse_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevNcWh = p;
+        }
+        if (!hasArray(prevNcItems)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'nc_items', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevNcItems = p;
+        }
+        if (!hasArray(prevLooST)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'loo_st_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevLooST = p;
+        }
+        if (!hasArray(prevLooLT)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'loo_lt_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevLooLT = p;
+        }
+        if (!hasArray(prevUnfifo)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'unfifo_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevUnfifo = p;
+        }
+        if (!hasArray(prevUnfifoCoil)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'unfifo_coil_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevUnfifoCoil = p;
+        }
+        if (!hasArray(prevUnfifoPipe)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'unfifo_pipe_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevUnfifoPipe = p;
+        }
+        if (!hasArray(prevDamagedPkg)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'damaged_packaging_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevDamagedPkg = p;
+        }
+        if (!hasArray(prevIncomingPkg)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'incoming_packaging_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevIncomingPkg = p;
+        }
         if (!hasArray(prevNcProgress)) {
-          try {
-            const fbNc = db.prepare(`
-              SELECT nc_progress_data FROM warehouse_snapshots
-              WHERE nc_progress_data IS NOT NULL AND length(nc_progress_data) > 5
-              ORDER BY snapshot_key DESC LIMIT 1
-            `).get() as any;
-            if (fbNc?.nc_progress_data) {
-              prevNcProgress = parseJsonSafe(fbNc.nc_progress_data, []);
-            }
-          } catch {}
+          const raw = getLatestNonEmptySqliteCol(db, 'nc_progress_data', 5);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevNcProgress = p;
+        }
+        if (!hasArray(prevStoData)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'sto_data', 10);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevStoData = p;
+        }
+        if (!hasObject(prevCustBreakdown)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'customer_breakdown', 5);
+          const p = parseJsonSafe(raw, {});
+          if (hasObject(p)) prevCustBreakdown = p;
         }
 
       } catch (err) {
@@ -449,7 +617,7 @@ export async function POST(request: Request) {
           if (!hasRealPipe(prevPipe)) prevPipe = cloudRef.pipeCapacities || [];
           if (!hasArray(prevFastSlow)) prevFastSlow = cloudRef.fastSlowData || [];
           if (!hasRealCoil(prevCoil)) prevCoil = cloudRef.coilStripData || [];
-          if (!hasRealPipe(prevNcWh)) prevNcWh = cloudRef.ncWarehouseData || [];
+          if (!hasArray(prevNcWh)) prevNcWh = cloudRef.ncWarehouseData || [];
           if (!hasArray(prevNcItems)) prevNcItems = cloudRef.ncItems || [];
           if (!hasArray(prevLooST)) prevLooST = cloudRef.looSTData || [];
           if (!hasArray(prevLooLT)) prevLooLT = cloudRef.looLTData || [];
@@ -482,7 +650,7 @@ export async function POST(request: Request) {
             if (!hasRealPipe(prevPipe)) prevPipe = parseJsonSafe(sRow.pipe_capacities, []);
             if (!hasArray(prevFastSlow)) prevFastSlow = parseJsonSafe(sRow.fast_slow_data, []);
             if (!hasRealCoil(prevCoil)) prevCoil = parseJsonSafe(sRow.coil_strip_data, []);
-            if (!hasRealPipe(prevNcWh)) prevNcWh = parseJsonSafe(sRow.nc_warehouse_data, []);
+            if (!hasArray(prevNcWh)) prevNcWh = parseJsonSafe(sRow.nc_warehouse_data, []);
             if (!hasArray(prevNcItems)) prevNcItems = parseJsonSafe(sRow.nc_items, []);
             if (!hasArray(prevLooST)) prevLooST = parseJsonSafe(sRow.loo_st_data, []);
             if (!hasArray(prevLooLT)) prevLooLT = parseJsonSafe(sRow.loo_lt_data, []);
@@ -560,7 +728,7 @@ export async function POST(request: Request) {
     const finalCoil = uploadHasCoil && (hasRealCoil(coilStripData) || (coilStripData && coilStripData.length > 0))
       ? coilStripData
       : (hasRealCoil(prevCoil) ? prevCoil : (coilStripData || []));
-    const finalNcWh = uploadHasPipe && hasArray(ncWarehouseData) ? ncWarehouseData : (hasRealPipe(prevNcWh) ? prevNcWh : (ncWarehouseData || []));
+    const finalNcWh = uploadHasPipe && hasArray(ncWarehouseData) ? ncWarehouseData : (hasArray(prevNcWh) ? prevNcWh : (ncWarehouseData || []));
     const finalNcItems = uploadHasPipe && hasArray(ncItems) ? ncItems : prevNcItems;
     const rawLooST = uploadHasLoo && hasArray(looSTData) ? looSTData : prevLooST;
     const rawLooLT = uploadHasLoo && hasArray(looLTData) ? looLTData : prevLooLT;

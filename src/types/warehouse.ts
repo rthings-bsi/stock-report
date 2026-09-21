@@ -490,6 +490,12 @@ export interface StockOpnameSLocRecap {
   accuracyRate: number;
   varianceQty: number;
   varianceTon: number;
+  minusQty: number;
+  plusQty: number;
+  minusTon: number;
+  plusTon: number;
+  matchingQty?: number;
+  matchingTon?: number;
   sapQty?: number;
   actualQty?: number;
   sapTon?: number;

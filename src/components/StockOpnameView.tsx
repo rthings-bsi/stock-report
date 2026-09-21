@@ -142,6 +142,8 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   const [compareMetric, setCompareMetric] = useState<'all' | 'ton' | 'qty' | 'item'>('all');
   const [slocGudangFilter, setSlocGudangFilter] = useState<string>('ALL');
   const [slocMetric, setSlocMetric] = useState<'ton' | 'qty' | 'percent'>('ton');
+  const [slocDiffOnly, setSlocDiffOnly] = useState<boolean>(false);
+  const [slocFilterMode, setSlocFilterMode] = useState<'all' | 'minus' | 'plus'>('all');
 
   // STO Period Comparison States
   const [periodMetric, setPeriodMetric] = useState<'all' | 'ton' | 'qty' | 'accuracy' | 'item'>('all');
@@ -856,115 +858,192 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
 
   // ==========================================
   // CHART 3: DEVIASI SELISIH & AKURASI PER SLOC (BAR)
-  // Menampilkan deviasi tonase/kuantitas atau akurasi (%) per SLoc
+  // Menampilkan deviasi tonase/kuantitas (Selisih Minus vs Plus) atau akurasi (%) per SLoc
   // ==========================================
   const sortedSLocs = useMemo(() => {
-    return [...slocRecap]
-      .sort((a, b) => {
-        if (slocMetric === 'percent') {
-          // Urutkan dari akurasi terendah (paling kritis) ke tertinggi
-          return (a.accuracyRate || 0) - (b.accuracyRate || 0);
-        }
-        const valA = slocMetric === 'ton' ? Math.abs(a.varianceTon) : Math.abs(a.varianceQty);
-        const valB = slocMetric === 'ton' ? Math.abs(b.varianceTon) : Math.abs(b.varianceQty);
-        return valB - valA;
-      });
+    return [...slocRecap].sort((a, b) => {
+      if (slocMetric === 'percent') {
+        // Urutkan dari akurasi terendah (paling kritis) ke tertinggi
+        return (a.accuracyRate || 0) - (b.accuracyRate || 0);
+      }
+      const valA = slocMetric === 'ton' ? (a.minusTon + a.plusTon) : (a.minusQty + a.plusQty);
+      const valB = slocMetric === 'ton' ? (b.minusTon + b.plusTon) : (b.minusQty + b.plusQty);
+      return valB - valA;
+    });
   }, [slocRecap, slocMetric]);
 
+  const diffSLocsCount = useMemo(() => {
+    return slocRecap.filter((s) => s.minusCount > 0 || s.plusCount > 0).length;
+  }, [slocRecap]);
+
+  const minusSLocsCount = useMemo(() => {
+    return slocRecap.filter((s) => s.minusCount > 0 || s.minusTon > 0 || s.minusQty > 0).length;
+  }, [slocRecap]);
+
+  const plusSLocsCount = useMemo(() => {
+    return slocRecap.filter((s) => s.plusCount > 0 || s.plusTon > 0 || s.plusQty > 0).length;
+  }, [slocRecap]);
+
+  const displaySLocs = useMemo(() => {
+    if (slocMetric === 'percent') {
+      if (slocDiffOnly) {
+        return sortedSLocs.filter((s) => s.minusCount > 0 || s.plusCount > 0);
+      }
+      return sortedSLocs;
+    }
+
+    if (slocFilterMode === 'minus') {
+      return [...slocRecap]
+        .filter((s) => s.minusCount > 0 || s.minusTon > 0 || s.minusQty > 0)
+        .sort((a, b) => {
+          const valA = slocMetric === 'ton' ? a.minusTon : a.minusQty;
+          const valB = slocMetric === 'ton' ? b.minusTon : b.minusQty;
+          return valB - valA;
+        });
+    }
+
+    if (slocFilterMode === 'plus') {
+      return [...slocRecap]
+        .filter((s) => s.plusCount > 0 || s.plusTon > 0 || s.plusQty > 0)
+        .sort((a, b) => {
+          const valA = slocMetric === 'ton' ? a.plusTon : a.plusQty;
+          const valB = slocMetric === 'ton' ? b.plusTon : b.plusQty;
+          return valB - valA;
+        });
+    }
+
+    if (slocDiffOnly) {
+      return sortedSLocs.filter((s) => s.minusCount > 0 || s.plusCount > 0);
+    }
+    return sortedSLocs;
+  }, [sortedSLocs, slocRecap, slocFilterMode, slocMetric, slocDiffOnly]);
+
   const slocChartData = useMemo(() => {
-    const labels = sortedSLocs.map((s) =>
+    const labels = displaySLocs.map((s) =>
       slocGudangFilter === 'ALL' ? `${s.sloc} (${s.gudang})` : s.sloc
     );
-    // Batang berdiri tegak dari baseline 0 (magnitudo deviasi mutlak), tanda (+/-) ditampilkan via warna dan label
-    const dataValues = sortedSLocs.map((s) => {
-      if (slocMetric === 'percent') {
-        return Number((s.accuracyRate || 0).toFixed(1));
-      }
-      return slocMetric === 'ton'
-        ? Number(Math.abs(s.varianceTon).toFixed(2))
-        : Math.abs(s.varianceQty);
-    });
 
     const isAnySelected = selectedSLoc !== 'ALL';
 
-    const backgroundColors = sortedSLocs.map((s) => {
-      const isSelected = selectedSLoc === s.sloc;
-
-      if (slocMetric === 'percent') {
+    if (slocMetric === 'percent') {
+      const dataValues = displaySLocs.map((s) => Number((s.accuracyRate || 0).toFixed(1)));
+      const backgroundColors = displaySLocs.map((s) => {
+        const isSelected = selectedSLoc === s.sloc;
         const v = s.accuracyRate || 0;
         if (v >= 95) return isAnySelected && !isSelected ? 'rgba(16, 185, 129, 0.25)' : '#10b981';
         if (v >= 85) return isAnySelected && !isSelected ? 'rgba(245, 158, 11, 0.25)' : '#f59e0b';
         return isAnySelected && !isSelected ? 'rgba(239, 68, 68, 0.25)' : '#ef4444';
-      }
+      });
 
-      const rawVal = slocMetric === 'ton' ? s.varianceTon : s.varianceQty;
-      if (rawVal < 0) {
-        return isAnySelected && !isSelected ? 'rgba(244, 63, 94, 0.25)' : '#f43f5e';
-      }
-      if (rawVal > 0) {
-        return isAnySelected && !isSelected ? 'rgba(245, 158, 11, 0.25)' : '#f59e0b';
-      }
-      return isAnySelected && !isSelected ? 'rgba(16, 185, 129, 0.25)' : '#10b981';
-    });
-
-    const borderColors = sortedSLocs.map((s) => {
-      const isSelected = selectedSLoc === s.sloc;
-      if (isSelected) return '#0f172a'; // Highlight border tebal untuk SLoc terpilih
-
-      if (slocMetric === 'percent') {
+      const borderColors = displaySLocs.map((s) => {
+        const isSelected = selectedSLoc === s.sloc;
+        if (isSelected) return '#0f172a';
         const v = s.accuracyRate || 0;
         if (v >= 95) return '#059669';
         if (v >= 85) return '#d97706';
         return '#dc2626';
-      }
-      const rawVal = slocMetric === 'ton' ? s.varianceTon : s.varianceQty;
-      return rawVal < 0 ? '#e11d48' : rawVal > 0 ? '#d97706' : '#059669';
-    });
+      });
 
-    const borderWidths = sortedSLocs.map((s) => {
-      return selectedSLoc === s.sloc ? 2.5 : 1.5;
-    });
+      const borderWidths = displaySLocs.map((s) => (selectedSLoc === s.sloc ? 2.5 : 1.5));
 
-    const hoverColors = sortedSLocs.map((s) => {
-      if (slocMetric === 'percent') {
+      const hoverColors = displaySLocs.map((s) => {
         const v = s.accuracyRate || 0;
         if (v >= 95) return '#059669';
         if (v >= 85) return '#d97706';
         return '#dc2626';
-      }
-      const rawVal = slocMetric === 'ton' ? s.varianceTon : s.varianceQty;
-      return rawVal < 0 ? '#e11d48' : rawVal > 0 ? '#d97706' : '#059669';
-    });
+      });
+
+      return {
+        labels,
+        datasets: [
+          {
+            label: 'Akurasi SLoc (%)',
+            data: dataValues,
+            backgroundColor: backgroundColors,
+            hoverBackgroundColor: hoverColors,
+            borderColor: borderColors,
+            borderWidth: borderWidths,
+            borderRadius: {
+              topLeft: 6,
+              topRight: 6,
+              bottomLeft: 0,
+              bottomRight: 0,
+            },
+            borderSkipped: 'bottom' as const,
+            maxBarThickness: selectedSLoc !== 'ALL' ? 44 : 36,
+            barPercentage: 0.68,
+            categoryPercentage: 0.74,
+          },
+        ],
+      };
+    }
+
+    // Mode Tonase / Qty: Grouped Bar (Minus & Plus) atau Isolated Bar (Hanya Minus / Hanya Plus)
+    const minusData = displaySLocs.map((s) =>
+      slocMetric === 'ton' ? Number(s.minusTon.toFixed(2)) : s.minusQty
+    );
+    const plusData = displaySLocs.map((s) =>
+      slocMetric === 'ton' ? Number(s.plusTon.toFixed(2)) : s.plusQty
+    );
+
+    const minusDataset = {
+      label: slocMetric === 'ton' ? 'Selisih Minus (Ton)' : 'Selisih Minus (Pcs)',
+      data: minusData,
+      backgroundColor: displaySLocs.map((s) => {
+        const isSelected = selectedSLoc === s.sloc;
+        return isAnySelected && !isSelected ? 'rgba(244, 63, 94, 0.25)' : 'rgba(244, 63, 94, 0.85)';
+      }),
+      hoverBackgroundColor: '#e11d48',
+      borderColor: displaySLocs.map((s) => (selectedSLoc === s.sloc ? '#0f172a' : '#e11d48')),
+      borderWidth: displaySLocs.map((s) => (selectedSLoc === s.sloc ? 2.5 : 1)),
+      borderRadius: {
+        topLeft: 4,
+        topRight: 4,
+        bottomLeft: 0,
+        bottomRight: 0,
+      },
+      borderSkipped: 'bottom' as const,
+      maxBarThickness: slocFilterMode === 'minus' ? (selectedSLoc !== 'ALL' ? 40 : 30) : (selectedSLoc !== 'ALL' ? 28 : 22),
+      barPercentage: slocFilterMode === 'minus' ? 0.72 : 0.85,
+      categoryPercentage: slocFilterMode === 'minus' ? 0.78 : 0.76,
+    };
+
+    const plusDataset = {
+      label: slocMetric === 'ton' ? 'Selisih Plus (Ton)' : 'Selisih Plus (Pcs)',
+      data: plusData,
+      backgroundColor: displaySLocs.map((s) => {
+        const isSelected = selectedSLoc === s.sloc;
+        return isAnySelected && !isSelected ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.85)';
+      }),
+      hoverBackgroundColor: '#d97706',
+      borderColor: displaySLocs.map((s) => (selectedSLoc === s.sloc ? '#0f172a' : '#d97706')),
+      borderWidth: displaySLocs.map((s) => (selectedSLoc === s.sloc ? 2.5 : 1)),
+      borderRadius: {
+        topLeft: 4,
+        topRight: 4,
+        bottomLeft: 0,
+        bottomRight: 0,
+      },
+      borderSkipped: 'bottom' as const,
+      maxBarThickness: slocFilterMode === 'plus' ? (selectedSLoc !== 'ALL' ? 40 : 30) : (selectedSLoc !== 'ALL' ? 28 : 22),
+      barPercentage: slocFilterMode === 'plus' ? 0.72 : 0.85,
+      categoryPercentage: slocFilterMode === 'plus' ? 0.78 : 0.76,
+    };
+
+    let datasets: any[] = [];
+    if (slocFilterMode === 'minus') {
+      datasets = [minusDataset];
+    } else if (slocFilterMode === 'plus') {
+      datasets = [plusDataset];
+    } else {
+      datasets = [minusDataset, plusDataset];
+    }
 
     return {
       labels,
-      datasets: [
-        {
-          label:
-            slocMetric === 'percent'
-              ? 'Akurasi SLoc (%)'
-              : slocMetric === 'ton'
-              ? 'Selisih Ton (SLoc)'
-              : 'Selisih Qty (SLoc)',
-          data: dataValues,
-          backgroundColor: backgroundColors,
-          hoverBackgroundColor: hoverColors,
-          borderColor: borderColors,
-          borderWidth: borderWidths,
-          borderRadius: {
-            topLeft: 6,
-            topRight: 6,
-            bottomLeft: 0,
-            bottomRight: 0,
-          },
-          borderSkipped: 'bottom' as const,
-          maxBarThickness: selectedSLoc !== 'ALL' ? 44 : 36,
-          barPercentage: 0.68,
-          categoryPercentage: 0.74,
-        },
-      ],
+      datasets,
     };
-  }, [sortedSLocs, slocMetric, slocGudangFilter, selectedSLoc]);
+  }, [displaySLocs, slocMetric, slocFilterMode, slocGudangFilter, selectedSLoc]);
 
   // Keep references to current state to prevent stale closure in Chart.js inline plugins
   const slocMetricRef = useRef(slocMetric);
@@ -972,67 +1051,73 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
     slocMetricRef.current = slocMetric;
   }, [slocMetric]);
 
-  const sortedSLocsRef = useRef(sortedSLocs);
+  const displaySLocsRef = useRef(displaySLocs);
   useEffect(() => {
-    sortedSLocsRef.current = sortedSLocs;
-  }, [sortedSLocs]);
+    displaySLocsRef.current = displaySLocs;
+  }, [displaySLocs]);
 
-  // Plugin inline untuk menampilkan label nilai deviasi dan persentase akurasi SLoc tepat di atas batang
+  const slocFilterModeRef = useRef(slocFilterMode);
+  useEffect(() => {
+    slocFilterModeRef.current = slocFilterMode;
+  }, [slocFilterMode]);
+
+  // Plugin inline untuk menampilkan label nilai deviasi tepat di atas setiap batang
   const slocDataLabelsPlugin = useMemo(() => ({
     id: 'slocDataLabels',
     afterDatasetsDraw(chart: any) {
       const { ctx } = chart;
       const currentMetric = slocMetricRef.current;
-      const currentSLocs = sortedSLocsRef.current;
+      const currentSLocs = displaySLocsRef.current;
+      const currentMode = slocFilterModeRef.current;
 
       chart.data.datasets.forEach((dataset: any, datasetIndex: number) => {
         const meta = chart.getDatasetMeta(datasetIndex);
         if (!meta || meta.hidden) return;
+
         meta.data.forEach((element: any, index: number) => {
           const val = dataset.data[index];
-          const s = currentSLocs[index];
-          if (element && typeof val === 'number') {
-            ctx.save();
-            ctx.textAlign = 'center';
+          if (!element || typeof val !== 'number') return;
+          if (currentMetric !== 'percent' && val <= 0) return;
 
-            if (currentMetric === 'percent') {
-              // Mode Akurasi (%): Tampilkan persentase akurasi di atas batang
-              const text = `${val.toFixed(1)}%`;
-              ctx.font = 'bold 9.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-              ctx.fillStyle = val >= 95 ? '#047857' : val >= 85 ? '#b45309' : '#b91c1c';
-              ctx.textBaseline = 'bottom';
-              ctx.fillText(text, element.x, Math.max(element.y - 4, 12));
-            } else {
-              // Mode Deviasi Tonase / Qty:
-              // Batang berdiri tegak dari baseline 0, label nilai (+/-) & akurasi ditampilkan rapi di atas ujung batang
-              const rawVal = currentMetric === 'ton' ? s?.varianceTon || 0 : s?.varianceQty || 0;
-              const sign = rawVal > 0 ? '+' : rawVal < 0 ? '-' : '';
-              const unit = currentMetric === 'ton' ? 'T' : 'Pcs';
-              const absVal = Math.abs(rawVal);
-              const valFormatted =
-                currentMetric === 'ton'
-                  ? absVal.toFixed(1)
-                  : Math.round(absVal).toLocaleString('id-ID');
-              const valText = `${sign}${valFormatted} ${unit}`;
-              const pctText = s ? `(${s.accuracyRate.toFixed(0)}%)` : '';
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
 
-              const isDeficit = rawVal < 0;
-              const isSurplus = rawVal > 0;
-              const valColor = isDeficit ? '#e11d48' : isSurplus ? '#d97706' : '#047857';
+          if (currentMetric === 'percent') {
+            const text = `${val.toFixed(1)}%`;
+            ctx.font = 'bold 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+            ctx.fillStyle = val >= 95 ? '#047857' : val >= 85 ? '#b45309' : '#b91c1c';
+            ctx.fillText(text, element.x, Math.max(element.y - 4, 12));
+          } else {
+            const unit = currentMetric === 'ton' ? 'T' : 'Pcs';
+            const isMinus = dataset.label?.includes('Minus') || (currentMode === 'all' && datasetIndex === 0);
+            const sign = isMinus ? '-' : '+';
+            const valFormatted =
+              currentMetric === 'ton'
+                ? val.toFixed(1)
+                : Math.round(val).toLocaleString('id-ID');
+            const text = `${sign}${valFormatted} ${unit}`;
 
-              // Nilai deviasi bertanda (+/-) dengan warna defisit/surplus
-              ctx.textBaseline = 'bottom';
-              ctx.fillStyle = valColor;
-              ctx.font = 'bold 9.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-              ctx.fillText(valText, element.x, element.y - 13);
-
-              // Persentase akurasi SLoc
-              ctx.fillStyle = '#64748b';
-              ctx.font = '600 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-              ctx.fillText(pctText, element.x, element.y - 2);
+            let yOffset = -4;
+            // Jika ada kedua batang minus & plus berdampingan pada SLoc yang sama dengan selisih tinggi tipis, beri jarak offset agar tidak bertabrakan
+            if (currentMode === 'all' && datasetIndex === 1 && chart.data.datasets.length > 1) {
+              const minusVal = chart.data.datasets[0]?.data?.[index];
+              const minusMeta = chart.getDatasetMeta(0);
+              const minusEl = minusMeta?.data?.[index];
+              if (minusEl && typeof minusVal === 'number' && minusVal > 0) {
+                const diffY = Math.abs(element.y - minusEl.y);
+                if (diffY < 24) {
+                  yOffset = -17;
+                }
+              }
             }
-            ctx.restore();
+
+            ctx.font = 'bold 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+            ctx.fillStyle = isMinus ? '#e11d48' : '#d97706';
+            ctx.fillText(text, element.x, Math.max(element.y + yOffset, 12));
           }
+
+          ctx.restore();
         });
       });
     },
@@ -1044,7 +1129,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
       maintainAspectRatio: false,
       layout: {
         padding: {
-          top: 28,
+          top: 24,
           bottom: 6,
           left: 4,
           right: 4,
@@ -1053,7 +1138,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
       onClick: (_event: any, elements: any[]) => {
         if (!elements || elements.length === 0) return;
         const index = elements[0].index;
-        const clickedSLoc = sortedSLocs[index]?.sloc;
+        const clickedSLoc = displaySLocs[index]?.sloc;
         if (!clickedSLoc) return;
 
         if (selectedSLoc === clickedSLoc) {
@@ -1089,35 +1174,40 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
             title: (items: any[]) => {
               if (!items.length) return '';
               const idx = items[0].dataIndex;
-              const s = sortedSLocs[idx];
+              const s = displaySLocs[idx];
               return `SLoc ${s?.sloc || items[0].label} • Gudang ${s?.gudang || ''}`;
             },
             label: (context: any) => {
               const idx = context.dataIndex;
-              const s = sortedSLocs[idx];
+              const s = displaySLocs[idx];
               if (!s) return '';
               if (slocMetric === 'percent') {
-                return ` Akurasi SLoc: ${s.accuracyRate.toFixed(1)}%`;
+                return ` Akurasi SLoc: ${s.accuracyRate.toFixed(1)}% (${s.matchingCount}/${s.itemCount} item sesuai)`;
               }
-              const rawVal = slocMetric === 'ton' ? s.varianceTon : s.varianceQty;
-              const sign = rawVal > 0 ? '+' : '';
+              const isMinus = context.dataset.label?.includes('Minus') || (slocFilterMode === 'all' && context.datasetIndex === 0);
               const unit = slocMetric === 'ton' ? 'Ton' : 'Pcs';
-              const valFormatted =
-                slocMetric === 'ton'
-                  ? rawVal.toFixed(2)
-                  : Math.round(rawVal).toLocaleString('id-ID');
-              const status = rawVal < 0 ? ' (Selisih -)' : rawVal > 0 ? ' (Selisih +)' : ' (Sesuai)';
-              return ` Selisih: ${sign}${valFormatted} ${unit}${status}`;
+              if (isMinus) {
+                const val = slocMetric === 'ton' ? s.minusTon.toFixed(2) : Math.round(s.minusQty).toLocaleString('id-ID');
+                return ` Selisih Minus (-): -${val} ${unit} (${s.minusCount} item)`;
+              } else {
+                const val = slocMetric === 'ton' ? s.plusTon.toFixed(2) : Math.round(s.plusQty).toLocaleString('id-ID');
+                return ` Selisih Plus (+): +${val} ${unit} (${s.plusCount} item)`;
+              }
             },
             afterBody: (context: any) => {
               const idx = context[0]?.dataIndex;
-              const s = sortedSLocs[idx];
+              const s = displaySLocs[idx];
               if (!s) return [];
+              const unit = slocMetric === 'ton' ? 'T' : 'Pcs';
+              const netVal = slocMetric === 'ton' ? s.varianceTon : s.varianceQty;
+              const netStr = slocMetric === 'ton'
+                ? `${netVal > 0 ? '+' : ''}${netVal.toFixed(2)} T`
+                : `${netVal > 0 ? '+' : ''}${Math.round(netVal).toLocaleString('id-ID')} Pcs`;
               return [
-                `• Akurasi: ${s.accuracyRate.toFixed(1)}%`,
+                `• Akurasi SLoc: ${s.accuracyRate.toFixed(1)}%`,
                 `• Sesuai: ${s.matchingCount} item`,
-                `• Selisih (-): ${s.minusCount} item`,
-                `• Selisih (+): ${s.plusCount} item`,
+                `• Net Deviasi: ${netStr}`,
+                `• Total Item: ${s.itemCount} item`,
               ];
             },
           },
@@ -1132,7 +1222,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           },
           ticks: {
             color: '#475569',
-            font: { family: 'ui-monospace, monospace', size: 10.5, weight: 'bold' as const },
+            font: { family: 'ui-monospace, monospace', size: 10, weight: 'bold' as const },
             padding: 6,
             autoSkip: false,
           },
@@ -1161,7 +1251,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
         },
       },
     };
-  }, [sortedSLocs, slocMetric, selectedSLoc]);
+  }, [displaySLocs, slocMetric, slocFilterMode, selectedSLoc]);
 
   // ==========================================
   // CHART 4: DOUGHNUT STATUS PROPORSI
@@ -2069,8 +2159,8 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           title="Hasil STO Per Sloc"
           subtitle={
             slocMetric === 'percent'
-              ? `Deviasi akurasi per SLoc di ${slocGudangFilter !== 'ALL' ? slocGudangFilter : 'semua gudang'} (${sortedSLocs.length} SLoc)`
-              : `Deviasi ${slocMetric === 'ton' ? 'tonase' : 'kuantitas'} per SLoc di ${slocGudangFilter !== 'ALL' ? slocGudangFilter : 'semua gudang'} (${sortedSLocs.length} SLoc)`
+              ? `Deviasi akurasi per SLoc di ${slocGudangFilter !== 'ALL' ? slocGudangFilter : 'semua gudang'} (${displaySLocs.length} SLoc${slocDiffOnly ? ' berselisih' : ''})`
+              : `Perbandingan Selisih Minus (-) vs Plus (+) per SLoc di ${slocGudangFilter !== 'ALL' ? slocGudangFilter : 'semua gudang'} (${displaySLocs.length} SLoc${slocDiffOnly ? ' berselisih' : ''})`
           }
           icon={MapPin}
           width={cards.find((c) => c.id === 'chart-sto-sloc-bar')?.width || 'col-span-8'}
@@ -2151,47 +2241,124 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           {(expanded) => (
             <div className="flex flex-col justify-between h-full w-full">
               <div>
-                {/* Custom Clean Legend */}
-                <div className="flex flex-wrap items-center gap-3.5 mb-2.5">
-                  {slocMetric === 'percent' ? (
-                    <>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/30 shrink-0" />
-                        <span>Tinggi (≥ 95%)</span>
+                {/* Custom Clean Interactive Buttons & Legend */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 mb-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {slocMetric === 'percent' ? (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/30 shrink-0" />
+                          <span>Tinggi (≥ 95%)</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                          <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shadow-xs shadow-amber-500/30 shrink-0" />
+                          <span>Sedang (85 - 94%)</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                          <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shadow-xs shadow-rose-500/30 shrink-0" />
+                          <span>Kritis (&lt; 85%)</span>
+                        </div>
                       </div>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shadow-xs shadow-amber-500/30 shrink-0" />
-                        <span>Sedang (85 - 94%)</span>
+                    ) : (
+                      /* Interactive Filter Buttons: Semua, Selisih Minus (-), Selisih Plus (+) */
+                      <div className="inline-flex items-center rounded-xl bg-slate-100/90 p-1 border border-slate-200/80 text-xs shadow-2xs">
+                        {/* Button: Semua */}
+                        <button
+                          type="button"
+                          onClick={() => setSlocFilterMode('all')}
+                          className={cn(
+                            "px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px]",
+                            slocFilterMode === 'all'
+                              ? "bg-white text-slate-800 shadow-2xs"
+                              : "text-slate-500 hover:text-slate-800"
+                          )}
+                          title="Tampilkan semua selisih minus dan plus berdampingan"
+                        >
+                          Semua ({diffSLocsCount})
+                        </button>
+
+                        {/* Button: Selisih Minus (-) */}
+                        <button
+                          type="button"
+                          onClick={() => setSlocFilterMode(slocFilterMode === 'minus' ? 'all' : 'minus')}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px]",
+                            slocFilterMode === 'minus'
+                              ? "bg-rose-600 text-white shadow-2xs shadow-rose-600/25"
+                              : "text-rose-700 hover:bg-rose-50/80"
+                          )}
+                          title={
+                            slocFilterMode === 'minus'
+                              ? "Klik untuk kembali ke semua selisih"
+                              : "Hanya tampilkan SLoc dengan Selisih Minus (Defisit Stok)"
+                          }
+                        >
+                          <span
+                            className={cn(
+                              "h-2 w-2 rounded-full shrink-0",
+                              slocFilterMode === 'minus' ? "bg-white" : "bg-rose-500"
+                            )}
+                          />
+                          <span>Selisih Minus (-) ({minusSLocsCount})</span>
+                        </button>
+
+                        {/* Button: Selisih Plus (+) */}
+                        <button
+                          type="button"
+                          onClick={() => setSlocFilterMode(slocFilterMode === 'plus' ? 'all' : 'plus')}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px]",
+                            slocFilterMode === 'plus'
+                              ? "bg-amber-600 text-white shadow-2xs shadow-amber-600/25"
+                              : "text-amber-700 hover:bg-amber-50/80"
+                          )}
+                          title={
+                            slocFilterMode === 'plus'
+                              ? "Klik untuk kembali ke semua selisih"
+                              : "Hanya tampilkan SLoc dengan Selisih Plus (Surplus Stok)"
+                          }
+                        >
+                          <span
+                            className={cn(
+                              "h-2 w-2 rounded-full shrink-0",
+                              slocFilterMode === 'plus' ? "bg-white" : "bg-amber-500"
+                            )}
+                          />
+                          <span>Selisih Plus (+) ({plusSLocsCount})</span>
+                        </button>
                       </div>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shadow-xs shadow-rose-500/30 shrink-0" />
-                        <span>Kritis (&lt; 85%)</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shadow-xs shadow-rose-500/30 shrink-0" />
-                        <span>Selisih Minus (-)</span>
-                      </div>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shadow-xs shadow-amber-500/30 shrink-0" />
-                        <span>Selisih Plus (+)</span>
-                      </div>
-                      <div className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-500 ml-1">
-                        <span>(xx%) = Akurasi SLoc</span>
-                      </div>
-                    </>
-                  )}
-                  {selectedSLoc !== 'ALL' && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSLoc('ALL')}
-                      className="ml-auto text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 underline underline-offset-2 cursor-pointer transition-colors"
-                    >
-                      Reset SLoc ({selectedSLoc})
-                    </button>
-                  )}
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Toggle Hanya Selisih vs Semua SLoc (Aktif di mode 'all' atau 'percent') */}
+                    {(slocFilterMode === 'all' || slocMetric === 'percent') && (
+                      <button
+                        type="button"
+                        onClick={() => setSlocDiffOnly(!slocDiffOnly)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer",
+                          slocDiffOnly
+                            ? "bg-slate-800 text-white border-slate-800 shadow-2xs"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        )}
+                        title={slocDiffOnly ? "Tampilkan semua SLoc" : "Hanya tampilkan SLoc yang memiliki selisih"}
+                      >
+                        <span className={cn("h-1.5 w-1.5 rounded-full", slocDiffOnly ? "bg-emerald-400" : "bg-slate-400")} />
+                        <span>{slocDiffOnly ? `Hanya Selisih (${diffSLocsCount})` : `Semua SLoc (${slocRecap.length})`}</span>
+                      </button>
+                    )}
+
+                    {selectedSLoc !== 'ALL' && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSLoc('ALL')}
+                        className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 underline underline-offset-2 cursor-pointer transition-colors"
+                      >
+                        Reset SLoc ({selectedSLoc})
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2204,9 +2371,17 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                     </p>
                   </div>
                 ) : (
-                  <div className="h-full w-full" style={{ minWidth: sortedSLocs.length > 12 ? `${sortedSLocs.length * 52}px` : '100%' }}>
+                  <div
+                    className="h-full w-full"
+                    style={{
+                      minWidth:
+                        displaySLocs.length > 10
+                          ? `${displaySLocs.length * (slocMetric === 'percent' ? 44 : slocFilterMode === 'all' ? 70 : 48)}px`
+                          : '100%',
+                    }}
+                  >
                     <Bar
-                      key={`sloc-chart-${slocMetric}-${slocGudangFilter}-${selectedSLoc}-${sortedSLocs.length}`}
+                      key={`sloc-chart-${slocMetric}-${slocFilterMode}-${slocGudangFilter}-${selectedSLoc}-${displaySLocs.length}-${slocDiffOnly}`}
                       data={slocChartData}
                       options={slocChartOptions}
                       plugins={[slocDataLabelsPlugin]}

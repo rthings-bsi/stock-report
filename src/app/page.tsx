@@ -299,26 +299,52 @@ export default function Home() {
       const json = await res.json();
       if (json?.success && json?.data) {
         const d = json.data;
-        setPipeCapacities(d.pipeCapacities || []);
-        setFastSlowData(d.fastSlowData || []);
-        setCoilStripData(d.coilStripData || []);
-        setNcWarehouseData(d.ncWarehouseData || []);
-        setNcItems(d.ncItems || []);
-        setLooSTData(d.looSTData || []);
-        setLooLTData(d.looLTData || []);
-        setUnfifoData(d.unfifoData || []);
+        if (d.pipeCapacities?.length > 0) setPipeCapacities(d.pipeCapacities);
+        else setPipeCapacities(initialPipeCapacityData);
+
+        if (d.fastSlowData?.length > 0) setFastSlowData(d.fastSlowData);
+        else setFastSlowData(initialFastSlowData);
+
+        if (d.coilStripData?.length > 0) setCoilStripData(d.coilStripData);
+        else setCoilStripData(initialCoilStripData);
+
+        if (d.ncWarehouseData?.length > 0) setNcWarehouseData(d.ncWarehouseData);
+        else setNcWarehouseData(initialNCWarehouseData);
+
+        if (d.ncItems?.length > 0) setNcItems(d.ncItems);
+        else setNcItems(initialNCItems);
+
+        if (d.looSTData?.length > 0) setLooSTData(d.looSTData);
+        else setLooSTData(initialTop10LooAllAreaST);
+
+        if (d.looLTData?.length > 0) setLooLTData(d.looLTData);
+        else setLooLTData(initialTop10LooAllAreaLT);
+
+        if (d.unfifoData?.length > 0) setUnfifoData(d.unfifoData);
+        else setUnfifoData(initialUnfifoData);
+
         setUnfifoCoilData(d.unfifoCoilData || []);
         setUnfifoPipeData(d.unfifoPipeData || []);
-        setDamagedPackagingData(d.damagedPackagingData || []);
+
+        if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
+        else setDamagedPackagingData(initialDamagedPackagingData);
+
         setIncomingPackagingData(d.incomingPackagingData || []);
-        setNcProgressData(Array.isArray(d.ncProgressData) ? d.ncProgressData : []);
+
+        if (d.ncProgressData?.length > 0) setNcProgressData(d.ncProgressData);
+        else setNcProgressData(initialNCProgressData);
+
         setStoData(Array.isArray(d.stoData) ? d.stoData : []);
         setCustomerBreakdown(d.customerBreakdown || {});
         setLastUpdated(d.lastUpdated || '');
         setIsCustomData(true);
         try {
-          localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(d));
           localStorage.setItem('spindo_selected_snapshot_key', key);
+        } catch {}
+        try {
+          // Omit raw STO data from localStorage cache to prevent QuotaExceededError (5MB quota)
+          const cacheableD = { ...d, stoData: [] };
+          localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableD));
         } catch {}
       } else {
         localStorage.removeItem('spindo_warehouse_saved_state');
@@ -436,12 +462,19 @@ export default function Home() {
               if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
               if (d.ncProgressData) setNcProgressData(Array.isArray(d.ncProgressData) ? d.ncProgressData : []);
               setStoData(Array.isArray(d.stoData) ? d.stoData : []);
-              if (d.snapshotKey) setSelectedSnapshotKey(d.snapshotKey);
+              if (d.snapshotKey) {
+                setSelectedSnapshotKey(d.snapshotKey);
+                try {
+                  localStorage.setItem('spindo_selected_snapshot_key', d.snapshotKey);
+                } catch {}
+              }
               if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
               if (d.lastUpdated) setLastUpdated(d.lastUpdated);
               setIsCustomData(true);
               try {
-                localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(d));
+                // Omit raw STO data from localStorage cache to prevent QuotaExceededError (5MB quota)
+                const cacheableD = { ...d, stoData: [] };
+                localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableD));
               } catch {}
             } else {
               localStorage.removeItem('spindo_warehouse_saved_state');
@@ -504,7 +537,8 @@ export default function Home() {
 
     // 1. Simpan ke Browser LocalStorage
     try {
-      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(currentState));
+      const cacheableState = { ...currentState, stoData: [] };
+      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableState));
     } catch (e) {
       console.error('Failed to save to localStorage:', e);
     }
@@ -723,10 +757,14 @@ export default function Home() {
       console.error('Failed to sync uploaded data to server:', err);
     }
 
-    // 2. Cache ke LocalStorage (Diisolasi agar QuotaExceededError tidak menggagalkan save server)
+    // 2. Cache snapshot key dan state ke LocalStorage (Diisolasi agar aman dari QuotaExceededError)
     try {
-      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(mergedFullState));
       localStorage.setItem('spindo_selected_snapshot_key', snapshotKey);
+    } catch {}
+    try {
+      // Omit data mentah STO yang besar (4MB) dari cache LocalStorage agar tidak melebihi 5MB kuota
+      const cacheableState = { ...mergedFullState, stoData: [] };
+      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableState));
     } catch (lsErr) {
       console.warn('LocalStorage quota exceeded (data tetap aman di server database):', lsErr);
     }
@@ -1685,15 +1723,37 @@ export default function Home() {
                   setNcProgressData(newData);
                   setIsCustomData(true);
                   try {
-                    const localSaved = localStorage.getItem('spindo_warehouse_saved_state');
-                    const prev = localSaved ? JSON.parse(localSaved) : {};
-                    const updatedState = { ...prev, ncProgressData: newData };
-                    localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(updatedState));
+                    const updatedState: ParsedWarehouseState = {
+                      pipeCapacities,
+                      fastSlowData,
+                      coilStripData,
+                      ncWarehouseData,
+                      ncItems,
+                      looSTData,
+                      looLTData,
+                      unfifoData,
+                      unfifoCoilData,
+                      unfifoPipeData,
+                      damagedPackagingData,
+                      incomingPackagingData,
+                      ncProgressData: newData,
+                      stoData,
+                      customerBreakdown,
+                      lastUpdated,
+                      snapshotKey: selectedSnapshotKey,
+                      uploadedCategories: ['progress_nc'],
+                    };
+
                     await fetch('/api/warehouse', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(updatedState),
                     });
+
+                    try {
+                      const { stoData: _, ...safeState } = updatedState;
+                      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(safeState));
+                    } catch {}
                   } catch (err) {
                     console.error('Failed to sync NC progress data:', err);
                   }
@@ -1710,9 +1770,26 @@ export default function Home() {
                   setStoData(newData);
                   setIsCustomData(true);
                   try {
-                    const localSaved = typeof window !== 'undefined' ? localStorage.getItem('spindo_warehouse_saved_state') : null;
-                    const prev = localSaved ? JSON.parse(localSaved) : {};
-                    const updatedState = { ...prev, stoData: newData, snapshotKey: selectedSnapshotKey };
+                    const updatedState: ParsedWarehouseState = {
+                      pipeCapacities,
+                      fastSlowData,
+                      coilStripData,
+                      ncWarehouseData,
+                      ncItems,
+                      looSTData,
+                      looLTData,
+                      unfifoData,
+                      unfifoCoilData,
+                      unfifoPipeData,
+                      damagedPackagingData,
+                      incomingPackagingData,
+                      ncProgressData,
+                      stoData: newData,
+                      customerBreakdown,
+                      lastUpdated,
+                      snapshotKey: selectedSnapshotKey,
+                      uploadedCategories: ['sto'],
+                    };
 
                     // Simpan ke database server terlebih dahulu
                     const res = await fetch('/api/warehouse', {
@@ -1727,7 +1804,8 @@ export default function Home() {
 
                     // Cache ke LocalStorage secara terpisah (aman dari QuotaExceededError)
                     try {
-                      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(updatedState));
+                      const { stoData: _, ...safeState } = updatedState;
+                      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(safeState));
                       if (selectedSnapshotKey) {
                         localStorage.setItem('spindo_selected_snapshot_key', selectedSnapshotKey);
                       }
@@ -1764,15 +1842,37 @@ export default function Home() {
                   setDamagedPackagingData(newData);
                   setIsCustomData(true);
                   try {
-                    const localSaved = localStorage.getItem('spindo_warehouse_saved_state');
-                    const prev = localSaved ? JSON.parse(localSaved) : {};
-                    const updatedState = { ...prev, damagedPackagingData: newData };
-                    localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(updatedState));
+                    const updatedState: ParsedWarehouseState = {
+                      pipeCapacities,
+                      fastSlowData,
+                      coilStripData,
+                      ncWarehouseData,
+                      ncItems,
+                      looSTData,
+                      looLTData,
+                      unfifoData,
+                      unfifoCoilData,
+                      unfifoPipeData,
+                      damagedPackagingData: newData,
+                      incomingPackagingData,
+                      ncProgressData,
+                      stoData,
+                      customerBreakdown,
+                      lastUpdated,
+                      snapshotKey: selectedSnapshotKey,
+                      uploadedCategories: ['damaged_pkg'],
+                    };
+
                     await fetch('/api/warehouse', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(updatedState),
                     });
+
+                    try {
+                      const { stoData: _, ...safeState } = updatedState;
+                      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(safeState));
+                    } catch {}
                   } catch (err) {
                     console.error('Failed to sync damaged packaging data:', err);
                   }

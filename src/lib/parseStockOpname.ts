@@ -697,6 +697,12 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
     plusCount: number;
     varianceQty: number;
     varianceTon: number;
+    minusQty: number;
+    plusQty: number;
+    minusTon: number;
+    plusTon: number;
+    matchingQty: number;
+    matchingTon: number;
     sapQty: number;
     actualQty: number;
     sapTon: number;
@@ -716,6 +722,12 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
         plusCount: 0,
         varianceQty: 0,
         varianceTon: 0,
+        minusQty: 0,
+        plusQty: 0,
+        minusTon: 0,
+        plusTon: 0,
+        matchingQty: 0,
+        matchingTon: 0,
         sapQty: 0,
         actualQty: 0,
         sapTon: 0,
@@ -727,10 +739,22 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
     }
 
     const weights = getItemWeights(item);
+    const diffTon = Math.abs(weights.diffTon);
+    const diffQty = Math.abs(item.differencesFinalQty);
 
-    if (item.status === 'SESUAI') entry.matchingCount++;
-    else if (item.status === 'SELISIH_MINUS') entry.minusCount++;
-    else if (item.status === 'SELISIH_PLUS') entry.plusCount++;
+    if (item.status === 'SESUAI') {
+      entry.matchingCount++;
+      entry.matchingQty += item.actualFinalQty;
+      entry.matchingTon += weights.actualTon;
+    } else if (item.status === 'SELISIH_MINUS') {
+      entry.minusCount++;
+      entry.minusQty += diffQty;
+      entry.minusTon += diffTon;
+    } else if (item.status === 'SELISIH_PLUS') {
+      entry.plusCount++;
+      entry.plusQty += diffQty;
+      entry.plusTon += diffTon;
+    }
 
     if (item.sapFinalQty !== 0 || item.sapInitialQty > 0) entry.sapItemCount++;
     if (item.actualFinalQty !== 0 || item.qtySTO > 0 || item.additionalSTO > 0) entry.actualItemCount++;
@@ -756,6 +780,12 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
       accuracyRate: totalCount > 0 ? (val.matchingCount / totalCount) * 100 : 100,
       varianceQty: val.varianceQty,
       varianceTon: val.varianceTon,
+      minusQty: val.minusQty,
+      plusQty: val.plusQty,
+      minusTon: val.minusTon,
+      plusTon: val.plusTon,
+      matchingQty: val.matchingQty,
+      matchingTon: val.matchingTon,
       sapQty: val.sapQty,
       actualQty: val.actualQty,
       sapTon: val.sapTon,
@@ -765,8 +795,8 @@ export function calculateSTOSLocRecap(items: StockOpnameItem[]): StockOpnameSLoc
     });
   }
 
-  // Urutkan berdasarkan selisih absolut terbesar
-  return result.sort((a, b) => Math.abs(b.varianceQty) - Math.abs(a.varianceQty));
+  // Urutkan berdasarkan total selisih tonase/kuantitas terbesar
+  return result.sort((a, b) => (b.minusTon + b.plusTon) - (a.minusTon + a.plusTon) || Math.abs(b.varianceQty) - Math.abs(a.varianceQty));
 }
 
 /**
