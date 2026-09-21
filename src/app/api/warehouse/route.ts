@@ -409,24 +409,131 @@ export async function GET(request: Request) {
           return NextResponse.json({ success: true, data: null });
         }
 
+        let pipeCapacities = parseJsonSafe(row.pipe_capacities, []);
+        let fastSlowData = parseJsonSafe(row.fast_slow_data, []);
+        let coilStripData = parseJsonSafe(row.coil_strip_data, []);
+        let ncWarehouseData = parseJsonSafe(row.nc_warehouse_data, []);
+        let ncItems = parseJsonSafe(row.nc_items, []);
+        let looSTData = parseJsonSafe(row.loo_st_data, []);
+        let looLTData = parseJsonSafe(row.loo_lt_data, []);
+        let unfifoData = parseJsonSafe(row.unfifo_data, []);
+        let unfifoCoilData = parseJsonSafe(row.unfifo_coil_data, []);
+        let unfifoPipeData = parseJsonSafe(row.unfifo_pipe_data, []);
+        let damagedPackagingData = parseJsonSafe(row.damaged_packaging_data, []);
+        let incomingPackagingData = parseJsonSafe(row.incoming_packaging_data, []);
+        let ncProgressData = parseJsonSafe(row.nc_progress_data, []);
+        let stoData = parseJsonSafe(row.sto_data, []);
+        let customerBreakdown = parseJsonSafe(row.customer_breakdown, {});
+
+        const needsLegacyFallback =
+          !hasRealPipe(pipeCapacities) ||
+          !hasArray(fastSlowData) ||
+          !hasRealCoil(coilStripData) ||
+          !hasArray(ncWarehouseData) ||
+          !hasArray(ncItems) ||
+          !hasArray(looSTData) ||
+          !hasArray(looLTData) ||
+          !hasArray(unfifoData) ||
+          !hasArray(unfifoCoilData) ||
+          !hasArray(unfifoPipeData) ||
+          !hasArray(damagedPackagingData) ||
+          !hasArray(ncProgressData) ||
+          !hasArray(stoData) ||
+          !hasObject(customerBreakdown);
+
+        if (needsLegacyFallback) {
+          const { data: legRows } = await supabase
+            .from('warehouse_snapshots')
+            .select('*')
+            .neq('snapshot_key', row.snapshot_key)
+            .like('snapshot_key', 'snap_%')
+            .order('snapshot_key', { ascending: false })
+            .limit(10);
+
+          if (legRows && legRows.length > 0) {
+            for (const lr of legRows) {
+              if (!hasRealPipe(pipeCapacities)) {
+                const p = parseJsonSafe(lr.pipe_capacities, []);
+                if (hasRealPipe(p)) pipeCapacities = p;
+              }
+              if (!hasArray(fastSlowData)) {
+                const p = parseJsonSafe(lr.fast_slow_data, []);
+                if (hasArray(p)) fastSlowData = p;
+              }
+              if (!hasRealCoil(coilStripData)) {
+                const p = parseJsonSafe(lr.coil_strip_data, []);
+                if (hasRealCoil(p)) coilStripData = p;
+              }
+              if (!hasArray(ncWarehouseData)) {
+                const p = parseJsonSafe(lr.nc_warehouse_data, []);
+                if (hasArray(p)) ncWarehouseData = p;
+              }
+              if (!hasArray(ncItems)) {
+                const p = parseJsonSafe(lr.nc_items, []);
+                if (hasArray(p)) ncItems = p;
+              }
+              if (!hasArray(looSTData)) {
+                const p = parseJsonSafe(lr.loo_st_data, []);
+                if (hasArray(p)) looSTData = p;
+              }
+              if (!hasArray(looLTData)) {
+                const p = parseJsonSafe(lr.loo_lt_data, []);
+                if (hasArray(p)) looLTData = p;
+              }
+              if (!hasArray(unfifoData)) {
+                const p = parseJsonSafe(lr.unfifo_data, []);
+                if (hasArray(p)) unfifoData = p;
+              }
+              if (!hasArray(unfifoCoilData)) {
+                const p = parseJsonSafe(lr.unfifo_coil_data, []);
+                if (hasArray(p)) unfifoCoilData = p;
+              }
+              if (!hasArray(unfifoPipeData)) {
+                const p = parseJsonSafe(lr.unfifo_pipe_data, []);
+                if (hasArray(p)) unfifoPipeData = p;
+              }
+              if (!hasArray(damagedPackagingData)) {
+                const p = parseJsonSafe(lr.damaged_packaging_data, []);
+                if (hasArray(p)) damagedPackagingData = p;
+              }
+              if (!hasArray(incomingPackagingData)) {
+                const p = parseJsonSafe(lr.incoming_packaging_data, []);
+                if (hasArray(p)) incomingPackagingData = p;
+              }
+              if (!hasArray(ncProgressData)) {
+                const p = parseJsonSafe(lr.nc_progress_data, []);
+                if (hasArray(p)) ncProgressData = p;
+              }
+              if (!hasArray(stoData)) {
+                const p = parseJsonSafe(lr.sto_data, []);
+                if (hasArray(p)) stoData = p;
+              }
+              if (!hasObject(customerBreakdown)) {
+                const p = parseJsonSafe(lr.customer_breakdown, {});
+                if (hasObject(p)) customerBreakdown = p;
+              }
+            }
+          }
+        }
+
         const parsedData = {
           snapshotKey: row.snapshot_key,
           lastUpdated: row.last_updated,
-          pipeCapacities: parseJsonSafe(row.pipe_capacities, []),
-          fastSlowData: parseJsonSafe(row.fast_slow_data, []),
-          coilStripData: parseJsonSafe(row.coil_strip_data, []),
-          ncWarehouseData: parseJsonSafe(row.nc_warehouse_data, []),
-          ncItems: parseJsonSafe(row.nc_items, []),
-          looSTData: parseJsonSafe(row.loo_st_data, []),
-          looLTData: parseJsonSafe(row.loo_lt_data, []),
-          unfifoData: parseJsonSafe(row.unfifo_data, []),
-          unfifoCoilData: parseJsonSafe(row.unfifo_coil_data, []),
-          unfifoPipeData: parseJsonSafe(row.unfifo_pipe_data, []),
-          damagedPackagingData: parseJsonSafe(row.damaged_packaging_data, []),
-          incomingPackagingData: parseJsonSafe(row.incoming_packaging_data, []),
-          ncProgressData: parseJsonSafe(row.nc_progress_data, []),
-          stoData: parseJsonSafe(row.sto_data, []),
-          customerBreakdown: parseJsonSafe(row.customer_breakdown, {}),
+          pipeCapacities,
+          fastSlowData,
+          coilStripData,
+          ncWarehouseData,
+          ncItems,
+          looSTData,
+          looLTData,
+          unfifoData,
+          unfifoCoilData,
+          unfifoPipeData,
+          damagedPackagingData,
+          incomingPackagingData,
+          ncProgressData,
+          stoData,
+          customerBreakdown,
           createdAt: row.created_at,
         };
 
@@ -600,8 +707,24 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fallback baca data referensi dari Supabase jika SQLite kosong / parsial
-    if (!hasRealPipe(prevPipe) && isSupabaseConfigured && supabase) {
+    // Fallback baca data referensi dari Supabase jika SQLite kosong / parsial (terutama di Vercel/Cloud deploy)
+    const needsCloudFallback =
+      !hasRealPipe(prevPipe) ||
+      !hasArray(prevFastSlow) ||
+      !hasRealCoil(prevCoil) ||
+      !hasArray(prevNcWh) ||
+      !hasArray(prevNcItems) ||
+      !hasArray(prevLooST) ||
+      !hasArray(prevLooLT) ||
+      !hasArray(prevUnfifo) ||
+      !hasArray(prevUnfifoCoil) ||
+      !hasArray(prevUnfifoPipe) ||
+      !hasArray(prevDamagedPkg) ||
+      !hasArray(prevNcProgress) ||
+      !hasArray(prevStoData) ||
+      !hasObject(prevCustBreakdown);
+
+    if (needsCloudFallback && isSupabaseConfigured && supabase) {
       try {
         let cloudRef: any = null;
         try {
@@ -628,40 +751,96 @@ export async function POST(request: Request) {
           if (!hasArray(prevNcProgress)) prevNcProgress = cloudRef.ncProgressData || [];
           if (!hasArray(prevStoData)) prevStoData = cloudRef.stoData || [];
           if (!hasObject(prevCustBreakdown)) prevCustBreakdown = cloudRef.customerBreakdown || {};
-        } else {
-          let { data: supaRows } = await supabase
+        }
+
+        // Secondary fallback to legacy warehouse_snapshots if any module is still missing
+        const stillMissing =
+          !hasRealPipe(prevPipe) ||
+          !hasArray(prevFastSlow) ||
+          !hasRealCoil(prevCoil) ||
+          !hasArray(prevNcWh) ||
+          !hasArray(prevNcItems) ||
+          !hasArray(prevLooST) ||
+          !hasArray(prevLooLT) ||
+          !hasArray(prevUnfifo) ||
+          !hasArray(prevUnfifoCoil) ||
+          !hasArray(prevUnfifoPipe) ||
+          !hasArray(prevDamagedPkg) ||
+          !hasArray(prevNcProgress) ||
+          !hasArray(prevStoData) ||
+          !hasObject(prevCustBreakdown);
+
+        if (stillMissing) {
+          const { data: legacyRows } = await supabase
             .from('warehouse_snapshots')
             .select('*')
-            .eq('snapshot_key', dateKey)
-            .limit(1);
+            .like('snapshot_key', 'snap_%')
+            .order('snapshot_key', { ascending: false })
+            .limit(10);
 
-          if (!supaRows || supaRows.length === 0) {
-            const { data: latestRows } = await supabase
-              .from('warehouse_snapshots')
-              .select('*')
-              .like('snapshot_key', 'snap_%')
-              .order('snapshot_key', { ascending: false })
-              .limit(1);
-            supaRows = latestRows;
-          }
-
-          const sRow = supaRows && supaRows.length > 0 ? supaRows[0] : null;
-          if (sRow) {
-            if (!hasRealPipe(prevPipe)) prevPipe = parseJsonSafe(sRow.pipe_capacities, []);
-            if (!hasArray(prevFastSlow)) prevFastSlow = parseJsonSafe(sRow.fast_slow_data, []);
-            if (!hasRealCoil(prevCoil)) prevCoil = parseJsonSafe(sRow.coil_strip_data, []);
-            if (!hasArray(prevNcWh)) prevNcWh = parseJsonSafe(sRow.nc_warehouse_data, []);
-            if (!hasArray(prevNcItems)) prevNcItems = parseJsonSafe(sRow.nc_items, []);
-            if (!hasArray(prevLooST)) prevLooST = parseJsonSafe(sRow.loo_st_data, []);
-            if (!hasArray(prevLooLT)) prevLooLT = parseJsonSafe(sRow.loo_lt_data, []);
-            if (!hasArray(prevUnfifo)) prevUnfifo = parseJsonSafe(sRow.unfifo_data, []);
-            if (!hasArray(prevUnfifoCoil)) prevUnfifoCoil = parseJsonSafe(sRow.unfifo_coil_data, []);
-            if (!hasArray(prevUnfifoPipe)) prevUnfifoPipe = parseJsonSafe(sRow.unfifo_pipe_data, []);
-            if (!hasArray(prevDamagedPkg)) prevDamagedPkg = parseJsonSafe(sRow.damaged_packaging_data, []);
-            if (!hasArray(prevIncomingPkg)) prevIncomingPkg = parseJsonSafe(sRow.incoming_packaging_data, []);
-            if (!hasArray(prevNcProgress)) prevNcProgress = parseJsonSafe(sRow.nc_progress_data, []);
-            if (!hasArray(prevStoData) && sRow.snapshot_key === dateKey) prevStoData = parseJsonSafe(sRow.sto_data, []);
-            if (!hasObject(prevCustBreakdown)) prevCustBreakdown = parseJsonSafe(sRow.customer_breakdown, {});
+          if (legacyRows && legacyRows.length > 0) {
+            for (const sRow of legacyRows) {
+              if (!hasRealPipe(prevPipe)) {
+                const p = parseJsonSafe(sRow.pipe_capacities, []);
+                if (hasRealPipe(p)) prevPipe = p;
+              }
+              if (!hasArray(prevFastSlow)) {
+                const p = parseJsonSafe(sRow.fast_slow_data, []);
+                if (hasArray(p)) prevFastSlow = p;
+              }
+              if (!hasRealCoil(prevCoil)) {
+                const p = parseJsonSafe(sRow.coil_strip_data, []);
+                if (hasRealCoil(p)) prevCoil = p;
+              }
+              if (!hasArray(prevNcWh)) {
+                const p = parseJsonSafe(sRow.nc_warehouse_data, []);
+                if (hasArray(p)) prevNcWh = p;
+              }
+              if (!hasArray(prevNcItems)) {
+                const p = parseJsonSafe(sRow.nc_items, []);
+                if (hasArray(p)) prevNcItems = p;
+              }
+              if (!hasArray(prevLooST)) {
+                const p = parseJsonSafe(sRow.loo_st_data, []);
+                if (hasArray(p)) prevLooST = p;
+              }
+              if (!hasArray(prevLooLT)) {
+                const p = parseJsonSafe(sRow.loo_lt_data, []);
+                if (hasArray(p)) prevLooLT = p;
+              }
+              if (!hasArray(prevUnfifo)) {
+                const p = parseJsonSafe(sRow.unfifo_data, []);
+                if (hasArray(p)) prevUnfifo = p;
+              }
+              if (!hasArray(prevUnfifoCoil)) {
+                const p = parseJsonSafe(sRow.unfifo_coil_data, []);
+                if (hasArray(p)) prevUnfifoCoil = p;
+              }
+              if (!hasArray(prevUnfifoPipe)) {
+                const p = parseJsonSafe(sRow.unfifo_pipe_data, []);
+                if (hasArray(p)) prevUnfifoPipe = p;
+              }
+              if (!hasArray(prevDamagedPkg)) {
+                const p = parseJsonSafe(sRow.damaged_packaging_data, []);
+                if (hasArray(p)) prevDamagedPkg = p;
+              }
+              if (!hasArray(prevIncomingPkg)) {
+                const p = parseJsonSafe(sRow.incoming_packaging_data, []);
+                if (hasArray(p)) prevIncomingPkg = p;
+              }
+              if (!hasArray(prevNcProgress)) {
+                const p = parseJsonSafe(sRow.nc_progress_data, []);
+                if (hasArray(p)) prevNcProgress = p;
+              }
+              if (!hasArray(prevStoData)) {
+                const p = parseJsonSafe(sRow.sto_data, []);
+                if (hasArray(p)) prevStoData = p;
+              }
+              if (!hasObject(prevCustBreakdown)) {
+                const p = parseJsonSafe(sRow.customer_breakdown, {});
+                if (hasObject(p)) prevCustBreakdown = p;
+              }
+            }
           }
         }
       } catch (cloudMergeErr) {
