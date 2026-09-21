@@ -347,25 +347,7 @@ export default function Home() {
           localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableD));
         } catch {}
       } else {
-        localStorage.removeItem('spindo_warehouse_saved_state');
-        setPipeCapacities(initialPipeCapacityData);
-        setFastSlowData(initialFastSlowData);
-        setCoilStripData(initialCoilStripData);
-        setNcWarehouseData(initialNCWarehouseData);
-        setNcItems(initialNCItems);
-        setLooSTData(initialTop10LooAllAreaST);
-        setLooLTData(initialTop10LooAllAreaLT);
-        setUnfifoData(initialUnfifoData);
-        setUnfifoCoilData([]);
-        setUnfifoPipeData([]);
-        setDamagedPackagingData(initialDamagedPackagingData);
-        setIncomingPackagingData(initialIncomingPackagingData);
-        setNcProgressData(initialNCProgressData);
-        setStoData([]);
-        setCustomerBreakdown({});
-        setLastUpdated('02.09.2026 - 07:31 WIB');
-        setIsCustomData(false);
-        setSelectedSnapshotKey('latest');
+        console.warn('Snapshot key not found on server, retaining existing state:', key);
       }
     } catch (err) {
       console.error('Failed to load snapshot:', err);
@@ -461,7 +443,9 @@ export default function Home() {
               if (d.unfifoPipeData?.length > 0) setUnfifoPipeData(d.unfifoPipeData);
               if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
               if (d.ncProgressData) setNcProgressData(Array.isArray(d.ncProgressData) ? d.ncProgressData : []);
-              setStoData(Array.isArray(d.stoData) ? d.stoData : []);
+              if (Array.isArray(d.stoData) && d.stoData.length > 0) {
+                setStoData(d.stoData);
+              }
               if (d.snapshotKey) {
                 setSelectedSnapshotKey(d.snapshotKey);
                 try {
@@ -477,24 +461,8 @@ export default function Home() {
                 localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableD));
               } catch {}
             } else {
-              localStorage.removeItem('spindo_warehouse_saved_state');
-              setPipeCapacities(initialPipeCapacityData);
-              setFastSlowData(initialFastSlowData);
-              setCoilStripData(initialCoilStripData);
-              setNcWarehouseData(initialNCWarehouseData);
-              setNcItems(initialNCItems);
-              setLooSTData(initialTop10LooAllAreaST);
-              setLooLTData(initialTop10LooAllAreaLT);
-              setUnfifoData(initialUnfifoData);
-              setUnfifoCoilData([]);
-              setUnfifoPipeData([]);
-              setDamagedPackagingData(initialDamagedPackagingData);
-              setNcProgressData(initialNCProgressData);
-              setStoData([]);
-              setCustomerBreakdown({});
-              setLastUpdated('02.09.2026 - 07:31 WIB');
-              setIsCustomData(false);
-              setSelectedSnapshotKey('latest');
+              // Server return data null; pertahankan data cache localStorage jika ada agar data tidak hilang
+              console.warn('Server returned null warehouse data, retaining cached state.');
             }
           }
         }
@@ -512,6 +480,33 @@ export default function Home() {
     }
     loadSavedData();
   }, []);
+
+  // Load STO data on-demand saat tab STO aktif agar initial page load cepat & aman dari limit payload Vercel
+  useEffect(() => {
+    if (activeTab === 'sto' && stoData.length === 0) {
+      const fetchStoOnDemand = async () => {
+        try {
+          const savedKey = selectedSnapshotKey && selectedSnapshotKey !== 'latest'
+            ? selectedSnapshotKey
+            : (typeof window !== 'undefined' ? localStorage.getItem('spindo_selected_snapshot_key') : null);
+          const stoUrl = savedKey && savedKey !== 'latest'
+            ? `/api/warehouse?module=sto&key=${encodeURIComponent(savedKey)}`
+            : '/api/warehouse?module=sto';
+          const res = await fetch(stoUrl, { cache: 'no-store' });
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.success && Array.isArray(json?.data) && json.data.length > 0) {
+              setStoData(json.data);
+              setIsCustomData(true);
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to load STO on-demand:', err);
+        }
+      };
+      fetchStoOnDemand();
+    }
+  }, [activeTab, selectedSnapshotKey, stoData.length]);
 
   // Simpan manual / Simpan Otomatis state aktif ke Database & LocalStorage
   const handleSaveData = async () => {
@@ -543,12 +538,13 @@ export default function Home() {
       console.error('Failed to save to localStorage:', e);
     }
 
-    // 2. Simpan ke SQLite Database Backend
+    // 2. Simpan ke Database Backend (Omit stoData agar tidak kena limit payload Vercel)
     try {
+      const { stoData: _, ...mainState } = currentState;
       await fetch('/api/warehouse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(currentState),
+        body: JSON.stringify(mainState),
       });
       setLastUpdated(currentState.lastUpdated);
       setIsCustomData(true);
@@ -732,15 +728,31 @@ export default function Home() {
 
     // 1. Simpan ke database server (Prioritas utama)
     try {
+      // Pisahkan modul STO agar main warehouse POST tidak melampaui limit payload Vercel (4.5 MB)
+      const { stoData: _, ...mainPostState } = mergedFullState;
       const res = await fetch('/api/warehouse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mergedFullState),
+        body: JSON.stringify(mainPostState),
       });
 
       const resJson = await res.json().catch(() => null);
       if (!res.ok || !resJson?.success) {
         console.error('Server save error:', resJson);
+      }
+
+      // Jika file STO baru diunggah, simpan ke endpoint modul STO terpisah
+      if (hasSTO && newState.stoData && newState.stoData.length > 0) {
+        await fetch('/api/warehouse?module=sto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            snapshotKey,
+            lastUpdated: nowStr,
+            targetDate: newState.targetDate,
+            stoData: newState.stoData,
+          }),
+        });
       }
 
       if (hasIncomingPkg && newState.incomingPackagingData) {
@@ -1791,11 +1803,15 @@ export default function Home() {
                       uploadedCategories: ['sto'],
                     };
 
-                    // Simpan ke database server terlebih dahulu
-                    const res = await fetch('/api/warehouse', {
+                    // Simpan ke database server modul STO
+                    const res = await fetch('/api/warehouse?module=sto', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(updatedState),
+                      body: JSON.stringify({
+                        snapshotKey: selectedSnapshotKey,
+                        lastUpdated,
+                        stoData: newData,
+                      }),
                     });
                     const resJson = await res.json().catch(() => null);
                     if (!res.ok || !resJson?.success) {

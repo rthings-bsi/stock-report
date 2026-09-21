@@ -11,6 +11,7 @@ import { calculateSTOPeriodSummary } from '../../../lib/parseStockOpname';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const maxDuration = 60;
 
 // Fallback SQLite instance for local environment
 let localDb: any = null;
@@ -96,6 +97,60 @@ export async function GET(request: Request) {
     const key = searchParams.get('key') || 'latest';
     const listOnly = searchParams.get('list') === 'true';
     const stoHistory = searchParams.get('sto_history') === 'true';
+    const moduleParam = searchParams.get('module');
+    const includeSto = searchParams.get('include_sto') === 'true';
+
+    // Handler on-demand module STO (dipanggil saat membuka tab Stock Opname)
+    if (moduleParam === 'sto') {
+      const db = getLocalDb();
+      if (db) {
+        try {
+          const stmt = key === 'latest'
+            ? db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE sto_data IS NOT NULL AND length(sto_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`)
+            : db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE snapshot_key = ? LIMIT 1`);
+          const r = key === 'latest' ? stmt.get() : stmt.get(key);
+          if (r?.sto_data) {
+            const stoData = parseJsonSafe(r.sto_data, []);
+            return NextResponse.json({ success: true, stoData, source: 'sqlite' });
+          }
+        } catch (e) {
+          console.warn('SQLite STO module read warning:', e);
+        }
+      }
+
+      if (isSupabaseConfigured && supabase) {
+        try {
+          let query = supabase.from('stock_opname').select('data_json, snapshot_key');
+          if (key === 'latest') {
+            query = query.order('snapshot_key', { ascending: false }).limit(1);
+          } else {
+            query = query.eq('snapshot_key', key).limit(1);
+          }
+          const { data: rows, error: sErr } = await query;
+          if (!sErr && rows && rows.length > 0 && rows[0].data_json) {
+            const raw = rows[0].data_json;
+            const stoData = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            return NextResponse.json({ success: true, stoData, source: 'supabase_normalized' });
+          }
+
+          let legQuery = supabase.from('warehouse_snapshots').select('sto_data, snapshot_key');
+          if (key === 'latest') {
+            legQuery = legQuery.order('snapshot_key', { ascending: false }).limit(1);
+          } else {
+            legQuery = legQuery.eq('snapshot_key', key).limit(1);
+          }
+          const { data: legRows, error: legErr } = await legQuery;
+          if (!legErr && legRows && legRows.length > 0 && legRows[0].sto_data) {
+            const stoData = parseJsonSafe(legRows[0].sto_data, []);
+            return NextResponse.json({ success: true, stoData, source: 'supabase_legacy' });
+          }
+        } catch (supaErr) {
+          console.warn('Supabase STO module read warning:', supaErr);
+        }
+      }
+
+      return NextResponse.json({ success: true, stoData: [] });
+    }
 
     // Handler riwayat komparasi STO per periode (snapshot)
     if (stoHistory) {
@@ -383,8 +438,11 @@ export async function GET(request: Request) {
 
         // Prioritaskan baca dari tabel-tabel ternormalisasi Supabase
         try {
-          const normData = await getNormalizedSnapshotFromSupabase(supabase, key);
+          const normData = await getNormalizedSnapshotFromSupabase(supabase, key, { includeSto });
           if (normData) {
+            if (!includeSto) {
+              normData.stoData = [];
+            }
             return NextResponse.json({ success: true, data: normData, source: 'supabase_normalized' });
           }
         } catch (normGetErr) {
@@ -401,10 +459,21 @@ export async function GET(request: Request) {
           query = query.eq('snapshot_key', key).limit(1);
         }
 
-        const { data, error } = await query;
+        let { data, error } = await query;
         if (error) throw error;
 
-        const row = data && data.length > 0 ? data[0] : null;
+        let row = data && data.length > 0 ? data[0] : null;
+        if (!row && key !== 'latest') {
+          const { data: latestData } = await supabase
+            .from('warehouse_snapshots')
+            .select('*')
+            .like('snapshot_key', 'snap_%')
+            .order('snapshot_key', { ascending: false })
+            .limit(1);
+          if (latestData && latestData.length > 0) {
+            row = latestData[0];
+          }
+        }
         if (!row) {
           return NextResponse.json({ success: true, data: null });
         }
@@ -422,7 +491,7 @@ export async function GET(request: Request) {
         let damagedPackagingData = parseJsonSafe(row.damaged_packaging_data, []);
         let incomingPackagingData = parseJsonSafe(row.incoming_packaging_data, []);
         let ncProgressData = parseJsonSafe(row.nc_progress_data, []);
-        let stoData = parseJsonSafe(row.sto_data, []);
+        let stoData = includeSto ? parseJsonSafe(row.sto_data, []) : [];
         let customerBreakdown = parseJsonSafe(row.customer_breakdown, {});
 
         const needsLegacyFallback =
@@ -438,7 +507,7 @@ export async function GET(request: Request) {
           !hasArray(unfifoPipeData) ||
           !hasArray(damagedPackagingData) ||
           !hasArray(ncProgressData) ||
-          !hasArray(stoData) ||
+          (includeSto && !hasArray(stoData)) ||
           !hasObject(customerBreakdown);
 
         if (needsLegacyFallback) {
@@ -504,7 +573,7 @@ export async function GET(request: Request) {
                 const p = parseJsonSafe(lr.nc_progress_data, []);
                 if (hasArray(p)) ncProgressData = p;
               }
-              if (!hasArray(stoData)) {
+              if (includeSto && !hasArray(stoData)) {
                 const p = parseJsonSafe(lr.sto_data, []);
                 if (hasArray(p)) stoData = p;
               }
@@ -555,7 +624,48 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
     const body = await request.json();
+
+    // Handler simpan modul STO secara terpisah agar tidak kena limit payload 4.5 MB Vercel
+    const isStoModulePost = searchParams.get('module') === 'sto' || body.module === 'sto';
+    if (isStoModulePost) {
+      const dateKey = body.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
+      const nowStr = body.lastUpdated || new Date().toLocaleString('id-ID');
+      const stoList = Array.isArray(body.stoData) ? body.stoData : [];
+
+      if (stoList.length > 0) {
+        const db = getLocalDb();
+        if (db) {
+          try {
+            db.prepare(`
+              UPDATE warehouse_snapshots
+              SET sto_data = ?, last_updated = ?
+              WHERE snapshot_key = ?
+            `).run(JSON.stringify(stoList), nowStr, dateKey);
+          } catch (e) {
+            console.warn('SQLite STO module save warning:', e);
+          }
+        }
+
+        if (isSupabaseConfigured && supabase) {
+          try {
+            await supabase.from('snapshots').upsert({ snapshot_key: dateKey, last_updated: nowStr }, { onConflict: 'snapshot_key' });
+            await supabase.from('stock_opname').delete().eq('snapshot_key', dateKey);
+            await supabase.from('stock_opname').insert([{ snapshot_key: dateKey, data_json: stoList }]);
+            await supabase.from('warehouse_snapshots').upsert({
+              snapshot_key: dateKey,
+              last_updated: nowStr,
+              sto_data: stoList,
+            }, { onConflict: 'snapshot_key' });
+          } catch (supaErr) {
+            console.warn('Supabase STO module save warning:', supaErr);
+          }
+        }
+      }
+      return NextResponse.json({ success: true, message: 'STO data saved successfully' });
+    }
+
     const {
       pipeCapacities,
       fastSlowData,
@@ -1037,37 +1147,31 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. SINKRONKAN KE SUPABASE (Primary ke tabel ternormalisasi, secondary legacy)
+    // 3. SINKRONKAN KE SUPABASE (Primary ke tabel ternormalisasi, secondary legacy secara concurrent)
     let supabaseSaved = false;
     if (isSupabaseConfigured && supabase) {
       try {
-        // 3a. SIMPAN KE TABEL-TABEL TERNORMALISASI (Primary)
-        try {
-          await saveNormalizedSnapshotToSupabase(supabase, {
-            snapshotKey: dateKey,
-            lastUpdated: nowStr,
-            pipeCapacities: finalPipe,
-            fastSlowData: finalFastSlow,
-            coilStripData: finalCoil,
-            ncWarehouseData: finalNcWh,
-            ncItems: finalNcItems,
-            looSTData: finalLooST,
-            looLTData: finalLooLT,
-            unfifoData: finalUnfifo,
-            unfifoCoilData: finalUnfifoCoil,
-            unfifoPipeData: finalUnfifoPipe,
-            damagedPackagingData: finalDamagedPkg,
-            ncProgressData: finalNcProgress,
-            stoData: finalStoData,
-            customerBreakdown: finalCustBreakdown,
-          });
-          supabaseSaved = true;
-        } catch (normSaveErr) {
-          console.warn('Supabase normalized tables save warning:', normSaveErr);
-        }
+        const normPromise = saveNormalizedSnapshotToSupabase(supabase, {
+          snapshotKey: dateKey,
+          lastUpdated: nowStr,
+          pipeCapacities: finalPipe,
+          fastSlowData: finalFastSlow,
+          coilStripData: finalCoil,
+          ncWarehouseData: finalNcWh,
+          ncItems: finalNcItems,
+          looSTData: finalLooST,
+          looLTData: finalLooLT,
+          unfifoData: finalUnfifo,
+          unfifoCoilData: finalUnfifoCoil,
+          unfifoPipeData: finalUnfifoPipe,
+          damagedPackagingData: finalDamagedPkg,
+          ncProgressData: finalNcProgress,
+          stoData: finalStoData,
+          customerBreakdown: finalCustBreakdown,
+        });
 
         // 3b. Simpan juga ke legacy warehouse_snapshots sebagai fallback / backward compatibility
-        const payload = {
+        const legacyPayload: any = {
           snapshot_key: dateKey,
           last_updated: nowStr,
           pipe_capacities: finalPipe,
@@ -1083,29 +1187,45 @@ export async function POST(request: Request) {
           damaged_packaging_data: finalDamagedPkg,
           incoming_packaging_data: finalIncomingPkg,
           nc_progress_data: finalNcProgress,
-          sto_data: finalStoData,
           customer_breakdown: finalCustBreakdown,
         };
 
-        let { error: supaErr } = await supabase
-          .from('warehouse_snapshots')
-          .upsert(payload, { onConflict: 'snapshot_key' });
-
-        // Fallback jika kolom nc_progress_data atau sto_data belum ada di schema Supabase
-        if (supaErr && (supaErr.message?.includes('nc_progress_data') || supaErr.message?.includes('sto_data'))) {
-          const fallbackPayload = { ...payload };
-          delete (fallbackPayload as any).nc_progress_data;
-          delete (fallbackPayload as any).sto_data;
-          const retry = await supabase
-            .from('warehouse_snapshots')
-            .upsert(fallbackPayload, { onConflict: 'snapshot_key' });
-          supaErr = retry.error;
+        // Hindari payload bloat Vercel (>4.5MB) pada legacy single column jika STO sangat besar
+        if (finalStoData && Array.isArray(finalStoData) && finalStoData.length < 5000) {
+          legacyPayload.sto_data = finalStoData;
         }
 
-        if (!supaErr) {
+        const legacyPromise = (async () => {
+          let { error: supaErr } = await supabase
+            .from('warehouse_snapshots')
+            .upsert(legacyPayload, { onConflict: 'snapshot_key' });
+
+          // Fallback jika kolom nc_progress_data atau sto_data belum ada di schema Supabase
+          if (supaErr && (supaErr.message?.includes('nc_progress_data') || supaErr.message?.includes('sto_data'))) {
+            const fallbackPayload = { ...legacyPayload };
+            delete fallbackPayload.nc_progress_data;
+            delete fallbackPayload.sto_data;
+            const retry = await supabase
+              .from('warehouse_snapshots')
+              .upsert(fallbackPayload, { onConflict: 'snapshot_key' });
+            supaErr = retry.error;
+          }
+
+          if (supaErr) {
+            console.warn('Supabase legacy upsert warning:', supaErr);
+            throw supaErr;
+          }
+          return true;
+        })();
+
+        const [normRes, legRes] = await Promise.allSettled([normPromise, legacyPromise]);
+        if (normRes.status === 'fulfilled' || legRes.status === 'fulfilled') {
           supabaseSaved = true;
         } else {
-          console.warn('Supabase sync warning (data tetap aman di SQLite):', supaErr);
+          console.warn('Supabase sync warnings:', {
+            norm: normRes.status === 'rejected' ? normRes.reason : null,
+            legacy: legRes.status === 'rejected' ? legRes.reason : null,
+          });
         }
       } catch (cloudErr) {
         console.warn('Supabase sync network error (data tetap aman di SQLite):', cloudErr);
