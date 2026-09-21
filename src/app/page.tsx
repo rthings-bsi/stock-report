@@ -334,7 +334,27 @@ export default function Home() {
         if (d.ncProgressData?.length > 0) setNcProgressData(d.ncProgressData);
         else setNcProgressData(initialNCProgressData);
 
-        setStoData(Array.isArray(d.stoData) ? d.stoData : []);
+        if (Array.isArray(d.stoData) && d.stoData.length > 0) {
+          setStoData(d.stoData);
+          try {
+            sessionStorage.setItem('spindo_sto_cache', JSON.stringify(d.stoData));
+          } catch {}
+        } else {
+          // Coba fetch modul STO untuk snapshot ini
+          try {
+            const stoRes = await fetch(`/api/warehouse?module=sto&key=${encodeURIComponent(key)}`, { cache: 'no-store' });
+            if (stoRes.ok) {
+              const stoJson = await stoRes.json();
+              const items = Array.isArray(stoJson?.data) ? stoJson.data : (Array.isArray(stoJson?.stoData) ? stoJson.stoData : []);
+              if (items.length > 0) {
+                setStoData(items);
+                try {
+                  sessionStorage.setItem('spindo_sto_cache', JSON.stringify(items));
+                } catch {}
+              }
+            }
+          } catch {}
+        }
         setCustomerBreakdown(d.customerBreakdown || {});
         setLastUpdated(d.lastUpdated || '');
         setIsCustomData(true);
@@ -398,6 +418,20 @@ export default function Home() {
         console.error('Failed to parse localStorage cache:', err);
       }
 
+      // Restore STO cache dari sessionStorage agar instan tersedia saat refresh web
+      try {
+        const localSto = sessionStorage.getItem('spindo_sto_cache');
+        if (localSto) {
+          const stoItems = JSON.parse(localSto);
+          if (Array.isArray(stoItems) && stoItems.length > 0) {
+            setStoData(stoItems);
+            setIsCustomData(true);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to parse STO cache from sessionStorage:', err);
+      }
+
       // 2. Sinkronkan dengan server database Supabase / SQLite
       try {
         const savedSnapshotKey = typeof window !== 'undefined' ? localStorage.getItem('spindo_selected_snapshot_key') : null;
@@ -445,6 +479,9 @@ export default function Home() {
               if (d.ncProgressData) setNcProgressData(Array.isArray(d.ncProgressData) ? d.ncProgressData : []);
               if (Array.isArray(d.stoData) && d.stoData.length > 0) {
                 setStoData(d.stoData);
+                try {
+                  sessionStorage.setItem('spindo_sto_cache', JSON.stringify(d.stoData));
+                } catch {}
               }
               if (d.snapshotKey) {
                 setSelectedSnapshotKey(d.snapshotKey);
@@ -486,6 +523,19 @@ export default function Home() {
     if (activeTab === 'sto' && stoData.length === 0) {
       const fetchStoOnDemand = async () => {
         try {
+          // 1. Coba pulihkan dari sessionStorage dulu jika tersedia untuk render 0ms
+          try {
+            const cachedSto = sessionStorage.getItem('spindo_sto_cache');
+            if (cachedSto) {
+              const parsed = JSON.parse(cachedSto);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setStoData(parsed);
+                setIsCustomData(true);
+                return;
+              }
+            }
+          } catch {}
+
           const savedKey = selectedSnapshotKey && selectedSnapshotKey !== 'latest'
             ? selectedSnapshotKey
             : (typeof window !== 'undefined' ? localStorage.getItem('spindo_selected_snapshot_key') : null);
@@ -495,9 +545,15 @@ export default function Home() {
           const res = await fetch(stoUrl, { cache: 'no-store' });
           if (res.ok) {
             const json = await res.json();
-            if (json?.success && Array.isArray(json?.data) && json.data.length > 0) {
-              setStoData(json.data);
+            const stoList = Array.isArray(json?.data)
+              ? json.data
+              : (Array.isArray(json?.stoData) ? json.stoData : []);
+            if (json?.success && stoList.length > 0) {
+              setStoData(stoList);
               setIsCustomData(true);
+              try {
+                sessionStorage.setItem('spindo_sto_cache', JSON.stringify(stoList));
+              } catch {}
             }
           }
         } catch (err) {
@@ -530,12 +586,17 @@ export default function Home() {
       lastUpdated: new Date().toLocaleString('id-ID'),
     };
 
-    // 1. Simpan ke Browser LocalStorage
+    // 1. Simpan ke Browser LocalStorage & SessionStorage untuk STO
     try {
       const cacheableState = { ...currentState, stoData: [] };
       localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableState));
     } catch (e) {
       console.error('Failed to save to localStorage:', e);
+    }
+    if (stoData.length > 0) {
+      try {
+        sessionStorage.setItem('spindo_sto_cache', JSON.stringify(stoData));
+      } catch {}
     }
 
     // 2. Simpan ke Database Backend (Omit stoData agar tidak kena limit payload Vercel)
@@ -546,6 +607,22 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(mainState),
       });
+
+      if (stoData.length > 0) {
+        try {
+          await fetch('/api/warehouse?module=sto', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              snapshotKey: selectedSnapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`,
+              lastUpdated: currentState.lastUpdated,
+              stoData,
+            }),
+          });
+        } catch (stoErr) {
+          console.warn('Failed to persist STO module on manual save:', stoErr);
+        }
+      }
       setLastUpdated(currentState.lastUpdated);
       setIsCustomData(true);
       setSaveSuccess(true);
@@ -780,6 +857,11 @@ export default function Home() {
     } catch (lsErr) {
       console.warn('LocalStorage quota exceeded (data tetap aman di server database):', lsErr);
     }
+    if (nextStoData && nextStoData.length > 0) {
+      try {
+        sessionStorage.setItem('spindo_sto_cache', JSON.stringify(nextStoData));
+      } catch {}
+    }
   };
 
   const handleResetData = async () => {
@@ -791,6 +873,9 @@ export default function Home() {
 
     try {
       localStorage.removeItem('spindo_selected_snapshot_key');
+    } catch {}
+    try {
+      sessionStorage.removeItem('spindo_sto_cache');
     } catch {}
 
     localStorage.removeItem('spindo_warehouse_saved_state');

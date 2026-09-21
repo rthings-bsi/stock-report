@@ -108,10 +108,15 @@ export async function GET(request: Request) {
           const stmt = key === 'latest'
             ? db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE sto_data IS NOT NULL AND length(sto_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`)
             : db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE snapshot_key = ? LIMIT 1`);
-          const r = key === 'latest' ? stmt.get() : stmt.get(key);
+          let r = key === 'latest' ? stmt.get() : stmt.get(key);
+          if (!r?.sto_data && key !== 'latest') {
+            r = db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE sto_data IS NOT NULL AND length(sto_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`).get();
+          }
           if (r?.sto_data) {
             const stoData = parseJsonSafe(r.sto_data, []);
-            return NextResponse.json({ success: true, stoData, source: 'sqlite' });
+            if (Array.isArray(stoData) && stoData.length > 0) {
+              return NextResponse.json({ success: true, stoData, data: stoData, source: 'sqlite' });
+            }
           }
         } catch (e) {
           console.warn('SQLite STO module read warning:', e);
@@ -126,11 +131,26 @@ export async function GET(request: Request) {
           } else {
             query = query.eq('snapshot_key', key).limit(1);
           }
-          const { data: rows, error: sErr } = await query;
-          if (!sErr && rows && rows.length > 0 && rows[0].data_json) {
+          let { data: rows, error: sErr } = await query;
+
+          // Fallback jika snapshot_key tertentu tidak ditemukan: ambil snapshot STO terbaru
+          if ((!rows || rows.length === 0) && key !== 'latest') {
+            const fbRes = await supabase
+              .from('stock_opname')
+              .select('data_json, snapshot_key')
+              .order('snapshot_key', { ascending: false })
+              .limit(1);
+            if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
+              rows = fbRes.data;
+            }
+          }
+
+          if (rows && rows.length > 0 && rows[0].data_json) {
             const raw = rows[0].data_json;
             const stoData = typeof raw === 'string' ? JSON.parse(raw) : raw;
-            return NextResponse.json({ success: true, stoData, source: 'supabase_normalized' });
+            if (Array.isArray(stoData) && stoData.length > 0) {
+              return NextResponse.json({ success: true, stoData, data: stoData, source: 'supabase_normalized' });
+            }
           }
 
           let legQuery = supabase.from('warehouse_snapshots').select('sto_data, snapshot_key');
@@ -139,17 +159,33 @@ export async function GET(request: Request) {
           } else {
             legQuery = legQuery.eq('snapshot_key', key).limit(1);
           }
-          const { data: legRows, error: legErr } = await legQuery;
-          if (!legErr && legRows && legRows.length > 0 && legRows[0].sto_data) {
+          let { data: legRows, error: legErr } = await legQuery;
+
+          // Fallback jika snapshot_key tertentu tidak ditemukan di legacy: ambil yang terbaru
+          if ((!legRows || legRows.length === 0) && key !== 'latest') {
+            const fbLegRes = await supabase
+              .from('warehouse_snapshots')
+              .select('sto_data, snapshot_key')
+              .not('sto_data', 'is', null)
+              .order('snapshot_key', { ascending: false })
+              .limit(1);
+            if (!fbLegRes.error && fbLegRes.data && fbLegRes.data.length > 0) {
+              legRows = fbLegRes.data;
+            }
+          }
+
+          if (legRows && legRows.length > 0 && legRows[0].sto_data) {
             const stoData = parseJsonSafe(legRows[0].sto_data, []);
-            return NextResponse.json({ success: true, stoData, source: 'supabase_legacy' });
+            if (Array.isArray(stoData) && stoData.length > 0) {
+              return NextResponse.json({ success: true, stoData, data: stoData, source: 'supabase_legacy' });
+            }
           }
         } catch (supaErr) {
           console.warn('Supabase STO module read warning:', supaErr);
         }
       }
 
-      return NextResponse.json({ success: true, stoData: [] });
+      return NextResponse.json({ success: true, stoData: [], data: [] });
     }
 
     // Handler riwayat komparasi STO per periode (snapshot)
@@ -639,10 +675,12 @@ export async function POST(request: Request) {
         if (db) {
           try {
             db.prepare(`
-              UPDATE warehouse_snapshots
-              SET sto_data = ?, last_updated = ?
-              WHERE snapshot_key = ?
-            `).run(JSON.stringify(stoList), nowStr, dateKey);
+              INSERT INTO warehouse_snapshots (snapshot_key, last_updated, sto_data)
+              VALUES (?, ?, ?)
+              ON CONFLICT(snapshot_key) DO UPDATE SET
+                sto_data = excluded.sto_data,
+                last_updated = excluded.last_updated
+            `).run(dateKey, nowStr, JSON.stringify(stoList));
           } catch (e) {
             console.warn('SQLite STO module save warning:', e);
           }
