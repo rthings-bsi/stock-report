@@ -60,6 +60,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
 }) => {
   const [selectedGudang, setSelectedGudang] = useState<string>('ALL');
   const [selectedPipeType, setSelectedPipeType] = useState<'ALL' | 'LT' | 'ST'>('ALL');
+  const [chartViewMode, setChartViewMode] = useState<'combo' | 'bar-label' | 'percent'>('bar-label');
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -159,73 +160,100 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     });
   }, [normalizedNCItems, selectedGudang, selectedPipeType]);
 
-  // Agregasi warehouse berdasarkan Tipe Pipa (ALL / LT / ST)
+  // Agregasi warehouse berdasarkan Tipe Pipa (ALL / LT / ST) dan Filter Gudang
   const effectiveWarehouseData = useMemo<PipeNCWarehouse[]>(() => {
-    if (selectedPipeType === 'ALL') {
-      return ncWarehouseData;
+    const baseData =
+      selectedPipeType === 'ALL'
+        ? ncWarehouseData.map((w) => {
+            const totalWh = w.prime + w.gradeE + w.gradeC;
+            const persenGradeE = totalWh > 0 ? (w.gradeE / totalWh) * 100 : 0;
+            const persenGradeC = totalWh > 0 ? (w.gradeC / totalWh) * 100 : 0;
+            return {
+              ...w,
+              persenGradeE: Number(persenGradeE.toFixed(1)),
+              persenGradeC: Number(persenGradeC.toFixed(1)),
+            };
+          })
+        : ncWarehouseData.map((w) => {
+            const isLT = selectedPipeType === 'LT';
+
+            // 1. Ambil gradeE & gradeC langsung dari normalizedNCItems agar sinkron sempurna dengan filter LT/ST
+            const matchingItems = normalizedNCItems.filter(
+              (i) => i.gudang === w.gudang && i.type === selectedPipeType
+            );
+            const gradeE = Number(
+              matchingItems
+                .filter((i) => i.grade === 'Grade E')
+                .reduce((sum, i) => sum + (i.totalTon || 0), 0)
+                .toFixed(1)
+            );
+            const gradeC = Number(
+              matchingItems
+                .filter((i) => i.grade === 'Grade C')
+                .reduce((sum, i) => sum + (i.totalTon || 0), 0)
+                .toFixed(1)
+            );
+
+            // 2. Ambil prime sesuai tipe pipa (LT / ST) dari data gudang riil
+            let prime = 0;
+            if (isLT) {
+              if (typeof w.primeLt === 'number') {
+                prime = w.primeLt;
+              } else if (pipeCapacities && pipeCapacities.length > 0) {
+                const cap = pipeCapacities.find((p) => p.gudang === w.gudang);
+                if (cap) {
+                  const totalStockType = (cap.fgLt || 0) + (cap.wipLt || 0);
+                  prime = Math.max(0, totalStockType - (gradeE + gradeC));
+                } else {
+                  prime = Number((w.prime * 0.8).toFixed(1));
+                }
+              } else {
+                prime = Number((w.prime * 0.8).toFixed(1));
+              }
+            } else {
+              if (typeof w.primeSt === 'number') {
+                prime = w.primeSt;
+              } else if (pipeCapacities && pipeCapacities.length > 0) {
+                const cap = pipeCapacities.find((p) => p.gudang === w.gudang);
+                if (cap) {
+                  const totalStockType = (cap.fgSt || 0) + (cap.wipSt || 0);
+                  prime = Math.max(0, totalStockType - (gradeE + gradeC));
+                } else {
+                  prime = Number((w.prime * 0.2).toFixed(1));
+                }
+              } else {
+                prime = Number((w.prime * 0.2).toFixed(1));
+              }
+            }
+
+            prime = Number(prime.toFixed(1));
+            const totalWh = prime + gradeE + gradeC;
+            const persenGradeE = totalWh > 0 ? (gradeE / totalWh) * 100 : 0;
+            const persenGradeC = totalWh > 0 ? (gradeC / totalWh) * 100 : 0;
+
+            return {
+              gudang: w.gudang,
+              prime,
+              gradeE,
+              gradeC,
+              persenGradeE: Number(persenGradeE.toFixed(1)),
+              persenGradeC: Number(persenGradeC.toFixed(1)),
+              primeLt: w.primeLt,
+              primeSt: w.primeSt,
+              gradeELt: w.gradeELt,
+              gradeESt: w.gradeESt,
+              gradeCLt: w.gradeCLt,
+              gradeCSt: w.gradeCSt,
+            };
+          });
+
+    // Filter gudang spesifik jika dipilih
+    if (selectedGudang !== 'ALL') {
+      return baseData.filter((w) => w.gudang === selectedGudang);
     }
 
-    return ncWarehouseData.map((w) => {
-      const isLT = selectedPipeType === 'LT';
-
-      // 1. Ambil gradeE & gradeC langsung dari normalizedNCItems agar sinkron sempurna dengan filter LT/ST
-      const matchingItems = normalizedNCItems.filter((i) => i.gudang === w.gudang && i.type === selectedPipeType);
-      const gradeE = Number(
-        matchingItems
-          .filter((i) => i.grade === 'Grade E')
-          .reduce((sum, i) => sum + (i.totalTon || 0), 0)
-          .toFixed(1)
-      );
-      const gradeC = Number(
-        matchingItems
-          .filter((i) => i.grade === 'Grade C')
-          .reduce((sum, i) => sum + (i.totalTon || 0), 0)
-          .toFixed(1)
-      );
-
-      // 2. Ambil prime
-      let prime = 0;
-      if (isLT && w.primeLt !== undefined && w.primeLt > 0) {
-        prime = w.primeLt;
-      } else if (!isLT && w.primeSt !== undefined && w.primeSt > 0) {
-        prime = w.primeSt;
-      } else if (pipeCapacities && pipeCapacities.length > 0) {
-        const cap = pipeCapacities.find((p) => p.gudang === w.gudang);
-        if (cap) {
-          const totalStockType = isLT
-            ? (cap.fgLt || 0) + (cap.wipLt || 0)
-            : (cap.fgSt || 0) + (cap.wipSt || 0);
-          prime = Math.max(0, totalStockType - (gradeE + gradeC));
-          prime = Number(prime.toFixed(1));
-        } else {
-          const totalNCAll = (w.gradeE || 0) + (w.gradeC || 0);
-          const ratio = totalNCAll > 0 ? (gradeE + gradeC) / totalNCAll : (isLT ? 0.8 : 0.2);
-          prime = Number((w.prime * ratio).toFixed(1));
-        }
-      } else {
-        const totalNCAll = (w.gradeE || 0) + (w.gradeC || 0);
-        const ratio = totalNCAll > 0 ? (gradeE + gradeC) / totalNCAll : (isLT ? 0.8 : 0.2);
-        prime = Number((w.prime * ratio).toFixed(1));
-      }
-
-      const totalWh = prime + gradeE + gradeC;
-      const persenGradeE = totalWh > 0 ? (gradeE / totalWh) * 100 : 0;
-
-      return {
-        gudang: w.gudang,
-        prime,
-        gradeE,
-        gradeC,
-        persenGradeE: Number(persenGradeE.toFixed(1)),
-        primeLt: w.primeLt,
-        primeSt: w.primeSt,
-        gradeELt: w.gradeELt,
-        gradeESt: w.gradeESt,
-        gradeCLt: w.gradeCLt,
-        gradeCSt: w.gradeCSt,
-      };
-    });
-  }, [ncWarehouseData, normalizedNCItems, pipeCapacities, selectedPipeType]);
+    return baseData;
+  }, [ncWarehouseData, normalizedNCItems, pipeCapacities, selectedPipeType, selectedGudang]);
 
   // Strictly Top 10 Terbesar Grade E (Hold Mutu)
   const top10GradeE = useMemo(() => {
@@ -272,10 +300,45 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
 
   const isEmpty = effectiveWarehouseData.length === 0 && ncItems.length === 0;
 
-  // Chart data (Distribution per Warehouse: PRIME vs Grade C vs Grade E)
-  const chartData = {
-    labels: effectiveWarehouseData.map((d) => d.gudang),
-    datasets: [
+  // Max NC percentage for dynamic scaling of % Y-axis
+  const maxNCPercent = useMemo(() => {
+    return Math.max(
+      ...effectiveWarehouseData.map((d) => Math.max(d.persenGradeE || 0, d.persenGradeC || 0)),
+      5
+    );
+  }, [effectiveWarehouseData]);
+
+  // Chart data (Distribution per Warehouse: PRIME vs Grade C vs Grade E with % support)
+  const chartData = useMemo(() => {
+    const labels = effectiveWarehouseData.map((d) => d.gudang);
+
+    if (chartViewMode === 'percent') {
+      return {
+        labels,
+        datasets: [
+          {
+            type: 'bar' as const,
+            label: 'Grade C (%)',
+            data: effectiveWarehouseData.map((d) => d.persenGradeC || 0),
+            backgroundColor: '#f59e0b',
+            hoverBackgroundColor: '#d97706',
+            borderRadius: 2,
+            yAxisID: 'y',
+          },
+          {
+            type: 'bar' as const,
+            label: 'Grade E (%)',
+            data: effectiveWarehouseData.map((d) => d.persenGradeE),
+            backgroundColor: '#dc2626',
+            hoverBackgroundColor: '#b91c1c',
+            borderRadius: 2,
+            yAxisID: 'y',
+          },
+        ],
+      };
+    }
+
+    const datasets: any[] = [
       {
         type: 'bar' as const,
         label: 'PRIME (Ton)',
@@ -283,6 +346,8 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
         backgroundColor: '#059669',
         hoverBackgroundColor: '#047857',
         borderRadius: 2,
+        maxBarThickness: selectedGudang !== 'ALL' ? 52 : 28,
+        yAxisID: 'y',
       },
       {
         type: 'bar' as const,
@@ -291,6 +356,8 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
         backgroundColor: '#f59e0b',
         hoverBackgroundColor: '#d97706',
         borderRadius: 2,
+        maxBarThickness: selectedGudang !== 'ALL' ? 52 : 28,
+        yAxisID: 'y',
       },
       {
         type: 'bar' as const,
@@ -299,58 +366,291 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
         backgroundColor: '#dc2626',
         hoverBackgroundColor: '#b91c1c',
         borderRadius: 2,
+        maxBarThickness: selectedGudang !== 'ALL' ? 52 : 28,
+        yAxisID: 'y',
       },
-    ],
-  };
+    ];
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom' as const,
-        labels: {
-          font: { family: 'monospace', size: 10, weight: 'bold' as const },
-          color: '#475569',
-          boxWidth: 10,
-          boxHeight: 10,
-          usePointStyle: true,
-          pointStyle: 'rectRounded',
-          padding: 16,
+    if (chartViewMode === 'combo') {
+      datasets.push(
+        {
+          type: 'line' as const,
+          label: '% Grd C',
+          data: effectiveWarehouseData.map((d) => d.persenGradeC || 0),
+          borderColor: '#d97706',
+          backgroundColor: '#d97706',
+          pointBackgroundColor: '#ffffff',
+          pointBorderColor: '#d97706',
+          pointBorderWidth: 2,
+          pointRadius: 3.5,
+          pointHoverRadius: 6,
+          borderWidth: 2,
+          borderDash: [4, 3],
+          tension: 0.35,
+          yAxisID: 'y1',
+        },
+        {
+          type: 'line' as const,
+          label: '% Grd E',
+          data: effectiveWarehouseData.map((d) => d.persenGradeE),
+          borderColor: '#e11d48',
+          backgroundColor: '#e11d48',
+          pointBackgroundColor: '#ffffff',
+          pointBorderColor: '#e11d48',
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6.5,
+          borderWidth: 2.2,
+          tension: 0.35,
+          yAxisID: 'y1',
+        }
+      );
+    }
+
+    return { labels, datasets };
+  }, [chartViewMode, effectiveWarehouseData, selectedGudang]);
+
+  // Plugin to render high-contrast, non-overlapping % badges
+  const ncPercentageDataLabelsPlugin = useMemo(() => ({
+    id: 'ncPercentageDataLabels',
+    afterDatasetsDraw(chart: any) {
+      const { ctx } = chart;
+
+      // 1. MODE: 'bar-label' -> Single clean % NC badge floating above each warehouse's highest bar
+      if (chartViewMode === 'bar-label') {
+        const primeMeta = chart.getDatasetMeta(0);
+        const gradeCMeta = chart.getDatasetMeta(1);
+        const gradeEMeta = chart.getDatasetMeta(2);
+        if (!primeMeta || !gradeCMeta || !gradeEMeta) return;
+
+        effectiveWarehouseData.forEach((w, index) => {
+          const totalWh = w.prime + w.gradeE + w.gradeC;
+          if (totalWh <= 0) return;
+          const totalNC = w.gradeE + w.gradeC;
+          const pctNC = (totalNC / totalWh) * 100;
+          if (pctNC <= 0) return;
+
+          const pEl = primeMeta.data[index];
+          const cEl = gradeCMeta.data[index];
+          const eEl = gradeEMeta.data[index];
+          if (!pEl) return;
+
+          const centerX = cEl ? cEl.x : pEl.x;
+          const minY = Math.min(
+            pEl ? pEl.y : 9999,
+            cEl && w.gradeC > 0 ? cEl.y : 9999,
+            eEl && w.gradeE > 0 ? eEl.y : 9999
+          );
+
+          const text = `${pctNC.toFixed(1)}% NC`;
+          const isHigh = pctNC >= 5.0;
+
+          ctx.save();
+          ctx.font = 'bold 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+          const textWidth = ctx.measureText(text).width;
+          const pillW = textWidth + 8;
+          const pillH = 15;
+          const pillX = centerX - pillW / 2;
+          const pillY = Math.max(minY - pillH - 4, 8);
+
+          // Draw pill background
+          ctx.beginPath();
+          ctx.roundRect(pillX, pillY, pillW, pillH, 3);
+          ctx.fillStyle = isHigh ? '#fff1f2' : '#f8fafc';
+          ctx.fill();
+          ctx.strokeStyle = isHigh ? '#fca5a5' : '#cbd5e1';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Draw pill text
+          ctx.fillStyle = isHigh ? '#991b1b' : '#334155';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, centerX, pillY + pillH / 2);
+          ctx.restore();
+        });
+        return;
+      }
+
+      // 2. MODE: 'percent' -> Draw percentage directly above each Grade C and Grade E bar
+      if (chartViewMode === 'percent') {
+        chart.data.datasets.forEach((dataset: any, datasetIndex: number) => {
+          const meta = chart.getDatasetMeta(datasetIndex);
+          if (!meta || meta.hidden) return;
+          const isGradeC = dataset.label?.includes('Grade C');
+          const isGradeE = dataset.label?.includes('Grade E');
+          if (!isGradeC && !isGradeE) return;
+
+          meta.data.forEach((element: any, index: number) => {
+            const val = dataset.data[index];
+            if (element && typeof val === 'number' && val > 0) {
+              const text = `${val.toFixed(1)}%`;
+              ctx.save();
+              ctx.font = 'bold 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+              ctx.fillStyle = isGradeE ? '#b91c1c' : '#b45309';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(text, element.x, Math.max(element.y - 4, 8));
+              ctx.restore();
+            }
+          });
+        });
+        return;
+      }
+
+      // 3. MODE: 'combo' -> Draw clean floating pills ONLY above curve points that have significant % (>= 1.5%)
+      if (chartViewMode === 'combo') {
+        // Line datasets: dataset index 3 (% Grd C) and 4 (% Grd E)
+        [3, 4].forEach((datasetIndex) => {
+          const dataset = chart.data.datasets[datasetIndex];
+          if (!dataset || dataset.type !== 'line') return;
+          const meta = chart.getDatasetMeta(datasetIndex);
+          if (!meta || meta.hidden) return;
+          const isGradeE = dataset.label?.includes('Grade E') || dataset.label?.includes('Grd E');
+
+          meta.data.forEach((element: any, index: number) => {
+            const val = dataset.data[index];
+            if (element && typeof val === 'number' && val >= 1.5) {
+              const text = `${val.toFixed(1)}%`;
+              ctx.save();
+              ctx.font = 'bold 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+              const textWidth = ctx.measureText(text).width;
+              const pillW = textWidth + 6;
+              const pillH = 14;
+              const pillX = element.x - pillW / 2;
+              const pillY = Math.max(element.y - pillH - 4, 8);
+
+              // Floating pill background prevents bar interference
+              ctx.beginPath();
+              ctx.roundRect(pillX, pillY, pillW, pillH, 3);
+              ctx.fillStyle = isGradeE ? '#fff1f2' : '#fef3c7';
+              ctx.fill();
+              ctx.strokeStyle = isGradeE ? '#fecdd3' : '#fde68a';
+              ctx.lineWidth = 1;
+              ctx.stroke();
+
+              ctx.fillStyle = isGradeE ? '#9f1239' : '#92400e';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(text, element.x, pillY + pillH / 2);
+              ctx.restore();
+            }
+          });
+        });
+      }
+    },
+  }), [chartViewMode, effectiveWarehouseData]);
+
+  const chartOptions = useMemo(() => {
+    const isPercentMode = chartViewMode === 'percent';
+    const isCombo = chartViewMode === 'combo';
+
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: {
+          top: 22,
+          right: isCombo ? 14 : 6,
+          left: 4,
+          bottom: 2,
         },
       },
-      tooltip: {
-        backgroundColor: '#0f172a',
-        titleFont: { family: 'monospace', size: 11, weight: 'bold' as const },
-        bodyFont: { family: 'monospace', size: 11 },
-        padding: 8,
-        cornerRadius: 4,
-        callbacks: {
-          title: function (items: any[]) {
-            if (items.length > 0) {
-              const idx = items[0].dataIndex;
+      interaction: {
+        mode: 'index' as const,
+        intersect: false,
+      },
+      plugins: {
+        legend: {
+          position: 'bottom' as const,
+          labels: {
+            font: { family: 'monospace', size: 10, weight: 'bold' as const },
+            color: '#475569',
+            boxWidth: 8,
+            boxHeight: 8,
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+            padding: 12,
+          },
+        },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          titleFont: { family: 'monospace', size: 11, weight: 'bold' as const },
+          bodyFont: { family: 'monospace', size: 11 },
+          padding: 8,
+          cornerRadius: 4,
+          callbacks: {
+            title: function (items: any[]) {
+              if (items.length > 0) {
+                const idx = items[0].dataIndex;
+                const w = effectiveWarehouseData[idx];
+                const totalW = w ? w.prime + w.gradeC + w.gradeE : 0;
+                return `${w?.gudang} (Total Stock: ${formatTon(totalW)})`;
+              }
+              return '';
+            },
+            label: function (context: any) {
+              const idx = context.dataIndex;
               const w = effectiveWarehouseData[idx];
-              const totalW = w ? w.prime + w.gradeC + w.gradeE : 0;
-              return `${w?.gudang} (Total: ${formatTon(totalW)})`;
-            }
-            return '';
+              if (!w) return `${context.dataset.label}: ${context.formattedValue}`;
+              const totalW = w.prime + w.gradeC + w.gradeE;
+
+              if (context.dataset.label?.includes('PRIME')) {
+                const pct = totalW > 0 ? (w.prime / totalW) * 100 : 0;
+                return ` PRIME: ${formatTon(w.prime)} (${formatPercent(pct)})`;
+              }
+              if (context.dataset.label?.includes('Grade C') || context.dataset.label?.includes('Grd C')) {
+                const pct = w.persenGradeC ?? (totalW > 0 ? (w.gradeC / totalW) * 100 : 0);
+                return ` Grade C: ${formatTon(w.gradeC)} (${formatPercent(pct)})`;
+              }
+              if (context.dataset.label?.includes('Grade E') || context.dataset.label?.includes('Grd E')) {
+                const pct = w.persenGradeE;
+                return ` Grade E: ${formatTon(w.gradeE)} (${formatPercent(pct)})`;
+              }
+              return ` ${context.dataset.label}: ${context.formattedValue}`;
+            },
           },
         },
       },
-    },
-    scales: {
-      x: {
-        grid: { display: false },
-        ticks: { font: { family: 'monospace', size: 10, weight: 'bold' as const }, color: '#334155' },
-        border: { color: '#cbd5e1' },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { family: 'monospace', size: 10, weight: 'bold' as const }, color: '#334155' },
+          border: { color: '#cbd5e1' },
+        },
+        y: {
+          type: 'linear' as const,
+          position: 'left' as const,
+          grid: { color: '#f1f5f9' },
+          ticks: {
+            font: { family: 'monospace', size: 9 },
+            color: '#64748b',
+            callback: (v: any) => (isPercentMode ? `${v}%` : `${v} T`),
+          },
+          border: { dash: [4, 4], color: '#cbd5e1' },
+          beginAtZero: true,
+          ...(isPercentMode ? { max: Math.min(100, Math.ceil(maxNCPercent * 1.25) || 10) } : {}),
+        },
+        ...(isCombo
+          ? {
+              y1: {
+                type: 'linear' as const,
+                position: 'right' as const,
+                grid: { drawOnChartArea: false },
+                ticks: {
+                  font: { family: 'monospace', size: 9, weight: 'bold' as const },
+                  color: '#e11d48',
+                  callback: (v: any) => `${v}%`,
+                },
+                border: { dash: [4, 4], color: '#fca5a5' },
+                beginAtZero: true,
+                max: Math.min(100, Math.max(10, Math.ceil(maxNCPercent * 1.35))),
+              },
+            }
+          : {}),
       },
-      y: {
-        grid: { color: '#f1f5f9' },
-        ticks: { font: { family: 'monospace', size: 9 }, color: '#64748b' },
-        border: { dash: [4, 4], color: '#cbd5e1' },
-      },
-    },
-  };
+    };
+  }, [chartViewMode, effectiveWarehouseData, maxNCPercent]);
 
   // Active warehouse selection metrics for donut
   const activeWarehouseNC = useMemo(() => {
@@ -665,15 +965,17 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               {renderSortHeader('Gudang', 'gudang', recapSortField, recapSortDir, handleSort, 'left')}
               {renderSortHeader('PRIME', 'prime', recapSortField, recapSortDir, handleSort, 'right', 'text-emerald-900')}
               {renderSortHeader('Grade E', 'gradeE', recapSortField, recapSortDir, handleSort, 'right', 'text-rose-900')}
+              {renderSortHeader('% Grd E', 'persenGradeE', recapSortField, recapSortDir, handleSort, 'right', 'text-rose-900')}
               {renderSortHeader('Grade C', 'gradeC', recapSortField, recapSortDir, handleSort, 'right', 'text-amber-900')}
-              {renderSortHeader('% Grd E', 'persenGradeE', recapSortField, recapSortDir, handleSort, 'right', 'text-slate-900')}
+              {renderSortHeader('% Grd C', 'persenGradeC', recapSortField, recapSortDir, handleSort, 'right', 'text-amber-900')}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
             {sorted.map((item) => {
               const isSelected = selectedGudang === item.gudang;
               const warehouseTotal = item.prime + item.gradeE + item.gradeC;
-              const pctGradeE = warehouseTotal > 0 ? (item.gradeE / warehouseTotal) * 100 : 0;
+              const pctGradeE = item.persenGradeE;
+              const pctGradeC = item.persenGradeC ?? (warehouseTotal > 0 ? (item.gradeC / warehouseTotal) * 100 : 0);
               const isTop3 = top3GradeEGudangs.includes(item.gudang);
               const isTop3C = top3GradeCGudangs.includes(item.gudang);
               const barWidthE = Math.min((item.gradeE / maxGradeE) * 100, 100);
@@ -725,6 +1027,17 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                       {formatTon(item.gradeE)}
                     </span>
                   </td>
+                  <td className="py-3 px-3.5 text-right whitespace-nowrap font-mono">
+                    {isTop3 ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
+                        {formatPercent(pctGradeE)}
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-rose-900">
+                        {formatPercent(pctGradeE)}
+                      </span>
+                    )}
+                  </td>
                   <td className="py-3 px-3.5 text-right relative font-mono">
                     <div
                       className={`absolute inset-y-1.5 right-1 rounded-xs pointer-events-none ${
@@ -737,13 +1050,13 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                     </span>
                   </td>
                   <td className="py-3 px-3.5 text-right whitespace-nowrap font-mono">
-                    {isTop3 ? (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
-                        {formatPercent(pctGradeE)}
+                    {isTop3C ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold font-mono bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                        {formatPercent(pctGradeC)}
                       </span>
                     ) : (
-                      <span className="font-semibold text-slate-900">
-                        {formatPercent(pctGradeE)}
+                      <span className="font-semibold text-amber-900">
+                        {formatPercent(pctGradeC)}
                       </span>
                     )}
                   </td>
@@ -762,11 +1075,14 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               <td className="py-3 px-3.5 text-right text-rose-800 font-black font-mono">
                 {formatTon(totalGradeE)}
               </td>
+              <td className="py-3 px-3.5 text-right font-black text-rose-800 font-mono">
+                {formatPercent(persenGradeETotal)}
+              </td>
               <td className="py-3 px-3.5 text-right text-amber-900 font-bold font-mono">
                 {formatTon(totalGradeC)}
               </td>
-              <td className="py-3 px-3.5 text-right font-black text-slate-900 font-mono">
-                {formatPercent(persenGradeETotal)}
+              <td className="py-3 px-3.5 text-right font-black text-amber-900 font-mono">
+                {formatPercent(persenGradeCTotal)}
               </td>
             </tr>
           </tfoot>
@@ -1197,7 +1513,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               onChange={(e) => setSelectedGudang(e.target.value)}
               className="bg-emerald-900 border border-emerald-700 text-white text-xs font-bold rounded px-1.5 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer"
             >
-              <option value="ALL">Semua Gudang ({effectiveWarehouseData.length})</option>
+              <option value="ALL">Semua Gudang ({availableGudangs.filter((g) => g !== 'ALL').length})</option>
               {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
                 <option key={g} value={g}>
                   {g}
@@ -1237,8 +1553,12 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                 <CustomizableCard
                   key={card.id}
                   id={card.id}
-                  title="Tonase Pipa NC Per Gudang"
-                  subtitle="Rekapitulasi tonase pipa PRIME vs Non Conformity (Grade E &amp; C) per unit gudang"
+                  title={selectedGudang !== 'ALL' ? `Tonase Pipa NC • ${selectedGudang}` : "Tonase Pipa NC Per Gudang"}
+                  subtitle={
+                    selectedGudang !== 'ALL'
+                      ? `Rekapitulasi tonase PRIME vs Non Conformity di ${selectedGudang}`
+                      : "Rekapitulasi tonase pipa PRIME vs Non Conformity (Grade E & C) per unit gudang"
+                  }
                   icon={Table2}
                   width={card.width}
                   isCustomizing={isCustomizing}
@@ -1249,14 +1569,20 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   onWidthChange={(w) => handleWidthChange(card.id, w)}
                   badge={
                     <span className="text-[10px] font-mono bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-200">
-                      {effectiveWarehouseData.length} Gudang
+                      {selectedGudang !== 'ALL' ? selectedGudang : `${effectiveWarehouseData.length} Gudang`}
                     </span>
                   }
                   headerAction={
                     selectedGudang !== 'ALL' ? (
-                      <span className="text-xs font-mono text-emerald-800 font-bold bg-emerald-100/70 px-2 py-0.5 rounded border border-emerald-300">
-                        Aktif: {selectedGudang}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGudang('ALL')}
+                        className="flex items-center gap-1 text-[11px] font-mono text-emerald-800 font-bold bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded border border-emerald-300 transition-colors cursor-pointer"
+                        title="Tampilkan semua gudang"
+                      >
+                        <span>Filter: {selectedGudang}</span>
+                        <span className="text-[10px] text-emerald-700 underline font-sans ml-0.5">Reset</span>
+                      </button>
                     ) : undefined
                   }
                 >
@@ -1271,8 +1597,16 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                 <CustomizableCard
                   key={card.id}
                   id={card.id}
-                  title="Stock Pipa Prime &amp; NC Per Gudang"
-                  subtitle="Perbandingan visual komposisi PRIME, Grade C (Repair), dan Grade E (Hold Mutu) per gudang"
+                  title={
+                    selectedGudang !== 'ALL'
+                      ? `Stock Prime & NC • ${selectedGudang}`
+                      : `Stock Pipa Prime & NC${selectedPipeType !== 'ALL' ? ` (${selectedPipeType})` : ''}`
+                  }
+                  subtitle={
+                    selectedGudang !== 'ALL'
+                      ? `Komposisi PRIME, Grade C, dan Grade E di ${selectedGudang}${selectedPipeType !== 'ALL' ? ` tipe ${selectedPipeType}` : ''}`
+                      : `Perbandingan visual komposisi PRIME, Grade C, dan Grade E per gudang${selectedPipeType !== 'ALL' ? ` (${selectedPipeType})` : ''}`
+                  }
                   icon={ShieldAlert}
                   width={card.width}
                   isCustomizing={isCustomizing}
@@ -1282,14 +1616,64 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   onMoveRight={() => handleMove(index, 'right')}
                   onWidthChange={(w) => handleWidthChange(card.id, w)}
                   badge={
-                    <span className="text-[10px] font-mono bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded border border-slate-300">
-                      Per Gudang
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded border border-slate-300">
+                        {selectedGudang !== 'ALL' ? selectedGudang : `${effectiveWarehouseData.length} Gudang`}
+                      </span>
+                      {chartViewMode === 'combo' && (
+                        <span className="text-[10px] font-mono bg-amber-50 text-amber-900 font-bold px-1.5 py-0.5 rounded border border-amber-200/80">
+                          Dual Axis
+                        </span>
+                      )}
+                    </div>
+                  }
+                  headerAction={
+                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setChartViewMode('bar-label')}
+                        className={cn(
+                          "px-2 py-0.5 text-[11px] font-mono font-bold rounded transition-all cursor-pointer",
+                          chartViewMode === 'bar-label'
+                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                        title="Tampilkan Tonase dengan Badge % NC di atas batang tertinggi"
+                      >
+                        Ton &amp; %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChartViewMode('percent')}
+                        className={cn(
+                          "px-2 py-0.5 text-[11px] font-mono font-bold rounded transition-all cursor-pointer",
+                          chartViewMode === 'percent'
+                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                        title="Perbandingan persentase murni Grade C vs Grade E tanpa distorsi PRIME"
+                      >
+                        Rasio %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChartViewMode('combo')}
+                        className={cn(
+                          "px-2 py-0.5 text-[11px] font-mono font-bold rounded transition-all cursor-pointer",
+                          chartViewMode === 'combo'
+                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                        title="Kurva spline tren persentase dengan titik indikator rapi"
+                      >
+                        Kurva
+                      </button>
+                    </div>
                   }
                 >
                   {(expanded) => (
                     <div className={cn("w-full pt-1", expanded ? "flex-1 min-h-[440px]" : "h-64")}>
-                      <Chart type="bar" data={chartData} options={chartOptions} />
+                      <Chart type="bar" data={chartData} options={chartOptions} plugins={[ncPercentageDataLabelsPlugin]} />
                     </div>
                   )}
                 </CustomizableCard>

@@ -46,6 +46,7 @@ export interface PipeNCWarehouse {
   gradeE: number;
   gradeC: number;
   persenGradeE: number;
+  persenGradeC?: number;
   primeLt?: number;
   primeSt?: number;
   gradeELt?: number;
@@ -202,6 +203,7 @@ export interface UnfifoPipeItem {
   prodYear?: string;
   unfifoStatus: string;
   issueNote?: string;
+  processType?: 'FG' | 'WIP';
 }
 
 export type NCProgressTransactionType = 'IN_NC' | 'OUT_REPAIR' | 'OUT_REPAIR_RETURN' | 'IN_OK_PRIME' | 'REJECT_REPAIR' | 'OTHER';

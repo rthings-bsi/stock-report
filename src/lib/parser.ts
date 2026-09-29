@@ -1363,7 +1363,8 @@ export function parseExcelFiles(
         tonase: Number(tonase.toFixed(3)),
         incDate: formattedDate,
         prodYear: extractedYear,
-        unfifoStatus: isSlow ? 'SLOW MOVING' : (rawUnfifo || 'UNFIFO')
+        unfifoStatus: isSlow ? 'SLOW MOVING' : (rawUnfifo || 'UNFIFO'),
+        processType: isFG ? 'FG' : 'WIP'
       });
     }
   });

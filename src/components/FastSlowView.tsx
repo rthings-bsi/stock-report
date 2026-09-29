@@ -37,6 +37,16 @@ interface CardState {
   width: CardWidth;
 }
 
+export type ProcessTypeFilter = 'ALL' | 'FG' | 'WIP';
+export type FastSlowChartMode = 'bar-ton-pct' | 'split-fg-wip' | 'percent-only';
+
+export const isItemFG = (item: { processType?: 'FG' | 'WIP'; ukuran?: string; kodeMaterial?: string; customer?: string }): boolean => {
+  if (item.processType === 'FG') return true;
+  if (item.processType === 'WIP') return false;
+  const str = `${item.ukuran || ''} ${item.kodeMaterial || ''}`;
+  return /\bMP\b/i.test(str) || /\bMP\s/i.test(str) || /\sMP\b/i.test(str);
+};
+
 interface TopSlowItem {
   no: number;
   gudang: string;
@@ -48,6 +58,7 @@ interface TopSlowItem {
   qtyBtg: number;
   tonase: number;
   count: number;
+  processType: 'FG' | 'WIP';
 }
 
 const DEFAULT_CARDS: CardState[] = [
@@ -65,12 +76,15 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
 }) => {
   const safeData = data.length > 0 ? data : [];
   const [selectedGudang, setSelectedGudang] = useState<string>('ALL');
+  const [selectedProcessType, setSelectedProcessType] = useState<ProcessTypeFilter>('ALL');
+  const [chartMode, setChartMode] = useState<FastSlowChartMode>('bar-ton-pct');
 
   // Card order & size state with localStorage persistence
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
   const [isMounted, setIsMounted] = useState(false);
   const [showYearModal, setShowYearModal] = useState(false);
   const [modalYearGudang, setModalYearGudang] = useState<string>('ALL');
+  const [modalProcessFilter, setModalProcessFilter] = useState<ProcessTypeFilter>('ALL');
   const [selectedDrilldownYear, setSelectedDrilldownYear] = useState<string | null>(null);
   const [modalSearchQuery, setModalSearchQuery] = useState<string>('');
 
@@ -133,9 +147,23 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     return ['ALL', ...list];
   }, [safeData]);
 
+  // Helper for slow ton per warehouse based on selected process type
+  const getWarehouseSlowTon = (d: FastSlowPipe, procType: ProcessTypeFilter): number => {
+    if (procType === 'FG') {
+      return Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
+    }
+    if (procType === 'WIP') {
+      return Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
+    }
+    return d.slowTon;
+  };
+
   // Global metrics
   const totalFast = safeData.reduce((acc, curr) => acc + curr.fastTon, 0);
-  const totalSlow = safeData.reduce((acc, curr) => acc + curr.slowTon, 0);
+  const totalSlow = safeData.reduce(
+    (acc, curr) => acc + getWarehouseSlowTon(curr, selectedProcessType),
+    0
+  );
   const grandTotal = totalFast + totalSlow;
 
   const overallFastPct = grandTotal > 0 ? (totalFast / grandTotal) * 100 : 0;
@@ -148,20 +176,36 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
   }, [safeData, selectedGudang]);
 
   // Helper to extract aggregated top slow moving items
-  const getTopSlowItems = (gudang: string, limit: number): TopSlowItem[] => {
+  const getTopSlowItems = (
+    gudang: string,
+    limit: number,
+    procType: ProcessTypeFilter
+  ): TopSlowItem[] => {
     if (!pipeData || pipeData.length === 0) return [];
 
     const isAll = gudang === 'ALL';
-    const rawMatches = isAll
-      ? pipeData
-      : pipeData.filter((i) => i.gudang === gudang);
+    const hasSlowStatus = pipeData.some((i) => i.unfifoStatus === 'SLOW MOVING');
+    let rawMatches = hasSlowStatus
+      ? pipeData.filter((i) => i.unfifoStatus === 'SLOW MOVING')
+      : pipeData;
+
+    if (!isAll) {
+      rawMatches = rawMatches.filter((i) => i.gudang === gudang);
+    }
+
+    if (procType === 'FG') {
+      rawMatches = rawMatches.filter((i) => isItemFG(i));
+    } else if (procType === 'WIP') {
+      rawMatches = rawMatches.filter((i) => !isItemFG(i));
+    }
 
     const map: Record<string, TopSlowItem> = {};
 
     rawMatches.forEach((item) => {
+      const itemProc: 'FG' | 'WIP' = isItemFG(item) ? 'FG' : 'WIP';
       const key = isAll
-        ? `${item.gudang}|${item.kodeMaterial}|${item.ukuran}|${item.customer}`
-        : `${item.kodeMaterial}|${item.ukuran}|${item.customer}`;
+        ? `${item.gudang}|${item.kodeMaterial}|${item.ukuran}|${item.customer}|${itemProc}`
+        : `${item.kodeMaterial}|${item.ukuran}|${item.customer}|${itemProc}`;
 
       if (!map[key]) {
         map[key] = {
@@ -174,7 +218,8 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
           incDate: item.incDate,
           qtyBtg: 0,
           tonase: 0,
-          count: 0
+          count: 0,
+          processType: itemProc,
         };
       }
       map[key].qtyBtg += item.qtyBtg;
@@ -198,13 +243,13 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
 
   // Top slow items for normal dashboard view (Top 10 when ALL, Top 10 when filtered)
   const topSlowItems = useMemo(() => {
-    return getTopSlowItems(selectedGudang, 10);
-  }, [pipeData, selectedGudang]);
+    return getTopSlowItems(selectedGudang, 10, selectedProcessType);
+  }, [pipeData, selectedGudang, selectedProcessType]);
 
   // Fullscreen top 10 items (Always up to 10 for the active warehouse or ALL)
   const fullscreenTop10Items = useMemo(() => {
-    return getTopSlowItems(selectedGudang, 10);
-  }, [pipeData, selectedGudang]);
+    return getTopSlowItems(selectedGudang, 10, selectedProcessType);
+  }, [pipeData, selectedGudang, selectedProcessType]);
 
   // Chart data filtered by selected gudang
   const filteredBarData = useMemo(() => {
@@ -212,91 +257,434 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     return safeData.filter((d) => d.gudang === selectedGudang);
   }, [safeData, selectedGudang]);
 
-  // Bar Chart Configuration
-  const barChartData = {
-    labels: filteredBarData.map((d) => d.gudang),
-    datasets: [
-      {
-        label: 'Fast Moving',
-        data: filteredBarData.map((d) => d.fastTon),
-        backgroundColor: '#059669',
-        hoverBackgroundColor: '#047857',
-        borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-        borderSkipped: false,
-        maxBarThickness: selectedGudang !== 'ALL' ? 56 : 32,
-      },
-      {
-        label: 'Slow Moving',
-        data: filteredBarData.map((d) => d.slowTon),
-        backgroundColor: '#d97706',
-        hoverBackgroundColor: '#b45309',
-        borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-        borderSkipped: false,
-        maxBarThickness: selectedGudang !== 'ALL' ? 56 : 32,
-      },
-    ],
-  };
+  const slowDatasetLabel =
+    selectedProcessType === 'ALL'
+      ? 'Slow Moving'
+      : selectedProcessType === 'FG'
+      ? 'Slow Moving (FG)'
+      : 'Slow Moving (WIP)';
 
-  const barChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom' as const,
-        labels: {
-          font: { family: 'inherit', size: 11, weight: 'bold' as const },
-          color: '#475569',
-          boxWidth: 10,
-          boxHeight: 10,
-          usePointStyle: true,
-          pointStyle: 'rectRounded',
-          padding: 20,
+  // Bar Chart Configuration (supports standard Ton + %, Split FG/WIP, and Percent Ratio)
+  const barChartData = useMemo(() => {
+    const labels = filteredBarData.map((d) => d.gudang);
+    const maxBarThickness = selectedGudang !== 'ALL'
+      ? (chartMode === 'split-fg-wip' ? 44 : 56)
+      : (chartMode === 'split-fg-wip' ? 24 : 32);
+
+    if (chartMode === 'split-fg-wip') {
+      return {
+        labels,
+        datasets: [
+          {
+            label: 'Fast Moving',
+            data: filteredBarData.map((d) => d.fastTon),
+            backgroundColor: '#059669',
+            hoverBackgroundColor: '#047857',
+            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            maxBarThickness,
+          },
+          {
+            label: 'Slow Moving (FG)',
+            data: filteredBarData.map((d) => Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2))),
+            backgroundColor: '#d97706',
+            hoverBackgroundColor: '#b45309',
+            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            maxBarThickness,
+          },
+          {
+            label: 'Slow Moving (WIP)',
+            data: filteredBarData.map((d) => Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2))),
+            backgroundColor: '#ea580c',
+            hoverBackgroundColor: '#c2410c',
+            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            maxBarThickness,
+          },
+        ],
+      };
+    }
+
+    if (chartMode === 'percent-only') {
+      return {
+        labels,
+        datasets: [
+          {
+            label: 'Fast Moving (%)',
+            data: filteredBarData.map((d) => {
+              const fg = (d.fgLtSlow || 0) + (d.fgStSlow || 0);
+              const wip = (d.wipLtSlow || 0) + (d.wipStSlow || 0);
+              const tot = d.fastTon + (d.slowTon > 0 ? d.slowTon : (fg + wip));
+              return tot > 0 ? Number(((d.fastTon / tot) * 100).toFixed(1)) : 0;
+            }),
+            backgroundColor: '#059669',
+            hoverBackgroundColor: '#047857',
+            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            maxBarThickness,
+          },
+          {
+            label: 'Slow FG (%)',
+            data: filteredBarData.map((d) => {
+              const fg = (d.fgLtSlow || 0) + (d.fgStSlow || 0);
+              const wip = (d.wipLtSlow || 0) + (d.wipStSlow || 0);
+              const tot = d.fastTon + (d.slowTon > 0 ? d.slowTon : (fg + wip));
+              return tot > 0 ? Number(((fg / tot) * 100).toFixed(1)) : 0;
+            }),
+            backgroundColor: '#d97706',
+            hoverBackgroundColor: '#b45309',
+            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            maxBarThickness,
+          },
+          {
+            label: 'Slow WIP (%)',
+            data: filteredBarData.map((d) => {
+              const fg = (d.fgLtSlow || 0) + (d.fgStSlow || 0);
+              const wip = (d.wipLtSlow || 0) + (d.wipStSlow || 0);
+              const tot = d.fastTon + (d.slowTon > 0 ? d.slowTon : (fg + wip));
+              return tot > 0 ? Number(((wip / tot) * 100).toFixed(1)) : 0;
+            }),
+            backgroundColor: '#ea580c',
+            hoverBackgroundColor: '#c2410c',
+            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            maxBarThickness,
+          },
+        ],
+      };
+    }
+
+    // Default: 'bar-ton-pct'
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Fast Moving',
+          data: filteredBarData.map((d) => d.fastTon),
+          backgroundColor: '#059669',
+          hoverBackgroundColor: '#047857',
+          borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+          borderSkipped: false,
+          maxBarThickness,
+        },
+        {
+          label: slowDatasetLabel,
+          data: filteredBarData.map((d) => getWarehouseSlowTon(d, selectedProcessType)),
+          backgroundColor: selectedProcessType === 'WIP' ? '#ea580c' : '#d97706',
+          hoverBackgroundColor: selectedProcessType === 'WIP' ? '#c2410c' : '#b45309',
+          borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+          borderSkipped: false,
+          maxBarThickness,
+        },
+      ],
+    };
+  }, [filteredBarData, selectedGudang, chartMode, selectedProcessType, slowDatasetLabel]);
+
+  // Antislop Custom Canvas Drawing Plugin: Floating Percentage Badge Pills on Bars
+  const slowPercentageDataLabelsPlugin = useMemo(() => ({
+    id: 'slowPercentageDataLabels',
+    afterDatasetsDraw(chart: any) {
+      const { ctx } = chart;
+
+      // MODE 1: 'bar-ton-pct' (Standard 2 bars with clean % Slow pill badge)
+      if (chartMode === 'bar-ton-pct') {
+        const slowMeta = chart.getDatasetMeta(1);
+        if (!slowMeta || slowMeta.hidden) return;
+
+        filteredBarData.forEach((w, index) => {
+          const fgSlow = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
+          const wipSlow = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
+          const activeSlow = getWarehouseSlowTon(w, selectedProcessType);
+          const totalStock = w.fastTon + (w.slowTon > 0 ? w.slowTon : (fgSlow + wipSlow));
+
+          if (totalStock <= 0 || activeSlow <= 0) return;
+
+          const slowPct = (activeSlow / totalStock) * 100;
+          const el = slowMeta.data[index];
+          if (!el) return;
+
+          let label = `${slowPct.toFixed(1)}%`;
+          if (selectedProcessType === 'FG') label = `${slowPct.toFixed(1)}% FG`;
+          else if (selectedProcessType === 'WIP') label = `${slowPct.toFixed(1)}% WIP`;
+
+          const isHigh = slowPct >= 15.0;
+
+          ctx.save();
+          ctx.font = 'bold 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+          const textWidth = ctx.measureText(label).width;
+          const pillW = textWidth + 8;
+          const pillH = 15;
+          const pillX = el.x - pillW / 2;
+          const pillY = Math.max(el.y - pillH - 4, 6);
+
+          ctx.beginPath();
+          if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(pillX, pillY, pillW, pillH, 3);
+          } else {
+            ctx.rect(pillX, pillY, pillW, pillH);
+          }
+          ctx.fillStyle = isHigh ? '#fffbeb' : '#f8fafc';
+          ctx.fill();
+          ctx.strokeStyle = isHigh ? '#f59e0b' : '#cbd5e1';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = isHigh ? '#b45309' : '#334155';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(label, el.x, pillY + pillH / 2);
+          ctx.restore();
+        });
+        return;
+      }
+
+      // MODE 2: 'split-fg-wip' (Split FG and WIP bars with distinct badge pills)
+      if (chartMode === 'split-fg-wip') {
+        const fgMeta = chart.getDatasetMeta(1);
+        const wipMeta = chart.getDatasetMeta(2);
+
+        filteredBarData.forEach((w, index) => {
+          const fgSlow = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
+          const wipSlow = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
+          const totalStock = w.fastTon + (w.slowTon > 0 ? w.slowTon : (fgSlow + wipSlow));
+
+          if (totalStock <= 0) return;
+
+          const fgPct = (fgSlow / totalStock) * 100;
+          const wipPct = (wipSlow / totalStock) * 100;
+
+          // FG Slow Pill (Amber)
+          if (fgMeta && !fgMeta.hidden && fgSlow > 0) {
+            const el = fgMeta.data[index];
+            if (el) {
+              const label = `${fgPct.toFixed(1)}%`;
+              ctx.save();
+              ctx.font = 'bold 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+              const textWidth = ctx.measureText(label).width;
+              const pillW = textWidth + 6;
+              const pillH = 14;
+              const pillX = el.x - pillW / 2;
+              const pillY = Math.max(el.y - pillH - 3, 6);
+
+              ctx.beginPath();
+              if (typeof ctx.roundRect === 'function') {
+                ctx.roundRect(pillX, pillY, pillW, pillH, 3);
+              } else {
+                ctx.rect(pillX, pillY, pillW, pillH);
+              }
+              ctx.fillStyle = '#fffbeb';
+              ctx.fill();
+              ctx.strokeStyle = '#f59e0b';
+              ctx.lineWidth = 1;
+              ctx.stroke();
+
+              ctx.fillStyle = '#b45309';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(label, el.x, pillY + pillH / 2);
+              ctx.restore();
+            }
+          }
+
+          // WIP Slow Pill (Orange)
+          if (wipMeta && !wipMeta.hidden && wipSlow > 0) {
+            const el = wipMeta.data[index];
+            if (el) {
+              const label = `${wipPct.toFixed(1)}%`;
+              ctx.save();
+              ctx.font = 'bold 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+              const textWidth = ctx.measureText(label).width;
+              const pillW = textWidth + 6;
+              const pillH = 14;
+              const pillX = el.x - pillW / 2;
+              const pillY = Math.max(el.y - pillH - 3, 6);
+
+              ctx.beginPath();
+              if (typeof ctx.roundRect === 'function') {
+                ctx.roundRect(pillX, pillY, pillW, pillH, 3);
+              } else {
+                ctx.rect(pillX, pillY, pillW, pillH);
+              }
+              ctx.fillStyle = '#fff7ed';
+              ctx.fill();
+              ctx.strokeStyle = '#fb923c';
+              ctx.lineWidth = 1;
+              ctx.stroke();
+
+              ctx.fillStyle = '#c2410c';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(label, el.x, pillY + pillH / 2);
+              ctx.restore();
+            }
+          }
+        });
+        return;
+      }
+
+      // MODE 3: 'percent-only' (Normalized percentages with clean direct labels)
+      if (chartMode === 'percent-only') {
+        chart.data.datasets.forEach((dataset: any, datasetIndex: number) => {
+          const meta = chart.getDatasetMeta(datasetIndex);
+          if (!meta || meta.hidden) return;
+
+          meta.data.forEach((element: any, index: number) => {
+            const val = dataset.data[index];
+            if (element && typeof val === 'number' && val > 0) {
+              const text = `${val.toFixed(1)}%`;
+              ctx.save();
+              ctx.font = 'bold 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+              ctx.fillStyle = datasetIndex === 0
+                ? '#047857'
+                : datasetIndex === 1
+                ? '#b45309'
+                : '#c2410c';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(text, element.x, Math.max(element.y - 3, 8));
+              ctx.restore();
+            }
+          });
+        });
+      }
+    },
+  }), [chartMode, filteredBarData, selectedProcessType]);
+
+  const barChartOptions = useMemo(() => {
+    const isPercentMode = chartMode === 'percent-only';
+
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: {
+          top: 26,
+          right: 8,
+          left: 4,
+          bottom: 2,
         },
       },
-      tooltip: {
-        backgroundColor: '#0f172a',
-        titleFont: { family: 'inherit', size: 12, weight: 'bold' as const },
-        bodyFont: { family: 'inherit', size: 11 },
-        padding: 10,
-        cornerRadius: 6,
-        displayColors: true,
-        boxPadding: 4,
-        callbacks: {
-          label: function (context: any) {
-            const val = context.raw || 0;
-            return ` ${context.dataset.label}: ${val.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Ton`;
+      plugins: {
+        legend: {
+          position: 'bottom' as const,
+          labels: {
+            font: { family: 'inherit', size: 11, weight: 'bold' as const },
+            color: '#475569',
+            boxWidth: 10,
+            boxHeight: 10,
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+            padding: 16,
+          },
+        },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          titleFont: { family: 'inherit', size: 12, weight: 'bold' as const },
+          bodyFont: { family: 'inherit', size: 11 },
+          padding: 10,
+          cornerRadius: 6,
+          displayColors: true,
+          boxPadding: 4,
+          callbacks: {
+            title: function (items: any[]) {
+              if (!items.length) return '';
+              return `Gudang ${items[0].label}`;
+            },
+            label: function (context: any) {
+              const val = context.raw || 0;
+              const idx = context.dataIndex;
+              const w = filteredBarData[idx];
+              if (!w) return ` ${context.dataset.label}: ${val}`;
+
+              const fgSlow = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
+              const wipSlow = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
+              const totSlow = w.slowTon > 0 ? w.slowTon : (fgSlow + wipSlow);
+              const totStock = w.fastTon + totSlow;
+
+              if (isPercentMode) {
+                return ` ${context.dataset.label}: ${Number(val).toFixed(1)}%`;
+              }
+
+              const pct = totStock > 0 ? (Number(val) / totStock) * 100 : 0;
+              return ` ${context.dataset.label}: ${Number(val).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Ton (${pct.toFixed(1)}%)`;
+            },
+            afterBody: function (items: any[]) {
+              if (!items.length || isPercentMode) return [];
+              const idx = items[0].dataIndex;
+              const w = filteredBarData[idx];
+              if (!w) return [];
+
+              const fgSlow = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
+              const wipSlow = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
+              const totSlow = w.slowTon > 0 ? w.slowTon : (fgSlow + wipSlow);
+              const totStock = w.fastTon + totSlow;
+              if (totStock <= 0) return [];
+
+              const fgPct = (fgSlow / totStock) * 100;
+              const wipPct = (wipSlow / totStock) * 100;
+
+              if (chartMode === 'bar-ton-pct' && selectedProcessType === 'ALL' && (fgSlow > 0 || wipSlow > 0)) {
+                return [
+                  `-----------------------------`,
+                  `  • Slow FG   : ${fgSlow.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Ton (${fgPct.toFixed(1)}%)`,
+                  `  • Slow WIP  : ${wipSlow.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Ton (${wipPct.toFixed(1)}%)`,
+                ];
+              }
+              return [];
+            },
           },
         },
       },
-    },
-    scales: {
-      x: {
-        grid: { display: false },
-        ticks: { font: { family: 'inherit', size: 11, weight: 'bold' as const }, color: '#334155' },
-        border: { color: '#cbd5e1' },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { family: 'inherit', size: 11, weight: 'bold' as const }, color: '#334155' },
+          border: { color: '#cbd5e1' },
+        },
+        y: {
+          grid: { color: '#f1f5f9' },
+          ticks: {
+            font: { family: 'inherit', size: 10 },
+            color: '#64748b',
+            callback: (val: any) => (isPercentMode ? `${val}%` : `${val}`),
+          },
+          border: { dash: [4, 4], color: '#e2e8f0' },
+          max: isPercentMode ? 100 : undefined,
+          grace: isPercentMode ? undefined : '10%',
+        },
       },
-      y: {
-        grid: { color: '#f1f5f9' },
-        ticks: { font: { family: 'inherit', size: 10 }, color: '#64748b' },
-        border: { dash: [4, 4], color: '#e2e8f0' },
-      },
-    },
-  };
+    };
+  }, [chartMode, filteredBarData, selectedProcessType]);
 
   // Doughnut Chart Configuration (Reflects Active Gudang or Global)
   const activeFastTon = activeGudangData ? activeGudangData.fastTon : totalFast;
-  const activeSlowTon = activeGudangData ? activeGudangData.slowTon : totalSlow;
+  const activeSlowTon = activeGudangData
+    ? getWarehouseSlowTon(activeGudangData, selectedProcessType)
+    : totalSlow;
   const activeGrandTotal = activeFastTon + activeSlowTon;
   const activeFastPct = activeGrandTotal > 0 ? (activeFastTon / activeGrandTotal) * 100 : 0;
   const activeSlowPct = activeGrandTotal > 0 ? (activeSlowTon / activeGrandTotal) * 100 : 0;
 
   const doughnutData = {
-    labels: ['Fast Moving', 'Slow Moving'],
+    labels: [
+      'Fast Moving',
+      selectedProcessType === 'ALL'
+        ? 'Slow Moving'
+        : `Slow Moving (${selectedProcessType})`
+    ],
     datasets: [
       {
         data: [Number(activeFastTon.toFixed(2)), Number(activeSlowTon.toFixed(2))],
-        backgroundColor: ['#10b981', '#f59e0b'],
-        hoverBackgroundColor: ['#059669', '#d97706'],
+        backgroundColor: [
+          '#10b981',
+          selectedProcessType === 'WIP' ? '#f97316' : '#f59e0b'
+        ],
+        hoverBackgroundColor: [
+          '#059669',
+          selectedProcessType === 'WIP' ? '#ea580c' : '#d97706'
+        ],
         borderWidth: 2,
         borderColor: '#ffffff',
         spacing: 2,
@@ -316,6 +704,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
         if (index === 1) {
           // Slow Moving slice clicked!
           setModalYearGudang(selectedGudang);
+          setModalProcessFilter(selectedProcessType);
           setSelectedDrilldownYear(null);
           setShowYearModal(true);
         }
@@ -425,6 +814,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
               {isAll && renderSortHeader('Gudang', 'gudang', topSlowSortField, topSlowSortDir, handleSort, 'left')}
               {renderSortHeader('Ukuran & Customer', 'ukuran', topSlowSortField, topSlowSortDir, handleSort, 'left')}
               {renderSortHeader('Kode Material', 'kodeMaterial', topSlowSortField, topSlowSortDir, handleSort, 'left')}
+              {renderSortHeader('Proses', 'processType', topSlowSortField, topSlowSortDir, handleSort, 'center')}
               {renderSortHeader('Batch', 'batch', topSlowSortField, topSlowSortDir, handleSort, 'center')}
               {renderSortHeader('Inc. Date', 'incDate', topSlowSortField, topSlowSortDir, handleSort, 'center')}
               {renderSortHeader('Qty (Btg)', 'qtyBtg', topSlowSortField, topSlowSortDir, handleSort, 'right', 'text-slate-900')}
@@ -452,6 +842,18 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                   {item.kodeMaterial}
                 </td>
                 <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                  <span
+                    className={cn(
+                      "inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold font-mono border shadow-2xs",
+                      item.processType === 'FG'
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200/80"
+                        : "bg-amber-50 text-amber-900 border-amber-200/80"
+                    )}
+                  >
+                    {item.processType}
+                  </span>
+                </td>
+                <td className="py-3 px-3.5 text-center whitespace-nowrap">
                   <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200/80 text-slate-700 text-[11px] font-mono">
                     {item.batch || '-'}
                   </span>
@@ -470,8 +872,8 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
           </tbody>
           <tfoot className="sticky bottom-0 z-20 bg-slate-50/95 backdrop-blur-xs font-bold text-xs text-slate-900 border-t border-slate-200/80">
             <tr>
-              <td colSpan={isAll ? 6 : 5} className="py-3 px-3.5 text-left uppercase tracking-wider text-slate-700 font-mono text-[11px]">
-                Total {targetLimit} Terbesar Slow Moving ({isAll ? 'Semua Gudang' : selectedGudang})
+              <td colSpan={isAll ? 7 : 6} className="py-3 px-3.5 text-left uppercase tracking-wider text-slate-700 font-mono text-[11px]">
+                Total {targetLimit} Terbesar Slow Moving {selectedProcessType !== 'ALL' ? `(${selectedProcessType}) ` : ''}({isAll ? 'Semua Gudang' : selectedGudang})
               </td>
               <td className="py-3 px-3.5 text-right text-slate-900 font-mono font-bold">
                 {formatQty(sumQty, { zeroAsDash: true })}
@@ -515,6 +917,11 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     if (modalYearGudang !== 'ALL') {
       items = items.filter((i) => i.gudang === modalYearGudang);
     }
+    if (modalProcessFilter === 'FG') {
+      items = items.filter((i) => isItemFG(i));
+    } else if (modalProcessFilter === 'WIP') {
+      items = items.filter((i) => !isItemFG(i));
+    }
     if (selectedDrilldownYear) {
       items = items.filter((i) => getItemYear(i) === selectedDrilldownYear);
     }
@@ -530,14 +937,20 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
       );
     }
     return items;
-  }, [slowPipeItems, modalYearGudang, selectedDrilldownYear, modalSearchQuery]);
+  }, [slowPipeItems, modalYearGudang, modalProcessFilter, selectedDrilldownYear, modalSearchQuery]);
 
   const yearlySlowBreakdown = useMemo(() => {
     const map: Record<string, { year: string; totalTon: number; totalQty: number; itemCount: number }> = {};
 
-    const gudangItems = modalYearGudang === 'ALL'
+    let gudangItems = modalYearGudang === 'ALL'
       ? slowPipeItems
       : slowPipeItems.filter((i) => i.gudang === modalYearGudang);
+
+    if (modalProcessFilter === 'FG') {
+      gudangItems = gudangItems.filter((i) => isItemFG(i));
+    } else if (modalProcessFilter === 'WIP') {
+      gudangItems = gudangItems.filter((i) => !isItemFG(i));
+    }
 
     gudangItems.forEach((item) => {
       const y = getItemYear(item);
@@ -549,7 +962,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
       map[y].itemCount += 1;
     });
 
-    if (Object.keys(map).length === 0) {
+    if (Object.keys(map).length === 0 && modalProcessFilter === 'ALL') {
       const relevantWarehouses = modalYearGudang === 'ALL' ? safeData : safeData.filter((d) => d.gudang === modalYearGudang);
       relevantWarehouses.forEach((w) => {
         if (w.yearlySlowTon) {
@@ -568,7 +981,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
       if (b.year === 'Tidak Diketahui') return -1;
       return b.year.localeCompare(a.year);
     });
-  }, [slowPipeItems, modalYearGudang, safeData]);
+  }, [slowPipeItems, modalYearGudang, modalProcessFilter, safeData]);
 
   const modalTotalSlowTon = useMemo(() => {
     return yearlySlowBreakdown.reduce((sum, d) => sum + d.totalTon, 0);
@@ -604,6 +1017,15 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                   <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-950 border border-amber-300">
                     {modalYearGudang === 'ALL' ? 'Semua Gudang' : modalYearGudang}
                   </span>
+                  {modalProcessFilter !== 'ALL' && (
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                      modalProcessFilter === 'FG'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-amber-100 text-amber-900 border-amber-300'
+                    }`}>
+                      {modalProcessFilter}
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] text-slate-500 font-sans mt-0.5">
                   Akumulasi tonase dan daftar material pipa mengendap berdasarkan kolom Prod. Year pada SAP Excel
@@ -642,22 +1064,57 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
               )}
             </div>
 
-            {/* GUDANG SELECTOR */}
-            <div className="flex items-center gap-2 font-mono">
-              <span className="text-[11px] font-bold text-slate-500 uppercase">Gudang:</span>
-              <select
-                value={modalYearGudang}
-                onChange={(e) => {
-                  setModalYearGudang(e.target.value);
-                  setSelectedDrilldownYear(null);
-                }}
-                className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 shadow-2xs focus:border-amber-500 focus:outline-hidden cursor-pointer"
-              >
-                <option value="ALL">Semua Gudang</option>
-                {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
+            {/* FILTERS IN MODAL: GUDANG & PROSES */}
+            <div className="flex items-center gap-3 flex-wrap font-mono">
+              {/* PROSES SEGMENTED FILTER */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Slow:</span>
+                <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100 text-xs font-bold">
+                  {(['ALL', 'FG', 'WIP'] as const).map((t) => {
+                    const isActive = modalProcessFilter === t;
+                    const label = t === 'ALL' ? 'Semua' : t;
+                    return (
+                      <button
+                        key={`modal-proc-${t}`}
+                        type="button"
+                        onClick={() => {
+                          setModalProcessFilter(t);
+                          setSelectedDrilldownYear(null);
+                        }}
+                        className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                          isActive
+                            ? t === 'FG'
+                              ? 'bg-emerald-600 text-white shadow-2xs font-extrabold'
+                              : t === 'WIP'
+                              ? 'bg-amber-600 text-white shadow-2xs font-extrabold'
+                              : 'bg-white text-slate-900 shadow-2xs font-extrabold'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* GUDANG SELECTOR */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Gudang:</span>
+                <select
+                  value={modalYearGudang}
+                  onChange={(e) => {
+                    setModalYearGudang(e.target.value);
+                    setSelectedDrilldownYear(null);
+                  }}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 shadow-2xs focus:border-amber-500 focus:outline-hidden cursor-pointer"
+                >
+                  <option value="ALL">Semua Gudang</option>
+                  {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -807,6 +1264,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                       <tr>
                         <th className="py-3 px-3.5 text-center font-bold text-slate-400 w-10">#</th>
                         <th className="py-3 px-3.5 font-bold">Gudang</th>
+                        <th className="py-3 px-3.5 text-center font-bold">Proses</th>
                         <th className="py-3 px-3.5 font-bold">Ukuran</th>
                         <th className="py-3 px-3.5 font-bold">Customer</th>
                         <th className="py-3 px-3.5 font-bold">Kode Material</th>
@@ -817,31 +1275,43 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
-                      {modalFilteredSlowItems.map((item, idx) => (
-                        <tr key={`slow-item-${idx}`} className="hover:bg-emerald-50/30 transition-all duration-150 group">
-                          <td className="py-3 px-3.5 text-center text-slate-400 font-mono text-xs font-medium">{idx + 1}</td>
-                          <td className="py-3 px-3.5 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold font-mono shadow-2xs">
-                              {item.gudang}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3.5 font-bold text-slate-900 whitespace-nowrap">{item.ukuran}</td>
-                          <td className="py-3 px-3.5 text-slate-600 max-w-[160px] truncate" title={item.customer}>{item.customer}</td>
-                          <td className="py-3 px-3.5 font-mono text-slate-500 whitespace-nowrap text-xs">{item.kodeMaterial}</td>
-                          <td className="py-3 px-3.5 font-mono font-bold text-amber-900 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50/80 border border-amber-200/70 text-amber-900 text-[11px]">
-                              {item.batch}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 text-amber-950 border border-amber-200 text-[11px] font-bold font-mono">
-                              {getItemYear(item)}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3.5 text-right font-mono text-slate-700 font-semibold">{formatQty(item.qtyBtg)}</td>
-                          <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-950">{formatTon(item.tonase, { decimals: 2 })}</td>
-                        </tr>
-                      ))}
+                      {modalFilteredSlowItems.map((item, idx) => {
+                        const isFg = isItemFG(item);
+                        return (
+                          <tr key={`slow-item-${idx}`} className="hover:bg-emerald-50/30 transition-all duration-150 group">
+                            <td className="py-3 px-3.5 text-center text-slate-400 font-mono text-xs font-medium">{idx + 1}</td>
+                            <td className="py-3 px-3.5 whitespace-nowrap">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold font-mono shadow-2xs">
+                                {item.gudang}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold font-mono border ${
+                                isFg
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  : 'bg-amber-50 text-amber-900 border-amber-300'
+                              }`}>
+                                {isFg ? 'FG' : 'WIP'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3.5 font-bold text-slate-900 whitespace-nowrap">{item.ukuran}</td>
+                            <td className="py-3 px-3.5 text-slate-600 max-w-[160px] truncate" title={item.customer}>{item.customer}</td>
+                            <td className="py-3 px-3.5 font-mono text-slate-500 whitespace-nowrap text-xs">{item.kodeMaterial}</td>
+                            <td className="py-3 px-3.5 font-mono font-bold text-amber-900 whitespace-nowrap">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50/80 border border-amber-200/70 text-amber-900 text-[11px]">
+                                {item.batch}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 text-amber-950 border border-amber-200 text-[11px] font-bold font-mono">
+                                {getItemYear(item)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3.5 text-right font-mono text-slate-700 font-semibold">{formatQty(item.qtyBtg)}</td>
+                            <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-950">{formatTon(item.tonase, { decimals: 2 })}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -882,6 +1352,33 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
 
         {/* FILTERS */}
         <div className="flex items-center gap-2.5 flex-wrap font-mono text-xs">
+          {/* PROCESS TYPE FILTER (ALL | FG | WIP) */}
+          <div className="flex items-center gap-1 bg-emerald-950/80 p-1 rounded-lg border border-emerald-700/80">
+            <span className="text-emerald-300 text-[10px] uppercase font-bold px-1.5 font-mono">Slow:</span>
+            {(['ALL', 'FG', 'WIP'] as const).map((t) => {
+              const isActive = selectedProcessType === t;
+              const label = t === 'ALL' ? 'Semua' : t;
+              return (
+                <button
+                  key={`top-process-${t}`}
+                  type="button"
+                  onClick={() => setSelectedProcessType(t)}
+                  className={`px-2.5 py-0.5 text-xs font-bold rounded-md transition-all cursor-pointer font-mono ${
+                    isActive
+                      ? t === 'FG'
+                        ? 'bg-emerald-500 text-slate-950 shadow-2xs font-extrabold'
+                        : t === 'WIP'
+                        ? 'bg-amber-400 text-slate-950 shadow-2xs font-extrabold'
+                        : 'bg-white text-emerald-950 shadow-2xs font-extrabold'
+                      : 'text-emerald-100 hover:text-white hover:bg-emerald-800/60'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* GUDANG SELECTOR */}
           <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-700/80">
             <Warehouse className="h-3.5 w-3.5 text-amber-300 shrink-0" />
@@ -900,10 +1397,13 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
             </select>
           </div>
 
-          {selectedGudang !== 'ALL' && (
+          {(selectedGudang !== 'ALL' || selectedProcessType !== 'ALL') && (
             <button
               type="button"
-              onClick={() => setSelectedGudang('ALL')}
+              onClick={() => {
+                setSelectedGudang('ALL');
+                setSelectedProcessType('ALL');
+              }}
               className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
             >
               Reset Filter
@@ -923,13 +1423,13 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 id={card.id}
                 title={
                   selectedGudang !== 'ALL'
-                    ? `Distribusi Fast vs Slow Moving • ${selectedGudang}`
-                    : 'Distribusi Fast vs Slow Moving Per Gudang'
+                    ? `Distribusi Fast vs Slow Moving${selectedProcessType !== 'ALL' ? ` (${selectedProcessType})` : ''} • ${selectedGudang}`
+                    : `Distribusi Fast vs Slow Moving${selectedProcessType !== 'ALL' ? ` (${selectedProcessType})` : ''} Per Gudang`
                 }
                 subtitle={
                   selectedGudang !== 'ALL'
-                    ? `Tonase material Fast Moving vs Slow Moving di ${selectedGudang}`
-                    : 'Perbandingan tonase Fast vs Slow Moving di seluruh gudang'
+                    ? `Tonase material Fast Moving vs Slow Moving${selectedProcessType !== 'ALL' ? ` (${selectedProcessType})` : ''} di ${selectedGudang}`
+                    : `Perbandingan tonase Fast vs Slow Moving${selectedProcessType !== 'ALL' ? ` (${selectedProcessType})` : ''} di seluruh gudang`
                 }
                 icon={Clock}
                 width={card.width}
@@ -940,55 +1440,188 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <span className="text-[10px] font-mono bg-slate-100 text-slate-700 font-semibold px-2.5 py-0.5 rounded-full border border-slate-200">
-                    {selectedGudang !== 'ALL' ? selectedGudang : 'Per Gudang'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {selectedProcessType !== 'ALL' && (
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                        selectedProcessType === 'FG'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-50 text-amber-900 border-amber-300'
+                      }`}>
+                        {selectedProcessType}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono bg-slate-100 text-slate-700 font-semibold px-2.5 py-0.5 rounded-full border border-slate-200">
+                      {selectedGudang !== 'ALL' ? selectedGudang : 'Per Gudang'}
+                    </span>
+                  </div>
+                }
+                headerAction={
+                  <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 font-mono">
+                    <button
+                      type="button"
+                      onClick={() => setChartMode('bar-ton-pct')}
+                      className={cn(
+                        "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
+                        chartMode === 'bar-ton-pct'
+                          ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                      title="Tampilkan Tonase dengan Badge % Slow Moving di atas batang"
+                    >
+                      Ton &amp; %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChartMode('split-fg-wip')}
+                      className={cn(
+                        "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
+                        chartMode === 'split-fg-wip'
+                          ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                      title="Pisahkan batang Slow Moving menjadi FG Slow dan WIP Slow dengan persentase masing-masing"
+                    >
+                      Split FG/WIP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChartMode('percent-only')}
+                      className={cn(
+                        "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
+                        chartMode === 'percent-only'
+                          ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
+                      title="Perbandingan persentase rasio Fast Moving vs Slow Moving tanpa skala tonase"
+                    >
+                      Rasio %
+                    </button>
+                  </div>
                 }
               >
                 {(expanded) => (
                   <div className="flex flex-col h-full w-full gap-5">
                     <div className={expanded ? 'h-64 sm:h-72 w-full shrink-0' : 'h-64 w-full'}>
-                      <Bar data={barChartData} options={barChartOptions} />
+                      <Bar data={barChartData} options={barChartOptions} plugins={[slowPercentageDataLabelsPlugin]} />
                     </div>
 
                     {expanded && (
                       <div className="space-y-4 pt-3 border-t border-slate-200">
-                        {/* WAREHOUSE FILTER BUTTONS */}
-                        <div className="flex items-center gap-1.5 flex-wrap p-2 bg-slate-50 border border-slate-200 rounded-md font-mono text-xs">
-                          <div className="flex items-center gap-1.5 text-slate-700 font-bold mr-1">
-                            <Warehouse className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                            <span className="text-[10px] uppercase">Filter Gudang:</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedGudang('ALL')}
-                            className={`px-2.5 py-1 rounded text-xs font-bold transition-all cursor-pointer ${
-                              selectedGudang === 'ALL'
-                                ? 'bg-emerald-800 text-white shadow-2xs'
-                                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                            }`}
-                          >
-                            Semua Gudang ({safeData.length})
-                          </button>
-                          {availableGudangs
-                            .filter((g) => g !== 'ALL')
-                            .map((g) => {
-                              const isSelected = selectedGudang === g;
-                              return (
+                        {/* MINIMAL UNIFIED FILTER TOOLBAR */}
+                        <div className="p-2 sm:p-2.5 bg-slate-50/90 rounded-xl border border-slate-200/80 space-y-2 font-mono text-xs">
+                          {/* ROW 1: SLOW FILTER & MODE GRAFIK */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            {/* SLOW FILTER SEGMENTED */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 px-1 tracking-wider">Slow:</span>
+                              <div className="flex items-center gap-0.5 bg-slate-200/70 p-0.5 rounded-lg border border-slate-300/40">
+                                {(['ALL', 'FG', 'WIP'] as const).map((t) => {
+                                  const isSelected = selectedProcessType === t;
+                                  return (
+                                    <button
+                                      key={`fs-fullscreen-proc-${t}`}
+                                      type="button"
+                                      onClick={() => setSelectedProcessType(t)}
+                                      className={cn(
+                                        "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
+                                        isSelected
+                                          ? t === 'FG'
+                                            ? 'bg-emerald-700 text-white shadow-2xs'
+                                            : t === 'WIP'
+                                            ? 'bg-amber-600 text-white shadow-2xs'
+                                            : 'bg-slate-800 text-white shadow-2xs'
+                                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                      )}
+                                    >
+                                      {t === 'ALL' ? 'Semua' : t}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* MODE GRAFIK SEGMENTED */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 px-1 tracking-wider">Mode:</span>
+                              <div className="flex items-center gap-0.5 bg-slate-200/70 p-0.5 rounded-lg border border-slate-300/40">
                                 <button
-                                  key={`fs-fullscreen-btn-${g}`}
                                   type="button"
-                                  onClick={() => setSelectedGudang(isSelected ? 'ALL' : g)}
-                                  className={`px-2.5 py-1 rounded text-xs font-bold transition-all cursor-pointer ${
-                                    isSelected
-                                      ? 'bg-emerald-800 text-white shadow-2xs ring-2 ring-amber-400'
-                                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                                  }`}
+                                  onClick={() => setChartMode('bar-ton-pct')}
+                                  className={cn(
+                                    "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
+                                    chartMode === 'bar-ton-pct'
+                                      ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
+                                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                  )}
                                 >
-                                  {g}
+                                  Ton &amp; %
                                 </button>
-                              );
-                            })}
+                                <button
+                                  type="button"
+                                  onClick={() => setChartMode('split-fg-wip')}
+                                  className={cn(
+                                    "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
+                                    chartMode === 'split-fg-wip'
+                                      ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
+                                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                  )}
+                                >
+                                  Split FG/WIP
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setChartMode('percent-only')}
+                                  className={cn(
+                                    "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
+                                    chartMode === 'percent-only'
+                                      ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
+                                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                  )}
+                                >
+                                  Rasio %
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* ROW 2: GUDANG FILTER SEGMENTED */}
+                          <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-200/70 overflow-x-auto scrollbar-none">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 px-1 tracking-wider shrink-0">Gudang:</span>
+                            <div className="flex items-center gap-0.5 bg-slate-200/70 p-0.5 rounded-lg border border-slate-300/40 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedGudang('ALL')}
+                                className={cn(
+                                  "px-2 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer shrink-0",
+                                  selectedGudang === 'ALL'
+                                    ? 'bg-emerald-800 text-white shadow-2xs font-extrabold'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                )}
+                              >
+                                Semua ({safeData.length})
+                              </button>
+                              {availableGudangs
+                                .filter((g) => g !== 'ALL')
+                                .map((g) => {
+                                  const isSelected = selectedGudang === g;
+                                  return (
+                                    <button
+                                      key={`fs-fullscreen-btn-${g}`}
+                                      type="button"
+                                      onClick={() => setSelectedGudang(isSelected ? 'ALL' : g)}
+                                      className={cn(
+                                        "px-2 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer shrink-0",
+                                        isSelected
+                                          ? 'bg-emerald-800 text-white shadow-2xs font-extrabold'
+                                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                      )}
+                                    >
+                                      {g}
+                                    </button>
+                                  );
+                                })}
+                            </div>
+                          </div>
                         </div>
 
                         {/* TABLE 10 DATA TERBESAR SLOW MOVING */}
@@ -997,11 +1630,11 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                             <div className="flex items-center gap-2">
                               <ListOrdered className="h-4 w-4 text-amber-600" />
                               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 font-sans">
-                                10 Data Terbesar Slow Moving {selectedGudang !== 'ALL' ? `• ${selectedGudang}` : '(Semua Gudang)'}
+                                10 Data Terbesar Slow Moving {selectedProcessType !== 'ALL' ? `(${selectedProcessType}) ` : ''}{selectedGudang !== 'ALL' ? `• ${selectedGudang}` : '(Semua Gudang)'}
                               </h4>
                             </div>
                             <span className="text-[10px] font-mono font-bold text-amber-900 border border-amber-300 bg-amber-50 px-2 py-0.5 rounded">
-                              Top 10 Slow
+                              Top 10 Slow {selectedProcessType !== 'ALL' ? `[${selectedProcessType}]` : ''}
                             </span>
                           </div>
                           {renderTopSlowTable(fullscreenTop10Items, 10)}
@@ -1021,7 +1654,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 key={card.id}
                 id={card.id}
                 title={`Komposisi Stock Pipa ${selectedGudang !== 'ALL' ? `• ${selectedGudang}` : '(Semua Gudang)'}`}
-                subtitle={`Proporsi Fast vs Slow Moving ${selectedGudang !== 'ALL' ? `di ${selectedGudang}` : 'seluruh area'}`}
+                subtitle={`Proporsi Fast vs Slow Moving${selectedProcessType !== 'ALL' ? ` (${selectedProcessType})` : ''} ${selectedGudang !== 'ALL' ? `di ${selectedGudang}` : 'seluruh area'}`}
                 icon={PieChart}
                 width={card.width}
                 isCustomizing={isCustomizing}
@@ -1031,9 +1664,20 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
-                    {formatTon(activeGrandTotal, { decimals: 2 })} Ton
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {selectedProcessType !== 'ALL' && (
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                        selectedProcessType === 'FG'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-50 text-amber-900 border-amber-300'
+                      }`}>
+                        {selectedProcessType}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
+                      {formatTon(activeGrandTotal, { decimals: 2 })} Ton
+                    </span>
+                  </div>
                 }
               >
                 {(expanded) => (
@@ -1065,6 +1709,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                       <div
                         onClick={() => {
                           setModalYearGudang(selectedGudang);
+                          setModalProcessFilter(selectedProcessType);
                           setSelectedDrilldownYear(null);
                           setShowYearModal(true);
                         }}
@@ -1072,8 +1717,10 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                         title="Klik untuk melihat rincian tonase Slow Moving per tahun"
                       >
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
-                          <span className="text-xs font-medium text-slate-600 truncate">Slow Moving ({formatPercent(activeSlowPct)})</span>
+                          <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${selectedProcessType === 'WIP' ? 'bg-orange-500' : 'bg-amber-500'}`} />
+                          <span className="text-xs font-medium text-slate-600 truncate">
+                            Slow Moving {selectedProcessType !== 'ALL' ? `(${selectedProcessType}) ` : ''}({formatPercent(activeSlowPct)})
+                          </span>
                         </div>
                         <span className="text-xs font-mono font-bold text-slate-800 ml-1 shrink-0">
                           {formatTon(activeSlowTon, { decimals: 2 })}
@@ -1095,13 +1742,13 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 id={card.id}
                 title={
                   isAll
-                    ? 'Top 10 Terbesar Slow Moving (Semua Gudang)'
-                    : `Top 10 Terbesar Slow Moving • ${selectedGudang}`
+                    ? `Top 10 Terbesar Slow Moving ${selectedProcessType !== 'ALL' ? `(${selectedProcessType}) ` : ''}(Semua Gudang)`
+                    : `Top 10 Terbesar Slow Moving ${selectedProcessType !== 'ALL' ? `(${selectedProcessType}) ` : ''}• ${selectedGudang}`
                 }
                 subtitle={
                   isAll
-                    ? '10 item material pipa slow moving dengan akumulasi tonase terbesar di seluruh area gudang'
-                    : `10 item material pipa slow moving dengan akumulasi tonase terbesar di ${selectedGudang}`
+                    ? `10 item material pipa slow moving ${selectedProcessType !== 'ALL' ? `tipe ${selectedProcessType} ` : ''}dengan akumulasi tonase terbesar di seluruh area gudang`
+                    : `10 item material pipa slow moving ${selectedProcessType !== 'ALL' ? `tipe ${selectedProcessType} ` : ''}dengan akumulasi tonase terbesar di ${selectedGudang}`
                 }
                 icon={ListOrdered}
                 width={card.width}
@@ -1112,9 +1759,20 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <span className="text-[10px] font-mono font-bold text-amber-900 border border-amber-300 bg-amber-50 px-2 py-0.5 rounded">
-                    {isAll ? 'Top 10 Slow (Semua Gudang)' : `Top 10 Slow • ${selectedGudang}`}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {selectedProcessType !== 'ALL' && (
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                        selectedProcessType === 'FG'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-100 text-amber-900 border-amber-300'
+                      }`}>
+                        {selectedProcessType}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono font-bold text-amber-900 border border-amber-300 bg-amber-50 px-2 py-0.5 rounded">
+                      {isAll ? 'Top 10 Slow' : `Top 10 • ${selectedGudang}`}
+                    </span>
+                  </div>
                 }
               >
                 {(expanded) => renderTopSlowTable(topSlowItems, 10, expanded)}
@@ -1139,9 +1797,20 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <span className="text-[10px] font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-300 font-semibold">
-                    {safeData.length} Gudang
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {selectedProcessType !== 'ALL' && (
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                        selectedProcessType === 'FG'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-100 text-amber-900 border-amber-300'
+                      }`}>
+                        {selectedProcessType}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-300 font-semibold">
+                      {safeData.length} Gudang
+                    </span>
+                  </div>
                 }
               >
                 {(expanded) => (
@@ -1151,7 +1820,9 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                         <tr className="border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-slate-500 font-semibold text-[11px] uppercase tracking-wider select-none">
                           <th className="py-3 px-3.5 font-bold" rowSpan={2}>Gudang</th>
                           <th className="py-2 text-center font-bold border-l border-r border-slate-200/80 bg-slate-100/50" colSpan={2}>Fast Moving</th>
-                          <th className="py-2 text-center font-bold bg-slate-100/50" colSpan={2}>Slow Moving</th>
+                          <th className="py-2 text-center font-bold bg-slate-100/50" colSpan={2}>
+                            Slow Moving {selectedProcessType !== 'ALL' ? `(${selectedProcessType})` : ''}
+                          </th>
                           <th className="py-3 px-3.5 text-right font-bold border-l border-slate-200/80 text-slate-900" rowSpan={2}>Total (Ton)</th>
                         </tr>
                         <tr className="border-b border-slate-200/80 bg-slate-50/60 text-slate-500 text-[10px] uppercase font-semibold">
@@ -1163,7 +1834,11 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                       </thead>
                       <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
                         {safeData.map((item) => {
-                          const isHighSlow = item.slowPersen > 15;
+                          const currentSlowTon = getWarehouseSlowTon(item, selectedProcessType);
+                          const currentTotalTon = item.fastTon + currentSlowTon;
+                          const currentFastPct = currentTotalTon > 0 ? (item.fastTon / currentTotalTon) * 100 : 0;
+                          const currentSlowPct = currentTotalTon > 0 ? (currentSlowTon / currentTotalTon) * 100 : 0;
+                          const isHighSlow = currentSlowPct > 15;
                           const isSelected = selectedGudang === item.gudang;
                           return (
                             <tr
@@ -1192,16 +1867,16 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                                 {formatTon(item.fastTon)}
                               </td>
                               <td className="py-3 px-3 text-right font-mono text-emerald-900 font-bold border-r border-slate-100/90">
-                                {formatPercent(item.fastPersen)}
+                                {formatPercent(currentFastPct)}
                               </td>
-                              <td className={`py-3 px-3 text-right font-mono font-semibold ${item.slowTon > 0 ? 'text-amber-800' : 'text-slate-400'}`}>
-                                {formatTon(item.slowTon)}
+                              <td className={`py-3 px-3 text-right font-mono font-semibold ${currentSlowTon > 0 ? 'text-amber-800' : 'text-slate-400'}`}>
+                                {formatTon(currentSlowTon)}
                               </td>
                               <td className={`py-3 px-3 text-right font-mono font-bold ${isHighSlow ? 'text-amber-700' : 'text-slate-600'}`}>
-                                {formatPercent(item.slowPersen)}
+                                {formatPercent(currentSlowPct)}
                               </td>
                               <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-900 border-l border-slate-100/90">
-                                {formatTon(item.totalTon)}
+                                {formatTon(currentTotalTon)}
                               </td>
                             </tr>
                           );
@@ -1226,6 +1901,9 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
 
           // CARD 5: TABEL DETAIL FG VS WIP SLOW MOVING
           if (card.id === 'table-detail') {
+            const isFgOnly = selectedProcessType === 'FG';
+            const isWipOnly = selectedProcessType === 'WIP';
+
             return (
               <CustomizableCard
                 key={card.id}
@@ -1241,8 +1919,14 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <span className="text-[10px] font-mono font-bold text-amber-900 border border-amber-300 bg-amber-50 px-2 py-0.5 rounded">
-                    PASM SLOW
+                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                    isFgOnly
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : isWipOnly
+                      ? 'bg-amber-50 text-amber-900 border-amber-300'
+                      : 'bg-amber-50 text-amber-900 border-amber-300'
+                  }`}>
+                    {isFgOnly ? 'FG SLOW' : isWipOnly ? 'WIP SLOW' : 'FG & WIP SLOW'}
                   </span>
                 }
               >
@@ -1252,16 +1936,26 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                       <thead className="bg-slate-50/80 backdrop-blur-sm text-slate-500 text-[11px] font-semibold border-b border-slate-200/80 uppercase tracking-wider select-none">
                         <tr>
                           <th className="py-3 px-3.5 font-bold">Gudang</th>
-                          <th className="py-3 px-3 text-right font-bold text-emerald-800">FG LT</th>
-                          <th className="py-3 px-3 text-right font-bold text-emerald-800">FG ST</th>
-                          <th className="py-3 px-3 text-right font-bold text-amber-800">WIP LT</th>
-                          <th className="py-3 px-3 text-right font-bold text-amber-800">WIP ST</th>
-                          <th className="py-3 px-3.5 text-right font-bold text-slate-900">Total Slow</th>
+                          <th className={`py-3 px-3 text-right font-bold ${isFgOnly ? 'text-emerald-950 bg-emerald-100/60' : 'text-emerald-800'}`}>
+                            FG LT
+                          </th>
+                          <th className={`py-3 px-3 text-right font-bold ${isFgOnly ? 'text-emerald-950 bg-emerald-100/60' : 'text-emerald-800'}`}>
+                            FG ST
+                          </th>
+                          <th className={`py-3 px-3 text-right font-bold ${isWipOnly ? 'text-amber-950 bg-amber-100/60' : 'text-amber-800'}`}>
+                            WIP LT
+                          </th>
+                          <th className={`py-3 px-3 text-right font-bold ${isWipOnly ? 'text-amber-950 bg-amber-100/60' : 'text-amber-800'}`}>
+                            WIP ST
+                          </th>
+                          <th className="py-3 px-3.5 text-right font-bold text-slate-900">
+                            Total Slow {selectedProcessType !== 'ALL' ? `(${selectedProcessType})` : ''}
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100/90 text-slate-700 bg-white">
                         {safeData.map((r) => {
-                          const rowSlowTotal = (r.fgLtSlow || 0) + (r.fgStSlow || 0) + (r.wipLtSlow || 0) + (r.wipStSlow || 0);
+                          const rowSlowTotal = getWarehouseSlowTon(r, selectedProcessType);
                           const isSelected = selectedGudang === r.gudang;
                           return (
                             <tr
@@ -1282,10 +1976,18 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                                   {r.gudang}
                                 </span>
                               </td>
-                              <td className="py-3 px-3 text-right font-mono">{r.fgLtSlow ? r.fgLtSlow.toFixed(2) : '-'}</td>
-                              <td className="py-3 px-3 text-right font-mono">{r.fgStSlow ? r.fgStSlow.toFixed(2) : '-'}</td>
-                              <td className="py-3 px-3 text-right font-mono">{r.wipLtSlow ? r.wipLtSlow.toFixed(2) : '-'}</td>
-                              <td className="py-3 px-3 text-right font-mono">{r.wipStSlow ? r.wipStSlow.toFixed(2) : '-'}</td>
+                              <td className={`py-3 px-3 text-right font-mono ${isFgOnly ? 'bg-emerald-50/50 font-bold text-emerald-900' : isWipOnly ? 'text-slate-400' : ''}`}>
+                                {r.fgLtSlow ? r.fgLtSlow.toFixed(2) : '-'}
+                              </td>
+                              <td className={`py-3 px-3 text-right font-mono ${isFgOnly ? 'bg-emerald-50/50 font-bold text-emerald-900' : isWipOnly ? 'text-slate-400' : ''}`}>
+                                {r.fgStSlow ? r.fgStSlow.toFixed(2) : '-'}
+                              </td>
+                              <td className={`py-3 px-3 text-right font-mono ${isWipOnly ? 'bg-amber-50/50 font-bold text-amber-900' : isFgOnly ? 'text-slate-400' : ''}`}>
+                                {r.wipLtSlow ? r.wipLtSlow.toFixed(2) : '-'}
+                              </td>
+                              <td className={`py-3 px-3 text-right font-mono ${isWipOnly ? 'bg-amber-50/50 font-bold text-amber-900' : isFgOnly ? 'text-slate-400' : ''}`}>
+                                {r.wipStSlow ? r.wipStSlow.toFixed(2) : '-'}
+                              </td>
                               <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-900">
                                 {rowSlowTotal > 0 ? rowSlowTotal.toFixed(2) : '-'}
                               </td>
@@ -1296,16 +1998,16 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                       <tfoot className="border-t border-slate-200/80 bg-slate-50/90 font-bold text-xs text-slate-900">
                         <tr>
                           <td className="py-3 px-3.5 font-mono">TOTAL</td>
-                          <td className="py-3 px-3 text-right font-mono text-emerald-900">
+                          <td className={`py-3 px-3 text-right font-mono ${isFgOnly ? 'bg-emerald-100/50 font-bold text-emerald-950' : 'text-emerald-900'}`}>
                             {safeData.reduce((acc, c) => acc + (c.fgLtSlow || 0), 0).toFixed(2)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono text-emerald-900">
+                          <td className={`py-3 px-3 text-right font-mono ${isFgOnly ? 'bg-emerald-100/50 font-bold text-emerald-950' : 'text-emerald-900'}`}>
                             {safeData.reduce((acc, c) => acc + (c.fgStSlow || 0), 0).toFixed(2)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono text-amber-900">
+                          <td className={`py-3 px-3 text-right font-mono ${isWipOnly ? 'bg-amber-100/50 font-bold text-amber-950' : 'text-amber-900'}`}>
                             {safeData.reduce((acc, c) => acc + (c.wipLtSlow || 0), 0).toFixed(2)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono text-amber-900">
+                          <td className={`py-3 px-3 text-right font-mono ${isWipOnly ? 'bg-amber-100/50 font-bold text-amber-950' : 'text-amber-900'}`}>
                             {safeData.reduce((acc, c) => acc + (c.wipStSlow || 0), 0).toFixed(2)}
                           </td>
                           <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-950">
