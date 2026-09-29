@@ -38,7 +38,8 @@ interface CardState {
 }
 
 export type ProcessTypeFilter = 'ALL' | 'FG' | 'WIP';
-export type FastSlowChartMode = 'bar-ton-pct' | 'split-fg-wip' | 'percent-only';
+export type FastSlowChartMode = 'stacked-ton' | 'stacked-percent';
+export type FastSlowDataLabelMode = 'ton' | 'percent' | 'both';
 
 export const isItemFG = (item: { processType?: 'FG' | 'WIP'; ukuran?: string; kodeMaterial?: string; customer?: string }): boolean => {
   if (item.processType === 'FG') return true;
@@ -77,7 +78,8 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
   const safeData = data.length > 0 ? data : [];
   const [selectedGudang, setSelectedGudang] = useState<string>('ALL');
   const [selectedProcessType, setSelectedProcessType] = useState<ProcessTypeFilter>('ALL');
-  const [chartMode, setChartMode] = useState<FastSlowChartMode>('bar-ton-pct');
+  const [chartMode, setChartMode] = useState<FastSlowChartMode>('stacked-ton');
+  const [dataLabelMode, setDataLabelMode] = useState<FastSlowDataLabelMode>('both');
 
   // Card order & size state with localStorage persistence
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
@@ -149,13 +151,17 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
 
   // Helper for slow ton per warehouse based on selected process type
   const getWarehouseSlowTon = (d: FastSlowPipe, procType: ProcessTypeFilter): number => {
+    const fg = Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
+    const wip = Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
+    const effectiveFg = (fg === 0 && wip === 0 && d.slowTon > 0) ? d.slowTon : fg;
+
     if (procType === 'FG') {
-      return Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
+      return effectiveFg;
     }
     if (procType === 'WIP') {
-      return Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
+      return wip;
     }
-    return d.slowTon;
+    return Number((effectiveFg + wip).toFixed(2));
   };
 
   // Global metrics
@@ -264,303 +270,261 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
       ? 'Slow Moving (FG)'
       : 'Slow Moving (WIP)';
 
-  // Bar Chart Configuration (supports standard Ton + %, Split FG/WIP, and Percent Ratio)
+  // Bar Chart Configuration (Stacked Bar: Fast Moving (Prime) + Slow Moving FG + Slow Moving WIP in 1 stack)
   const barChartData = useMemo(() => {
     const labels = filteredBarData.map((d) => d.gudang);
-    const maxBarThickness = selectedGudang !== 'ALL'
-      ? (chartMode === 'split-fg-wip' ? 44 : 56)
-      : (chartMode === 'split-fg-wip' ? 24 : 32);
+    const isPercentMode = chartMode === 'stacked-percent';
+    const maxBarThickness = selectedGudang !== 'ALL' ? 56 : 38;
 
-    if (chartMode === 'split-fg-wip') {
+    // Fast Moving (Prime) Dataset
+    const fastDataset = {
+      label: 'Fast Moving (Prime)',
+      data: filteredBarData.map((d) => {
+        const fg = Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
+        const wip = Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
+        const effectiveFg = (fg === 0 && wip === 0 && d.slowTon > 0) ? d.slowTon : fg;
+        const totalSlow = selectedProcessType === 'FG' ? effectiveFg : selectedProcessType === 'WIP' ? wip : (effectiveFg + wip);
+        const total = d.fastTon + totalSlow;
+        if (isPercentMode) {
+          return total > 0 ? Number(((d.fastTon / total) * 100).toFixed(1)) : 0;
+        }
+        return d.fastTon;
+      }),
+      backgroundColor: '#059669',
+      hoverBackgroundColor: '#047857',
+      stack: 'stock-stack',
+      maxBarThickness,
+    };
+
+    // If selectedProcessType is 'WIP', only show Fast Moving + Slow Moving (WIP)
+    if (selectedProcessType === 'WIP') {
+      const wipDataset = {
+        label: 'Slow Moving (WIP)',
+        data: filteredBarData.map((d) => {
+          const wip = Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
+          const total = d.fastTon + wip;
+          if (isPercentMode) {
+            return total > 0 ? Number(((wip / total) * 100).toFixed(1)) : 0;
+          }
+          return wip;
+        }),
+        backgroundColor: '#ea580c',
+        hoverBackgroundColor: '#c2410c',
+        stack: 'stock-stack',
+        maxBarThickness,
+      };
+
       return {
         labels,
-        datasets: [
-          {
-            label: 'Fast Moving',
-            data: filteredBarData.map((d) => d.fastTon),
-            backgroundColor: '#059669',
-            hoverBackgroundColor: '#047857',
-            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-            borderSkipped: false,
-            maxBarThickness,
-          },
-          {
-            label: 'Slow Moving (FG)',
-            data: filteredBarData.map((d) => Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2))),
-            backgroundColor: '#d97706',
-            hoverBackgroundColor: '#b45309',
-            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-            borderSkipped: false,
-            maxBarThickness,
-          },
-          {
-            label: 'Slow Moving (WIP)',
-            data: filteredBarData.map((d) => Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2))),
-            backgroundColor: '#ea580c',
-            hoverBackgroundColor: '#c2410c',
-            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-            borderSkipped: false,
-            maxBarThickness,
-          },
-        ],
+        datasets: [fastDataset, wipDataset],
       };
     }
 
-    if (chartMode === 'percent-only') {
+    // If selectedProcessType is 'FG', only show Fast Moving + Slow Moving (FG)
+    if (selectedProcessType === 'FG') {
+      const fgDataset = {
+        label: 'Slow Moving (FG)',
+        data: filteredBarData.map((d) => {
+          const fg = Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
+          const effectiveFg = (fg === 0 && d.slowTon > 0) ? d.slowTon : fg;
+          const total = d.fastTon + effectiveFg;
+          if (isPercentMode) {
+            return total > 0 ? Number(((effectiveFg / total) * 100).toFixed(1)) : 0;
+          }
+          return effectiveFg;
+        }),
+        backgroundColor: '#d97706',
+        hoverBackgroundColor: '#b45309',
+        stack: 'stock-stack',
+        maxBarThickness,
+      };
+
       return {
         labels,
-        datasets: [
-          {
-            label: 'Fast Moving (%)',
-            data: filteredBarData.map((d) => {
-              const fg = (d.fgLtSlow || 0) + (d.fgStSlow || 0);
-              const wip = (d.wipLtSlow || 0) + (d.wipStSlow || 0);
-              const tot = d.fastTon + (d.slowTon > 0 ? d.slowTon : (fg + wip));
-              return tot > 0 ? Number(((d.fastTon / tot) * 100).toFixed(1)) : 0;
-            }),
-            backgroundColor: '#059669',
-            hoverBackgroundColor: '#047857',
-            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-            borderSkipped: false,
-            maxBarThickness,
-          },
-          {
-            label: 'Slow FG (%)',
-            data: filteredBarData.map((d) => {
-              const fg = (d.fgLtSlow || 0) + (d.fgStSlow || 0);
-              const wip = (d.wipLtSlow || 0) + (d.wipStSlow || 0);
-              const tot = d.fastTon + (d.slowTon > 0 ? d.slowTon : (fg + wip));
-              return tot > 0 ? Number(((fg / tot) * 100).toFixed(1)) : 0;
-            }),
-            backgroundColor: '#d97706',
-            hoverBackgroundColor: '#b45309',
-            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-            borderSkipped: false,
-            maxBarThickness,
-          },
-          {
-            label: 'Slow WIP (%)',
-            data: filteredBarData.map((d) => {
-              const fg = (d.fgLtSlow || 0) + (d.fgStSlow || 0);
-              const wip = (d.wipLtSlow || 0) + (d.wipStSlow || 0);
-              const tot = d.fastTon + (d.slowTon > 0 ? d.slowTon : (fg + wip));
-              return tot > 0 ? Number(((wip / tot) * 100).toFixed(1)) : 0;
-            }),
-            backgroundColor: '#ea580c',
-            hoverBackgroundColor: '#c2410c',
-            borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-            borderSkipped: false,
-            maxBarThickness,
-          },
-        ],
+        datasets: [fastDataset, fgDataset],
       };
     }
 
-    // Default: 'bar-ton-pct'
+    // Default: 'ALL' -> 3 stacked layers: Fast Moving (Prime) + Slow Moving (FG) + Slow Moving (WIP)
+    const fgDataset = {
+      label: 'Slow Moving (FG)',
+      data: filteredBarData.map((d) => {
+        const fg = Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
+        const wip = Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
+        const effectiveFg = (fg === 0 && wip === 0 && d.slowTon > 0) ? d.slowTon : fg;
+        const total = d.fastTon + effectiveFg + wip;
+        if (isPercentMode) {
+          return total > 0 ? Number(((effectiveFg / total) * 100).toFixed(1)) : 0;
+        }
+        return effectiveFg;
+      }),
+      backgroundColor: '#d97706',
+      hoverBackgroundColor: '#b45309',
+      stack: 'stock-stack',
+      maxBarThickness,
+    };
+
+    const wipDataset = {
+      label: 'Slow Moving (WIP)',
+      data: filteredBarData.map((d) => {
+        const fg = Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
+        const wip = Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
+        const effectiveFg = (fg === 0 && wip === 0 && d.slowTon > 0) ? d.slowTon : fg;
+        const total = d.fastTon + effectiveFg + wip;
+        if (isPercentMode) {
+          return total > 0 ? Number(((wip / total) * 100).toFixed(1)) : 0;
+        }
+        return wip;
+      }),
+      backgroundColor: '#ea580c',
+      hoverBackgroundColor: '#c2410c',
+      stack: 'stock-stack',
+      maxBarThickness,
+    };
+
     return {
       labels,
-      datasets: [
-        {
-          label: 'Fast Moving',
-          data: filteredBarData.map((d) => d.fastTon),
-          backgroundColor: '#059669',
-          hoverBackgroundColor: '#047857',
-          borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-          borderSkipped: false,
-          maxBarThickness,
-        },
-        {
-          label: slowDatasetLabel,
-          data: filteredBarData.map((d) => getWarehouseSlowTon(d, selectedProcessType)),
-          backgroundColor: selectedProcessType === 'WIP' ? '#ea580c' : '#d97706',
-          hoverBackgroundColor: selectedProcessType === 'WIP' ? '#c2410c' : '#b45309',
-          borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
-          borderSkipped: false,
-          maxBarThickness,
-        },
-      ],
+      datasets: [fastDataset, fgDataset, wipDataset],
     };
-  }, [filteredBarData, selectedGudang, chartMode, selectedProcessType, slowDatasetLabel]);
+  }, [filteredBarData, selectedGudang, chartMode, selectedProcessType]);
 
-  // Antislop Custom Canvas Drawing Plugin: Floating Percentage Badge Pills on Bars
+  // Antislop Custom Canvas Drawing Plugin: Single Floating Percentage / Tonase Badge Pill above each warehouse's stacked bar
   const slowPercentageDataLabelsPlugin = useMemo(() => ({
     id: 'slowPercentageDataLabels',
     afterDatasetsDraw(chart: any) {
       const { ctx } = chart;
+      const isPercentMode = chartMode === 'stacked-percent';
 
-      // MODE 1: 'bar-ton-pct' (Standard 2 bars with clean % Slow pill badge)
-      if (chartMode === 'bar-ton-pct') {
-        const slowMeta = chart.getDatasetMeta(1);
-        if (!slowMeta || slowMeta.hidden) return;
+      // Detect which datasets are currently visible (user can toggle via legend click)
+      let isFastVisible = true;
+      let isFgVisible = true;
+      let isWipVisible = true;
 
-        filteredBarData.forEach((w, index) => {
-          const fgSlow = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
-          const wipSlow = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
-          const activeSlow = getWarehouseSlowTon(w, selectedProcessType);
-          const totalStock = w.fastTon + (w.slowTon > 0 ? w.slowTon : (fgSlow + wipSlow));
-
-          if (totalStock <= 0 || activeSlow <= 0) return;
-
-          const slowPct = (activeSlow / totalStock) * 100;
-          const el = slowMeta.data[index];
-          if (!el) return;
-
-          let label = `${slowPct.toFixed(1)}%`;
-          if (selectedProcessType === 'FG') label = `${slowPct.toFixed(1)}% FG`;
-          else if (selectedProcessType === 'WIP') label = `${slowPct.toFixed(1)}% WIP`;
-
-          const isHigh = slowPct >= 15.0;
-
-          ctx.save();
-          ctx.font = 'bold 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-          const textWidth = ctx.measureText(label).width;
-          const pillW = textWidth + 8;
-          const pillH = 15;
-          const pillX = el.x - pillW / 2;
-          const pillY = Math.max(el.y - pillH - 4, 6);
-
-          ctx.beginPath();
-          if (typeof ctx.roundRect === 'function') {
-            ctx.roundRect(pillX, pillY, pillW, pillH, 3);
-          } else {
-            ctx.rect(pillX, pillY, pillW, pillH);
-          }
-          ctx.fillStyle = isHigh ? '#fffbeb' : '#f8fafc';
-          ctx.fill();
-          ctx.strokeStyle = isHigh ? '#f59e0b' : '#cbd5e1';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-
-          ctx.fillStyle = isHigh ? '#b45309' : '#334155';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(label, el.x, pillY + pillH / 2);
-          ctx.restore();
+      if (chart && chart.data && chart.data.datasets) {
+        chart.data.datasets.forEach((ds: any, dsIdx: number) => {
+          const visible = chart.isDatasetVisible(dsIdx);
+          const label = ds.label || '';
+          if (label.includes('Fast Moving') || label.includes('Prime')) isFastVisible = visible;
+          else if (label.includes('FG')) isFgVisible = visible;
+          else if (label.includes('WIP')) isWipVisible = visible;
         });
-        return;
       }
 
-      // MODE 2: 'split-fg-wip' (Split FG and WIP bars with distinct badge pills)
-      if (chartMode === 'split-fg-wip') {
-        const fgMeta = chart.getDatasetMeta(1);
-        const wipMeta = chart.getDatasetMeta(2);
+      filteredBarData.forEach((w, index) => {
+        const fg = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
+        const wip = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
+        const effectiveFg = (fg === 0 && wip === 0 && w.slowTon > 0) ? w.slowTon : fg;
 
-        filteredBarData.forEach((w, index) => {
-          const fgSlow = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
-          const wipSlow = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
-          const totalStock = w.fastTon + (w.slowTon > 0 ? w.slowTon : (fgSlow + wipSlow));
+        let activeSlow = 0;
+        const isOnlyFg = isFgVisible && !isWipVisible;
+        const isOnlyWip = !isFgVisible && isWipVisible;
 
-          if (totalStock <= 0) return;
+        if (selectedProcessType === 'FG') {
+          if (isFgVisible) activeSlow = effectiveFg;
+        } else if (selectedProcessType === 'WIP') {
+          if (isWipVisible) activeSlow = wip;
+        } else {
+          // 'ALL'
+          if (isFgVisible) activeSlow += effectiveFg;
+          if (isWipVisible) activeSlow += wip;
+        }
 
-          const fgPct = (fgSlow / totalStock) * 100;
-          const wipPct = (wipSlow / totalStock) * 100;
+        // If no slow moving dataset is currently visible, don't draw any slow badge
+        if (activeSlow <= 0) return;
 
-          // FG Slow Pill (Amber)
-          if (fgMeta && !fgMeta.hidden && fgSlow > 0) {
-            const el = fgMeta.data[index];
-            if (el) {
-              const label = `${fgPct.toFixed(1)}%`;
-              ctx.save();
-              ctx.font = 'bold 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-              const textWidth = ctx.measureText(label).width;
-              const pillW = textWidth + 6;
-              const pillH = 14;
-              const pillX = el.x - pillW / 2;
-              const pillY = Math.max(el.y - pillH - 3, 6);
+        const totalStock = w.fastTon + effectiveFg + wip;
+        if (totalStock <= 0) return;
 
-              ctx.beginPath();
-              if (typeof ctx.roundRect === 'function') {
-                ctx.roundRect(pillX, pillY, pillW, pillH, 3);
-              } else {
-                ctx.rect(pillX, pillY, pillW, pillH);
+        const slowPct = (activeSlow / totalStock) * 100;
+        if (slowPct <= 0) return;
+
+        const meta0 = chart.getDatasetMeta(0);
+        if (!meta0 || !meta0.data || !meta0.data[index]) return;
+        const centerX = meta0.data[index].x;
+
+        // Dynamically find the top of the highest visible dataset in the stack
+        let topY = Infinity;
+        for (let i = chart.data.datasets.length - 1; i >= 0; i--) {
+          if (chart.isDatasetVisible(i)) {
+            const meta = chart.getDatasetMeta(i);
+            if (meta && meta.data && meta.data[index]) {
+              const elY = meta.data[index].y;
+              if (typeof elY === 'number' && !isNaN(elY)) {
+                topY = elY;
+                break;
               }
-              ctx.fillStyle = '#fffbeb';
-              ctx.fill();
-              ctx.strokeStyle = '#f59e0b';
-              ctx.lineWidth = 1;
-              ctx.stroke();
-
-              ctx.fillStyle = '#b45309';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(label, el.x, pillY + pillH / 2);
-              ctx.restore();
             }
           }
+        }
 
-          // WIP Slow Pill (Orange)
-          if (wipMeta && !wipMeta.hidden && wipSlow > 0) {
-            const el = wipMeta.data[index];
-            if (el) {
-              const label = `${wipPct.toFixed(1)}%`;
-              ctx.save();
-              ctx.font = 'bold 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-              const textWidth = ctx.measureText(label).width;
-              const pillW = textWidth + 6;
-              const pillH = 14;
-              const pillX = el.x - pillW / 2;
-              const pillY = Math.max(el.y - pillH - 3, 6);
+        // Fallback if meta element coordinate is not ready
+        if (topY === Infinity) {
+          const visibleStock = (isFastVisible ? w.fastTon : 0) + activeSlow;
+          topY = chart.scales.y.getPixelForValue(isPercentMode ? 100 : visibleStock);
+        }
 
-              ctx.beginPath();
-              if (typeof ctx.roundRect === 'function') {
-                ctx.roundRect(pillX, pillY, pillW, pillH, 3);
-              } else {
-                ctx.rect(pillX, pillY, pillW, pillH);
-              }
-              ctx.fillStyle = '#fff7ed';
-              ctx.fill();
-              ctx.strokeStyle = '#fb923c';
-              ctx.lineWidth = 1;
-              ctx.stroke();
+        const tonFormatted = activeSlow.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        let label = '';
 
-              ctx.fillStyle = '#c2410c';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(label, el.x, pillY + pillH / 2);
-              ctx.restore();
-            }
-          }
-        });
-        return;
-      }
+        if (dataLabelMode === 'ton') {
+          if (selectedProcessType === 'FG' || isOnlyFg) label = `${tonFormatted} T FG`;
+          else if (selectedProcessType === 'WIP' || isOnlyWip) label = `${tonFormatted} T WIP`;
+          else label = `${tonFormatted} Ton`;
+        } else if (dataLabelMode === 'both') {
+          if (isOnlyFg) label = `${tonFormatted} T FG (${slowPct.toFixed(1)}%)`;
+          else if (isOnlyWip) label = `${tonFormatted} T WIP (${slowPct.toFixed(1)}%)`;
+          else label = `${tonFormatted} T (${slowPct.toFixed(1)}%)`;
+        } else {
+          // 'percent'
+          if (selectedProcessType === 'FG' || isOnlyFg) label = `${slowPct.toFixed(1)}% FG`;
+          else if (selectedProcessType === 'WIP' || isOnlyWip) label = `${slowPct.toFixed(1)}% WIP`;
+          else label = `${slowPct.toFixed(1)}% Slow`;
+        }
 
-      // MODE 3: 'percent-only' (Normalized percentages with clean direct labels)
-      if (chartMode === 'percent-only') {
-        chart.data.datasets.forEach((dataset: any, datasetIndex: number) => {
-          const meta = chart.getDatasetMeta(datasetIndex);
-          if (!meta || meta.hidden) return;
+        const isHigh = slowPct >= 15.0;
 
-          meta.data.forEach((element: any, index: number) => {
-            const val = dataset.data[index];
-            if (element && typeof val === 'number' && val > 0) {
-              const text = `${val.toFixed(1)}%`;
-              ctx.save();
-              ctx.font = 'bold 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-              ctx.fillStyle = datasetIndex === 0
-                ? '#047857'
-                : datasetIndex === 1
-                ? '#b45309'
-                : '#c2410c';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'bottom';
-              ctx.fillText(text, element.x, Math.max(element.y - 3, 8));
-              ctx.restore();
-            }
-          });
-        });
-      }
+        ctx.save();
+        ctx.font = 'bold 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+        const textWidth = ctx.measureText(label).width;
+        const pillW = textWidth + 8;
+        const pillH = 15;
+        const pillX = centerX - pillW / 2;
+        const pillY = Math.max(topY - pillH - 4, 6);
+
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(pillX, pillY, pillW, pillH, 3);
+        } else {
+          ctx.rect(pillX, pillY, pillW, pillH);
+        }
+        ctx.fillStyle = isHigh ? '#fffbeb' : '#f8fafc';
+        ctx.fill();
+        ctx.strokeStyle = isHigh ? '#f59e0b' : '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = isHigh ? '#b45309' : '#334155';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, centerX, pillY + pillH / 2);
+        ctx.restore();
+      });
     },
-  }), [chartMode, filteredBarData, selectedProcessType]);
+  }), [chartMode, dataLabelMode, filteredBarData, selectedProcessType]);
 
   const barChartOptions = useMemo(() => {
-    const isPercentMode = chartMode === 'percent-only';
+    const isPercentMode = chartMode === 'stacked-percent';
 
     return {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: 'index' as const,
+        intersect: false,
+      },
       layout: {
         padding: {
-          top: 26,
+          top: 28,
           right: 8,
           left: 4,
           bottom: 2,
@@ -593,57 +557,107 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
               return `Gudang ${items[0].label}`;
             },
             label: function (context: any) {
-              const val = context.raw || 0;
               const idx = context.dataIndex;
               const w = filteredBarData[idx];
-              if (!w) return ` ${context.dataset.label}: ${val}`;
+              if (!w) return ` ${context.dataset.label}: ${context.raw || 0}`;
 
-              const fgSlow = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
-              const wipSlow = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
-              const totSlow = w.slowTon > 0 ? w.slowTon : (fgSlow + wipSlow);
-              const totStock = w.fastTon + totSlow;
+              const fg = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
+              const wip = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
+              const effectiveFg = (fg === 0 && wip === 0 && w.slowTon > 0) ? w.slowTon : fg;
+              const totalSlow = selectedProcessType === 'FG' ? effectiveFg : selectedProcessType === 'WIP' ? wip : (effectiveFg + wip);
+              const totalStock = w.fastTon + totalSlow;
 
-              if (isPercentMode) {
-                return ` ${context.dataset.label}: ${Number(val).toFixed(1)}%`;
+              const dsLabel = context.dataset.label || '';
+              let itemTon = 0;
+              if (dsLabel.includes('Fast Moving') || dsLabel.includes('Prime')) {
+                itemTon = w.fastTon;
+              } else if (dsLabel.includes('FG')) {
+                itemTon = effectiveFg;
+              } else if (dsLabel.includes('WIP')) {
+                itemTon = wip;
+              } else {
+                itemTon = totalSlow;
               }
 
-              const pct = totStock > 0 ? (Number(val) / totStock) * 100 : 0;
-              return ` ${context.dataset.label}: ${Number(val).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Ton (${pct.toFixed(1)}%)`;
+              const pct = totalStock > 0 ? (itemTon / totalStock) * 100 : 0;
+              const tonFormatted = itemTon.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+              return ` ${dsLabel}: ${tonFormatted} Ton (${pct.toFixed(1)}%)`;
             },
             afterBody: function (items: any[]) {
-              if (!items.length || isPercentMode) return [];
+              if (!items.length) return [];
+              const chart = items[0].chart;
               const idx = items[0].dataIndex;
               const w = filteredBarData[idx];
               if (!w) return [];
 
-              const fgSlow = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
-              const wipSlow = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
-              const totSlow = w.slowTon > 0 ? w.slowTon : (fgSlow + wipSlow);
-              const totStock = w.fastTon + totSlow;
-              if (totStock <= 0) return [];
+              const fg = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
+              const wip = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
+              const effectiveFg = (fg === 0 && wip === 0 && w.slowTon > 0) ? w.slowTon : fg;
 
-              const fgPct = (fgSlow / totStock) * 100;
-              const wipPct = (wipSlow / totStock) * 100;
+              let isFastVisible = true;
+              let isFgVisible = true;
+              let isWipVisible = true;
 
-              if (chartMode === 'bar-ton-pct' && selectedProcessType === 'ALL' && (fgSlow > 0 || wipSlow > 0)) {
-                return [
-                  `-----------------------------`,
-                  `  • Slow FG   : ${fgSlow.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Ton (${fgPct.toFixed(1)}%)`,
-                  `  • Slow WIP  : ${wipSlow.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Ton (${wipPct.toFixed(1)}%)`,
-                ];
+              if (chart && chart.data && chart.data.datasets) {
+                chart.data.datasets.forEach((ds: any, dsIdx: number) => {
+                  const visible = chart.isDatasetVisible(dsIdx);
+                  const label = ds.label || '';
+                  if (label.includes('Fast Moving') || label.includes('Prime')) isFastVisible = visible;
+                  else if (label.includes('FG')) isFgVisible = visible;
+                  else if (label.includes('WIP')) isWipVisible = visible;
+                });
               }
-              return [];
+
+              let activeSlow = 0;
+              let slowLabel = 'Total Slow';
+              if (selectedProcessType === 'FG') {
+                if (isFgVisible) activeSlow = effectiveFg;
+                slowLabel = 'Slow FG';
+              } else if (selectedProcessType === 'WIP') {
+                if (isWipVisible) activeSlow = wip;
+                slowLabel = 'Slow WIP';
+              } else {
+                if (isFgVisible && isWipVisible) {
+                  activeSlow = effectiveFg + wip;
+                  slowLabel = 'Total Slow';
+                } else if (isFgVisible && !isWipVisible) {
+                  activeSlow = effectiveFg;
+                  slowLabel = 'Total Slow (FG)';
+                } else if (!isFgVisible && isWipVisible) {
+                  activeSlow = wip;
+                  slowLabel = 'Total Slow (WIP)';
+                } else {
+                  activeSlow = 0;
+                }
+              }
+
+              const totalStock = w.fastTon + effectiveFg + wip;
+              if (totalStock <= 0) return [];
+
+              const slowPct = (activeSlow / totalStock) * 100;
+              const totalSlowFormatted = activeSlow.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+              const totalStockFormatted = totalStock.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+              const lines = ['-----------------------------'];
+              if (activeSlow > 0) {
+                lines.push(`  ${slowLabel.padEnd(12, ' ')}: ${totalSlowFormatted} Ton (${slowPct.toFixed(1)}%)`);
+              }
+              lines.push(`  Total Stock : ${totalStockFormatted} Ton (100.0%)`);
+              return lines;
             },
           },
         },
       },
       scales: {
         x: {
+          stacked: true,
           grid: { display: false },
           ticks: { font: { family: 'inherit', size: 11, weight: 'bold' as const }, color: '#334155' },
           border: { color: '#cbd5e1' },
         },
         y: {
+          stacked: true,
           grid: { color: '#f1f5f9' },
           ticks: {
             font: { family: 'inherit', size: 10 },
@@ -652,7 +666,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
           },
           border: { dash: [4, 4], color: '#e2e8f0' },
           max: isPercentMode ? 100 : undefined,
-          grace: isPercentMode ? undefined : '10%',
+          grace: isPercentMode ? undefined : '14%',
         },
       },
     };
@@ -1423,13 +1437,13 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 id={card.id}
                 title={
                   selectedGudang !== 'ALL'
-                    ? `Distribusi Fast vs Slow Moving${selectedProcessType !== 'ALL' ? ` (${selectedProcessType})` : ''} • ${selectedGudang}`
-                    : `Distribusi Fast vs Slow Moving${selectedProcessType !== 'ALL' ? ` (${selectedProcessType})` : ''} Per Gudang`
+                    ? `Distribusi Fast vs Slow • ${selectedGudang}`
+                    : `Distribusi Fast vs Slow Moving`
                 }
                 subtitle={
                   selectedGudang !== 'ALL'
-                    ? `Tonase material Fast Moving vs Slow Moving${selectedProcessType !== 'ALL' ? ` (${selectedProcessType})` : ''} di ${selectedGudang}`
-                    : `Perbandingan tonase Fast vs Slow Moving${selectedProcessType !== 'ALL' ? ` (${selectedProcessType})` : ''} di seluruh gudang`
+                    ? `Tonase Prime Fast Moving vs Slow Moving di ${selectedGudang}`
+                    : `Perbandingan tonase Prime vs Slow Moving (FG & WIP)`
                 }
                 icon={Clock}
                 width={card.width}
@@ -1440,62 +1454,100 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <div className="flex items-center gap-1.5">
-                    {selectedProcessType !== 'ALL' && (
-                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                        selectedProcessType === 'FG'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                          : 'bg-amber-50 text-amber-900 border-amber-300'
-                      }`}>
-                        {selectedProcessType}
-                      </span>
-                    )}
-                    <span className="text-[10px] font-mono bg-slate-100 text-slate-700 font-semibold px-2.5 py-0.5 rounded-full border border-slate-200">
-                      {selectedGudang !== 'ALL' ? selectedGudang : 'Per Gudang'}
-                    </span>
-                  </div>
+                  selectedGudang !== 'ALL' || selectedProcessType !== 'ALL' ? (
+                    <div className="flex items-center gap-1.5">
+                      {selectedProcessType !== 'ALL' && (
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                          selectedProcessType === 'FG'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : 'bg-amber-50 text-amber-900 border-amber-300'
+                        }`}>
+                          {selectedProcessType}
+                        </span>
+                      )}
+                      {selectedGudang !== 'ALL' && (
+                        <span className="text-[10px] font-mono bg-slate-100 text-slate-700 font-semibold px-2.5 py-0.5 rounded-full border border-slate-200">
+                          {selectedGudang}
+                        </span>
+                      )}
+                    </div>
+                  ) : undefined
                 }
                 headerAction={
-                  <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 font-mono">
-                    <button
-                      type="button"
-                      onClick={() => setChartMode('bar-ton-pct')}
-                      className={cn(
-                        "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
-                        chartMode === 'bar-ton-pct'
-                          ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
-                          : "text-slate-600 hover:text-slate-900"
-                      )}
-                      title="Tampilkan Tonase dengan Badge % Slow Moving di atas batang"
-                    >
-                      Ton &amp; %
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setChartMode('split-fg-wip')}
-                      className={cn(
-                        "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
-                        chartMode === 'split-fg-wip'
-                          ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
-                          : "text-slate-600 hover:text-slate-900"
-                      )}
-                      title="Pisahkan batang Slow Moving menjadi FG Slow dan WIP Slow dengan persentase masing-masing"
-                    >
-                      Split FG/WIP
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setChartMode('percent-only')}
-                      className={cn(
-                        "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
-                        chartMode === 'percent-only'
-                          ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
-                          : "text-slate-600 hover:text-slate-900"
-                      )}
-                      title="Perbandingan persentase rasio Fast Moving vs Slow Moving tanpa skala tonase"
-                    >
-                      Rasio %
-                    </button>
+                  <div className="flex items-center gap-1.5 font-mono">
+                    {/* PILIHAN LABEL DATA ANGKA */}
+                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 px-1 hidden md:inline">Data:</span>
+                      <button
+                        type="button"
+                        onClick={() => setDataLabelMode('ton')}
+                        className={cn(
+                          "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
+                          dataLabelMode === 'ton'
+                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                        title="Tampilkan angka tonase slow moving pada diagram"
+                      >
+                        Ton
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDataLabelMode('percent')}
+                        className={cn(
+                          "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
+                          dataLabelMode === 'percent'
+                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                        title="Tampilkan persentase slow moving pada diagram"
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDataLabelMode('both')}
+                        className={cn(
+                          "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
+                          dataLabelMode === 'both'
+                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                        title="Tampilkan angka tonase dan persentase bersamaan"
+                      >
+                        Ton &amp; %
+                      </button>
+                    </div>
+
+                    {/* SKALA DIAGRAM */}
+                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setChartMode('stacked-ton')}
+                        className={cn(
+                          "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
+                          chartMode === 'stacked-ton'
+                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                        title="Grafik diagram tumpuk skala tonase"
+                      >
+                        Tonase
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChartMode('stacked-percent')}
+                        className={cn(
+                          "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
+                          chartMode === 'stacked-percent'
+                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                        title="Diagram tumpuk normalisasi 100%"
+                      >
+                        100%
+                      </button>
+                    </div>
                   </div>
                 }
               >
@@ -1540,45 +1592,76 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                               </div>
                             </div>
 
-                            {/* MODE GRAFIK SEGMENTED */}
+                            {/* PILIHAN LABEL DATA ANGKA */}
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[10px] uppercase font-bold text-slate-400 px-1 tracking-wider">Mode:</span>
+                              <span className="text-[10px] uppercase font-bold text-slate-400 px-1 tracking-wider">Data:</span>
                               <div className="flex items-center gap-0.5 bg-slate-200/70 p-0.5 rounded-lg border border-slate-300/40">
                                 <button
                                   type="button"
-                                  onClick={() => setChartMode('bar-ton-pct')}
+                                  onClick={() => setDataLabelMode('ton')}
                                   className={cn(
                                     "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
-                                    chartMode === 'bar-ton-pct'
+                                    dataLabelMode === 'ton'
+                                      ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
+                                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                  )}
+                                >
+                                  Tonase
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDataLabelMode('percent')}
+                                  className={cn(
+                                    "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
+                                    dataLabelMode === 'percent'
+                                      ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
+                                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                  )}
+                                >
+                                  % Rasio
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDataLabelMode('both')}
+                                  className={cn(
+                                    "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
+                                    dataLabelMode === 'both'
                                       ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
                                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                                   )}
                                 >
                                   Ton &amp; %
                                 </button>
+                              </div>
+                            </div>
+
+                            {/* SKALA GRAFIK SEGMENTED */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 px-1 tracking-wider">Skala:</span>
+                              <div className="flex items-center gap-0.5 bg-slate-200/70 p-0.5 rounded-lg border border-slate-300/40">
                                 <button
                                   type="button"
-                                  onClick={() => setChartMode('split-fg-wip')}
+                                  onClick={() => setChartMode('stacked-ton')}
                                   className={cn(
                                     "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
-                                    chartMode === 'split-fg-wip'
+                                    chartMode === 'stacked-ton'
                                       ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
                                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                                   )}
                                 >
-                                  Split FG/WIP
+                                  Tonase
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setChartMode('percent-only')}
+                                  onClick={() => setChartMode('stacked-percent')}
                                   className={cn(
                                     "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
-                                    chartMode === 'percent-only'
+                                    chartMode === 'stacked-percent'
                                       ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
                                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                                   )}
                                 >
-                                  Rasio %
+                                  100%
                                 </button>
                               </div>
                             </div>
