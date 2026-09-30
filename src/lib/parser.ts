@@ -380,7 +380,7 @@ function getRowValue(row: Record<string, unknown>, keys: string[]): unknown {
 /**
  * Filter untuk memisahkan bahan baku Coil / Strip dari produk pipa
  */
-export function isCoilOrStripMaterial(desc: string | undefined | null, matNum: string = ''): boolean {
+function isCoilOrStripMaterial(desc: string | undefined | null, matNum: string = ''): boolean {
   const d = String(desc || '').toUpperCase();
   const m = String(matNum || '').toUpperCase();
 
@@ -429,7 +429,7 @@ export function isCoilOrStripMaterial(desc: string | undefined | null, matNum: s
  * Format Spindo SAP standar: 3 karakter prefix (e.g. YAB, XCB, YBB, YDB) + 2 digit proses (00 s/d 99) + sisa kode
  * Contoh: YAB01A0A0400+40000 (FG) dan YAB00A0A0400+40000 (WIP) -> YAB*A0A0400+40000
  */
-export function getMaterialBaseKey(matCode: string): string {
+function getMaterialBaseKey(matCode: string): string {
   if (!matCode) return '';
   let clean = matCode.trim().toUpperCase();
   // Normalisasi karakter O (Oh) ke 0 (Nol) pada token tengah kode material SAP (misal AOA0400 -> A0A0400)
@@ -542,7 +542,7 @@ export function extractPipeDimension(
 /**
  * Dapatkan panjang pipa (dalam mm) dari kode material SAP, deskripsi, atau raw panjang.
  */
-export function getPipeLengthMm(matNum?: string, desc?: string, rawPanjang?: string): number {
+function getPipeLengthMm(matNum?: string, desc?: string, rawPanjang?: string): number {
   const { panjangMm } = extractPipeDimension(desc, matNum, rawPanjang);
   if (panjangMm && panjangMm !== 6000) {
     return panjangMm;
@@ -577,7 +577,7 @@ export function getPipeType(matNum?: string, desc?: string, rawPanjang?: string)
   return len < 3000 ? 'ST' : 'LT';
 }
 
-export function isCoilOrStripRow(row: Record<string, unknown>): boolean {
+function isCoilOrStripRow(row: Record<string, unknown>): boolean {
   const past = String(
     getRowValue(row, ['PAST', 'Past', 'Jenis Stock', 'Kategori Stock', 'Status Barang']) || ''
   ).toUpperCase().trim();
@@ -715,7 +715,7 @@ export function isCoilOrStripRow(row: Record<string, unknown>): boolean {
  * BOm = Base Unit of Measure (Satuan Dasar)
  * EOm = Entry Unit of Measure (Satuan Input)
  */
-export function resolveStockWeightAndQty(
+function resolveStockWeightAndQty(
   row: Record<string, unknown>,
   itemType: 'pipe' | 'coil' = 'coil'
 ): { weightKg: number; qty: number } {
@@ -970,6 +970,10 @@ export function parseExcelFiles(
     fgStSlow: number;
     wipLtSlow: number;
     wipStSlow: number;
+    fgLtFast: number;
+    fgStFast: number;
+    wipLtFast: number;
+    wipStFast: number;
     primeTon: number;
     primeLtTon: number;
     primeStTon: number;
@@ -998,6 +1002,10 @@ export function parseExcelFiles(
       fgStSlow: 0,
       wipLtSlow: 0,
       wipStSlow: 0,
+      fgLtFast: 0,
+      fgStFast: 0,
+      wipLtFast: 0,
+      wipStFast: 0,
       primeTon: 0,
       primeLtTon: 0,
       primeStTon: 0,
@@ -1212,6 +1220,10 @@ export function parseExcelFiles(
       if (isST && isWIP) target.wipStSlow += tonase;
     } else {
       target.fastTon += tonase;
+      if (isLT && isFG) target.fgLtFast += tonase;
+      if (isST && isFG) target.fgStFast += tonase;
+      if (isLT && isWIP) target.wipLtFast += tonase;
+      if (isST && isWIP) target.wipStFast += tonase;
     }
 
     // Tahun produksi (Prod. Year) — dipakai agregasi slow per tahun + drilldown UNFIFO
@@ -1409,6 +1421,12 @@ export function parseExcelFiles(
       fgStSlow: Number(d.fgStSlow.toFixed(2)),
       wipLtSlow: Number(d.wipLtSlow.toFixed(2)),
       wipStSlow: Number(d.wipStSlow.toFixed(2)),
+      fgFastTon: Number(((d.fgLtFast || 0) + (d.fgStFast || 0)).toFixed(2)),
+      wipFastTon: Number(((d.wipLtFast || 0) + (d.wipStFast || 0)).toFixed(2)),
+      fgLtFast: Number(d.fgLtFast.toFixed(2)),
+      fgStFast: Number(d.fgStFast.toFixed(2)),
+      wipLtFast: Number(d.wipLtFast.toFixed(2)),
+      wipStFast: Number(d.wipStFast.toFixed(2)),
       yearlySlowTon: Object.fromEntries(
         Object.entries(d.yearlySlowTon).map(([k, v]) => [k, Number(v.toFixed(1))])
       ),
@@ -2002,7 +2020,7 @@ export async function parseWorkbookFromFile(file: File): Promise<XLSX.WorkBook> 
   });
 }
 
-export function extractRowsFromWorksheet(worksheet: XLSX.WorkSheet): Record<string, unknown>[] {
+function extractRowsFromWorksheet(worksheet: XLSX.WorkSheet): Record<string, unknown>[] {
   if (!worksheet || !worksheet['!ref']) return [];
 
   const rawMatrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '' });

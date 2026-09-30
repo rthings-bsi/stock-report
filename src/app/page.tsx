@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import '@/lib/chartSetup';
 import {
   Layers,
   Clock,
@@ -58,11 +57,11 @@ import {
   initialNCItems,
   initialTop10LooAllAreaST,
   initialTop10LooAllAreaLT,
-  initialUnfifoData
+  initialUnfifoData,
+  initialNCProgressData,
+  initialDamagedPackagingData,
+  initialIncomingPackagingData
 } from '@/lib/mockData';
-import { initialNCProgressData } from '@/lib/ncProgressData';
-import { initialDamagedPackagingData } from '@/lib/damagedPackagingData';
-import { initialIncomingPackagingData } from '@/lib/incomingPackagingData';
 import {
   WarehousePipeCapacity,
   FastSlowPipe,
@@ -1791,6 +1790,7 @@ export default function Home() {
               <FastSlowView
                 data={fastSlowData}
                 pipeData={unfifoPipeData}
+                pipeCapacities={pipeCapacities}
                 isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
               />
             )}

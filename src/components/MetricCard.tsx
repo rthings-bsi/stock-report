@@ -2,8 +2,6 @@
 
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 interface MetricCardProps {
@@ -39,15 +37,15 @@ export const MetricCard: React.FC<MetricCardProps> = ({
     warning: 'bg-amber-100 text-amber-900 border-amber-200',
   };
 
-  const badgeVariantMap = {
-    default: 'secondary' as const,
-    blue: 'emerald' as const,
-    danger: 'destructive' as const,
-    warning: 'amber' as const,
+  const badgeStyles = {
+    default: 'border-slate-200 bg-slate-100 text-slate-700',
+    blue: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    danger: 'border-amber-300 bg-amber-50 text-amber-900 font-black',
+    warning: 'border-amber-300 bg-amber-50 text-amber-800',
   };
 
   return (
-    <Card className={cn("p-3 sm:p-3.5 xl:p-4 flex flex-col justify-between transition-all duration-200 shadow-xs hover:shadow-sm min-w-0 h-full", cardBorder[variant])}>
+    <div className={cn("rounded-xl border bg-white text-slate-950 shadow-xs p-3 sm:p-3.5 xl:p-4 flex flex-col justify-between transition-all duration-200 hover:shadow-sm min-w-0 h-full", cardBorder[variant])}>
       {/* Top Header: Title & Responsive Icon */}
       <div className="flex items-start justify-between gap-1.5 sm:gap-2">
         <div className="space-y-1 min-w-0 flex-1">
@@ -80,11 +78,11 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           {description || 'Real-time updated'}
         </p>
         {badge && (
-          <Badge variant={badgeVariantMap[variant]} className="text-[9px] xl:text-[10px] px-1.5 py-0 shrink-0">
+          <span className={cn("inline-flex items-center rounded-md border font-mono font-bold text-[9px] xl:text-[10px] px-1.5 py-0 shrink-0", badgeStyles[variant])}>
             {badge}
-          </Badge>
+          </span>
         )}
       </div>
-    </Card>
+    </div>
   );
 };

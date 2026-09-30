@@ -1,3 +1,5 @@
+import { DamagedPackagingItem, IncomingPackagingItem, NCProgressTransaction } from '@/types/warehouse';
+
 // Mock data kosong. Silakan upload raw data SAP via tombol "Upload SAP Raw".
 // Tipe sengaja diset any[] agar TypeScript tidak rewel sebelum user upload.
 
@@ -9,3 +11,7 @@ export const initialNCItems: any[] = [];
 export const initialTop10LooAllAreaST: any[] = [];
 export const initialTop10LooAllAreaLT: any[] = [];
 export const initialUnfifoData: any[] = [];
+export const initialNCProgressData: NCProgressTransaction[] = [];
+export const initialDamagedPackagingData: DamagedPackagingItem[] = [];
+export const initialIncomingPackagingData: IncomingPackagingItem[] = [];
+

@@ -29,7 +29,6 @@ import {
   X,
   Trash2
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { UserSession, StoredAccount, PRESET_ACCOUNTS } from '@/types/auth';
 
 export interface SnapshotMeta {

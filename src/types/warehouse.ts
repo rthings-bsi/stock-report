@@ -24,6 +24,12 @@ export interface FastSlowPipe {
   fgStSlow: number;
   wipLtSlow: number;
   wipStSlow: number;
+  fgFastTon?: number;
+  wipFastTon?: number;
+  fgLtFast?: number;
+  fgStFast?: number;
+  wipLtFast?: number;
+  wipStFast?: number;
   yearlySlowTon?: Record<string, number>;
 }
 

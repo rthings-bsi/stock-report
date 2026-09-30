@@ -6,7 +6,7 @@ import {
   registerables
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
-import { FastSlowPipe, UnfifoPipeItem } from '../types/warehouse';
+import { FastSlowPipe, UnfifoPipeItem, WarehousePipeCapacity } from '../types/warehouse';
 import { formatTon, formatQty, formatPercent, cn } from '@/lib/utils';
 import {
   Clock,
@@ -29,6 +29,7 @@ ChartJS.register(...registerables);
 interface FastSlowViewProps {
   data: FastSlowPipe[];
   pipeData?: UnfifoPipeItem[];
+  pipeCapacities?: WarehousePipeCapacity[];
   isCustomizing?: boolean;
 }
 
@@ -39,9 +40,8 @@ interface CardState {
 
 export type ProcessTypeFilter = 'ALL' | 'FG' | 'WIP';
 export type FastSlowChartMode = 'stacked-ton' | 'stacked-percent';
-export type FastSlowDataLabelMode = 'ton' | 'percent' | 'both';
 
-export const isItemFG = (item: { processType?: 'FG' | 'WIP'; ukuran?: string; kodeMaterial?: string; customer?: string }): boolean => {
+const isItemFG = (item: { processType?: 'FG' | 'WIP'; ukuran?: string; kodeMaterial?: string; customer?: string }): boolean => {
   if (item.processType === 'FG') return true;
   if (item.processType === 'WIP') return false;
   const str = `${item.ukuran || ''} ${item.kodeMaterial || ''}`;
@@ -73,13 +73,12 @@ const DEFAULT_CARDS: CardState[] = [
 export const FastSlowView: React.FC<FastSlowViewProps> = ({
   data = [],
   pipeData = [],
+  pipeCapacities = [],
   isCustomizing = false
 }) => {
-  const safeData = data.length > 0 ? data : [];
   const [selectedGudang, setSelectedGudang] = useState<string>('ALL');
   const [selectedProcessType, setSelectedProcessType] = useState<ProcessTypeFilter>('ALL');
   const [chartMode, setChartMode] = useState<FastSlowChartMode>('stacked-ton');
-  const [dataLabelMode, setDataLabelMode] = useState<FastSlowDataLabelMode>('both');
 
   // Card order & size state with localStorage persistence
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
@@ -145,9 +144,9 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
 
   // Available gudang list from data
   const availableGudangs = useMemo(() => {
-    const list = safeData.map((d) => d.gudang).filter(Boolean);
+    const list = data.map((d) => d.gudang).filter(Boolean);
     return ['ALL', ...list];
-  }, [safeData]);
+  }, [data]);
 
   // Helper for slow ton per warehouse based on selected process type
   const getWarehouseSlowTon = (d: FastSlowPipe, procType: ProcessTypeFilter): number => {
@@ -164,9 +163,53 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     return Number((effectiveFg + wip).toFixed(2));
   };
 
+  // Helper to extract 4 core metrics (FG Prime, WIP Prime, FG Slow, WIP Slow) with robust fallback
+  const getWarehouseMetrics = (w: FastSlowPipe) => {
+    const fgSlow = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
+    const wipSlow = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
+    const effectiveFgSlow = (fgSlow === 0 && wipSlow === 0 && w.slowTon > 0) ? w.slowTon : fgSlow;
+
+    let fgFast = w.fgFastTon ?? 0;
+    let wipFast = w.wipFastTon ?? 0;
+
+    if (fgFast === 0 && wipFast === 0 && w.fastTon > 0) {
+      const pc = pipeCapacities?.find((p) => p.gudang === w.gudang);
+      if (pc) {
+        const pcFg = (pc.fgLt || 0) + (pc.fgSt || 0);
+        const pcWip = (pc.wipLt || 0) + (pc.wipSt || 0);
+        fgFast = Math.max(0, Number((pcFg - effectiveFgSlow).toFixed(2)));
+        wipFast = Math.max(0, Number((pcWip - wipSlow).toFixed(2)));
+      }
+      if (fgFast === 0 && wipFast === 0) {
+        if (effectiveFgSlow + wipSlow > 0) {
+          const ratio = effectiveFgSlow / (effectiveFgSlow + wipSlow);
+          fgFast = Number((w.fastTon * ratio).toFixed(2));
+          wipFast = Number((w.fastTon - fgFast).toFixed(2));
+        } else {
+          fgFast = w.fastTon;
+          wipFast = 0;
+        }
+      }
+    }
+
+    const totalFast = Number((fgFast + wipFast).toFixed(2));
+    const totalSlow = Number((effectiveFgSlow + wipSlow).toFixed(2));
+    const totalStock = Number((totalFast + totalSlow).toFixed(2));
+
+    return {
+      fgFast,
+      wipFast,
+      fgSlow: effectiveFgSlow,
+      wipSlow,
+      totalFast,
+      totalSlow,
+      totalStock,
+    };
+  };
+
   // Global metrics
-  const totalFast = safeData.reduce((acc, curr) => acc + curr.fastTon, 0);
-  const totalSlow = safeData.reduce(
+  const totalFast = data.reduce((acc, curr) => acc + curr.fastTon, 0);
+  const totalSlow = data.reduce(
     (acc, curr) => acc + getWarehouseSlowTon(curr, selectedProcessType),
     0
   );
@@ -178,8 +221,8 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
   // Active gudang metrics
   const activeGudangData = useMemo(() => {
     if (selectedGudang === 'ALL') return null;
-    return safeData.find((d) => d.gudang === selectedGudang) || null;
-  }, [safeData, selectedGudang]);
+    return data.find((d) => d.gudang === selectedGudang) || null;
+  }, [data, selectedGudang]);
 
   // Helper to extract aggregated top slow moving items
   const getTopSlowItems = (
@@ -259,9 +302,9 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
 
   // Chart data filtered by selected gudang
   const filteredBarData = useMemo(() => {
-    if (selectedGudang === 'ALL') return safeData;
-    return safeData.filter((d) => d.gudang === selectedGudang);
-  }, [safeData, selectedGudang]);
+    if (selectedGudang === 'ALL') return data;
+    return data.filter((d) => d.gudang === selectedGudang);
+  }, [data, selectedGudang]);
 
   const slowDatasetLabel =
     selectedProcessType === 'ALL'
@@ -270,247 +313,359 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
       ? 'Slow Moving (FG)'
       : 'Slow Moving (WIP)';
 
-  // Bar Chart Configuration (Stacked Bar: Fast Moving (Prime) + Slow Moving FG + Slow Moving WIP in 1 stack)
+  // Bar Chart Configuration: 2 Stacked Bars per warehouse side-by-side
+  // Batang 1 (Prime): Stack of Prime FG + Prime WIP
+  // Batang 2 (Slow Moving): Stack of Slow FG + Slow WIP
   const barChartData = useMemo(() => {
     const labels = filteredBarData.map((d) => d.gudang);
     const isPercentMode = chartMode === 'stacked-percent';
-    const maxBarThickness = selectedGudang !== 'ALL' ? 56 : 38;
+    const maxBarThickness = selectedGudang !== 'ALL' ? 52 : 30;
 
-    // Fast Moving (Prime) Dataset
-    const fastDataset = {
-      label: 'Fast Moving (Prime)',
-      data: filteredBarData.map((d) => {
-        const fg = Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
-        const wip = Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
-        const effectiveFg = (fg === 0 && wip === 0 && d.slowTon > 0) ? d.slowTon : fg;
-        const totalSlow = selectedProcessType === 'FG' ? effectiveFg : selectedProcessType === 'WIP' ? wip : (effectiveFg + wip);
-        const total = d.fastTon + totalSlow;
-        if (isPercentMode) {
-          return total > 0 ? Number(((d.fastTon / total) * 100).toFixed(1)) : 0;
-        }
-        return d.fastTon;
-      }),
-      backgroundColor: '#059669',
-      hoverBackgroundColor: '#047857',
-      stack: 'stock-stack',
-      maxBarThickness,
-    };
-
-    // If selectedProcessType is 'WIP', only show Fast Moving + Slow Moving (WIP)
-    if (selectedProcessType === 'WIP') {
-      const wipDataset = {
-        label: 'Slow Moving (WIP)',
+    if (selectedProcessType === 'FG') {
+      const primeFgDataset = {
+        label: 'Prime (FG)',
         data: filteredBarData.map((d) => {
-          const wip = Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
-          const total = d.fastTon + wip;
+          const m = getWarehouseMetrics(d);
           if (isPercentMode) {
-            return total > 0 ? Number(((wip / total) * 100).toFixed(1)) : 0;
+            return m.totalStock > 0 ? Number(((m.fgFast / m.totalStock) * 100).toFixed(1)) : 0;
           }
-          return wip;
+          return m.fgFast;
         }),
-        backgroundColor: '#ea580c',
-        hoverBackgroundColor: '#c2410c',
-        stack: 'stock-stack',
+        backgroundColor: '#059669',
+        hoverBackgroundColor: '#047857',
+        stack: 'prime',
         maxBarThickness,
       };
 
-      return {
-        labels,
-        datasets: [fastDataset, wipDataset],
-      };
-    }
-
-    // If selectedProcessType is 'FG', only show Fast Moving + Slow Moving (FG)
-    if (selectedProcessType === 'FG') {
-      const fgDataset = {
+      const slowFgDataset = {
         label: 'Slow Moving (FG)',
         data: filteredBarData.map((d) => {
-          const fg = Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
-          const effectiveFg = (fg === 0 && d.slowTon > 0) ? d.slowTon : fg;
-          const total = d.fastTon + effectiveFg;
+          const m = getWarehouseMetrics(d);
           if (isPercentMode) {
-            return total > 0 ? Number(((effectiveFg / total) * 100).toFixed(1)) : 0;
+            return m.totalStock > 0 ? Number(((m.fgSlow / m.totalStock) * 100).toFixed(1)) : 0;
           }
-          return effectiveFg;
+          return m.fgSlow;
         }),
         backgroundColor: '#d97706',
         hoverBackgroundColor: '#b45309',
-        stack: 'stock-stack',
+        stack: 'slow',
         maxBarThickness,
       };
 
       return {
         labels,
-        datasets: [fastDataset, fgDataset],
+        datasets: [primeFgDataset, slowFgDataset],
       };
     }
 
-    // Default: 'ALL' -> 3 stacked layers: Fast Moving (Prime) + Slow Moving (FG) + Slow Moving (WIP)
-    const fgDataset = {
-      label: 'Slow Moving (FG)',
+    if (selectedProcessType === 'WIP') {
+      const primeWipDataset = {
+        label: 'Prime (WIP)',
+        data: filteredBarData.map((d) => {
+          const m = getWarehouseMetrics(d);
+          if (isPercentMode) {
+            return m.totalStock > 0 ? Number(((m.wipFast / m.totalStock) * 100).toFixed(1)) : 0;
+          }
+          return m.wipFast;
+        }),
+        backgroundColor: '#10b981',
+        hoverBackgroundColor: '#059669',
+        stack: 'prime',
+        maxBarThickness,
+      };
+
+      const slowWipDataset = {
+        label: 'Slow Moving (WIP)',
+        data: filteredBarData.map((d) => {
+          const m = getWarehouseMetrics(d);
+          if (isPercentMode) {
+            return m.totalStock > 0 ? Number(((m.wipSlow / m.totalStock) * 100).toFixed(1)) : 0;
+          }
+          return m.wipSlow;
+        }),
+        backgroundColor: '#ea580c',
+        hoverBackgroundColor: '#c2410c',
+        stack: 'slow',
+        maxBarThickness,
+      };
+
+      return {
+        labels,
+        datasets: [primeWipDataset, slowWipDataset],
+      };
+    }
+
+    // Default: 'ALL' -> 4 datasets partitioned into 2 stacks:
+    // Stack 'prime': Prime (FG) + Prime (WIP)
+    // Stack 'slow': Slow Moving (FG) + Slow Moving (WIP)
+    const primeFgDataset = {
+      label: 'Prime (FG)',
       data: filteredBarData.map((d) => {
-        const fg = Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
-        const wip = Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
-        const effectiveFg = (fg === 0 && wip === 0 && d.slowTon > 0) ? d.slowTon : fg;
-        const total = d.fastTon + effectiveFg + wip;
+        const m = getWarehouseMetrics(d);
         if (isPercentMode) {
-          return total > 0 ? Number(((effectiveFg / total) * 100).toFixed(1)) : 0;
+          return m.totalStock > 0 ? Number(((m.fgFast / m.totalStock) * 100).toFixed(1)) : 0;
         }
-        return effectiveFg;
+        return m.fgFast;
       }),
-      backgroundColor: '#d97706',
-      hoverBackgroundColor: '#b45309',
-      stack: 'stock-stack',
+      backgroundColor: '#059669',
+      hoverBackgroundColor: '#047857',
+      stack: 'prime',
       maxBarThickness,
     };
 
-    const wipDataset = {
+    const primeWipDataset = {
+      label: 'Prime (WIP)',
+      data: filteredBarData.map((d) => {
+        const m = getWarehouseMetrics(d);
+        if (isPercentMode) {
+          return m.totalStock > 0 ? Number(((m.wipFast / m.totalStock) * 100).toFixed(1)) : 0;
+        }
+        return m.wipFast;
+      }),
+      backgroundColor: '#10b981',
+      hoverBackgroundColor: '#059669',
+      stack: 'prime',
+      maxBarThickness,
+    };
+
+    const slowFgDataset = {
+      label: 'Slow Moving (FG)',
+      data: filteredBarData.map((d) => {
+        const m = getWarehouseMetrics(d);
+        if (isPercentMode) {
+          return m.totalStock > 0 ? Number(((m.fgSlow / m.totalStock) * 100).toFixed(1)) : 0;
+        }
+        return m.fgSlow;
+      }),
+      backgroundColor: '#d97706',
+      hoverBackgroundColor: '#b45309',
+      stack: 'slow',
+      maxBarThickness,
+    };
+
+    const slowWipDataset = {
       label: 'Slow Moving (WIP)',
       data: filteredBarData.map((d) => {
-        const fg = Number(((d.fgLtSlow || 0) + (d.fgStSlow || 0)).toFixed(2));
-        const wip = Number(((d.wipLtSlow || 0) + (d.wipStSlow || 0)).toFixed(2));
-        const effectiveFg = (fg === 0 && wip === 0 && d.slowTon > 0) ? d.slowTon : fg;
-        const total = d.fastTon + effectiveFg + wip;
+        const m = getWarehouseMetrics(d);
         if (isPercentMode) {
-          return total > 0 ? Number(((wip / total) * 100).toFixed(1)) : 0;
+          return m.totalStock > 0 ? Number(((m.wipSlow / m.totalStock) * 100).toFixed(1)) : 0;
         }
-        return wip;
+        return m.wipSlow;
       }),
       backgroundColor: '#ea580c',
       hoverBackgroundColor: '#c2410c',
-      stack: 'stock-stack',
+      stack: 'slow',
       maxBarThickness,
     };
 
     return {
       labels,
-      datasets: [fastDataset, fgDataset, wipDataset],
+      datasets: [primeFgDataset, primeWipDataset, slowFgDataset, slowWipDataset],
     };
-  }, [filteredBarData, selectedGudang, chartMode, selectedProcessType]);
+  }, [filteredBarData, selectedGudang, chartMode, selectedProcessType, pipeCapacities]);
 
-  // Antislop Custom Canvas Drawing Plugin: Single Floating Percentage / Tonase Badge Pill above each warehouse's stacked bar
+  // Antislop Custom Canvas Drawing Plugin: 4 data numbers displayed for the dual-stacked bars (Tonase only, no percentages)
   const slowPercentageDataLabelsPlugin = useMemo(() => ({
     id: 'slowPercentageDataLabels',
     afterDatasetsDraw(chart: any) {
       const { ctx } = chart;
-      const isPercentMode = chartMode === 'stacked-percent';
 
-      // Detect which datasets are currently visible (user can toggle via legend click)
-      let isFastVisible = true;
-      let isFgVisible = true;
-      let isWipVisible = true;
+      const formatTon = (val: number) => {
+        return `${val.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} T`;
+      };
 
-      if (chart && chart.data && chart.data.datasets) {
-        chart.data.datasets.forEach((ds: any, dsIdx: number) => {
-          const visible = chart.isDatasetVisible(dsIdx);
-          const label = ds.label || '';
-          if (label.includes('Fast Moving') || label.includes('Prime')) isFastVisible = visible;
-          else if (label.includes('FG')) isFgVisible = visible;
-          else if (label.includes('WIP')) isWipVisible = visible;
-        });
-      }
-
-      filteredBarData.forEach((w, index) => {
-        const fg = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
-        const wip = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
-        const effectiveFg = (fg === 0 && wip === 0 && w.slowTon > 0) ? w.slowTon : fg;
-
-        let activeSlow = 0;
-        const isOnlyFg = isFgVisible && !isWipVisible;
-        const isOnlyWip = !isFgVisible && isWipVisible;
-
-        if (selectedProcessType === 'FG') {
-          if (isFgVisible) activeSlow = effectiveFg;
-        } else if (selectedProcessType === 'WIP') {
-          if (isWipVisible) activeSlow = wip;
-        } else {
-          // 'ALL'
-          if (isFgVisible) activeSlow += effectiveFg;
-          if (isWipVisible) activeSlow += wip;
-        }
-
-        // If no slow moving dataset is currently visible, don't draw any slow badge
-        if (activeSlow <= 0) return;
-
-        const totalStock = w.fastTon + effectiveFg + wip;
-        if (totalStock <= 0) return;
-
-        const slowPct = (activeSlow / totalStock) * 100;
-        if (slowPct <= 0) return;
-
-        const meta0 = chart.getDatasetMeta(0);
-        if (!meta0 || !meta0.data || !meta0.data[index]) return;
-        const centerX = meta0.data[index].x;
-
-        // Dynamically find the top of the highest visible dataset in the stack
-        let topY = Infinity;
-        for (let i = chart.data.datasets.length - 1; i >= 0; i--) {
-          if (chart.isDatasetVisible(i)) {
-            const meta = chart.getDatasetMeta(i);
-            if (meta && meta.data && meta.data[index]) {
-              const elY = meta.data[index].y;
-              if (typeof elY === 'number' && !isNaN(elY)) {
-                topY = elY;
-                break;
-              }
-            }
-          }
-        }
-
-        // Fallback if meta element coordinate is not ready
-        if (topY === Infinity) {
-          const visibleStock = (isFastVisible ? w.fastTon : 0) + activeSlow;
-          topY = chart.scales.y.getPixelForValue(isPercentMode ? 100 : visibleStock);
-        }
-
-        const tonFormatted = activeSlow.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-        let label = '';
-
-        if (dataLabelMode === 'ton') {
-          if (selectedProcessType === 'FG' || isOnlyFg) label = `${tonFormatted} T FG`;
-          else if (selectedProcessType === 'WIP' || isOnlyWip) label = `${tonFormatted} T WIP`;
-          else label = `${tonFormatted} Ton`;
-        } else if (dataLabelMode === 'both') {
-          if (isOnlyFg) label = `${tonFormatted} T FG (${slowPct.toFixed(1)}%)`;
-          else if (isOnlyWip) label = `${tonFormatted} T WIP (${slowPct.toFixed(1)}%)`;
-          else label = `${tonFormatted} T (${slowPct.toFixed(1)}%)`;
-        } else {
-          // 'percent'
-          if (selectedProcessType === 'FG' || isOnlyFg) label = `${slowPct.toFixed(1)}% FG`;
-          else if (selectedProcessType === 'WIP' || isOnlyWip) label = `${slowPct.toFixed(1)}% WIP`;
-          else label = `${slowPct.toFixed(1)}% Slow`;
-        }
-
-        const isHigh = slowPct >= 15.0;
-
+      // Crisp inside label with dark stroke outline: guarantees 100% legibility on any background or canvas spill
+      const drawInside = (txt: string, x: number, y: number) => {
         ctx.save();
-        ctx.font = 'bold 8.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-        const textWidth = ctx.measureText(label).width;
-        const pillW = textWidth + 8;
-        const pillH = 15;
-        const pillX = centerX - pillW / 2;
-        const pillY = Math.max(topY - pillH - 4, 6);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        // Dark stroke outline (2.5px) around white letters prevents white text from vanishing into white canvas
+        ctx.strokeStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(txt, x, y);
+        // Pure crisp white text fill
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(txt, x, y);
+        ctx.restore();
+      };
 
+      // Crisp floating badge pill with distinct border and high-contrast text for short bars
+      const drawFloatingBadge = (
+        txt: string,
+        x: number,
+        y: number,
+        type: 'wip' | 'fg' | 'prime'
+      ) => {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        const tw = ctx.measureText(txt).width;
+        const pw = Math.max(tw + 8, 30);
+        const ph = 14;
+        const px = x - pw / 2;
+        const py = y - ph / 2;
+        const r = 3;
+
+        let bg = '#fff7ed';
+        let border = '#f97316';
+        let textColor = '#7c2d12';
+
+        if (type === 'fg') {
+          bg = '#fefce8';
+          border = '#d97706';
+          textColor = '#713f12';
+        } else if (type === 'prime') {
+          bg = '#ecfdf5';
+          border = '#059669';
+          textColor = '#064e3b';
+        }
+
+        // Clean pill background
+        ctx.fillStyle = bg;
         ctx.beginPath();
         if (typeof ctx.roundRect === 'function') {
-          ctx.roundRect(pillX, pillY, pillW, pillH, 3);
+          ctx.roundRect(px, py, pw, ph, r);
         } else {
-          ctx.rect(pillX, pillY, pillW, pillH);
+          ctx.rect(px, py, pw, ph);
         }
-        ctx.fillStyle = isHigh ? '#fffbeb' : '#f8fafc';
         ctx.fill();
-        ctx.strokeStyle = isHigh ? '#f59e0b' : '#cbd5e1';
+
+        // 1px solid crisp border
+        ctx.strokeStyle = border;
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.fillStyle = isHigh ? '#b45309' : '#334155';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, centerX, pillY + pillH / 2);
+        // Deep contrast text
+        ctx.fillStyle = textColor;
+        ctx.fillText(txt, x, y);
         ctx.restore();
+      };
+
+      filteredBarData.forEach((w, index) => {
+        const m = getWarehouseMetrics(w);
+        if (m.totalStock <= 0) return;
+
+        if (selectedProcessType === 'ALL') {
+          const visFgP = chart.isDatasetVisible(0);
+          const visWipP = chart.isDatasetVisible(1);
+          const visFgS = chart.isDatasetVisible(2);
+          const visWipS = chart.isDatasetVisible(3);
+
+          const meta0 = chart.getDatasetMeta(0);
+          const meta1 = chart.getDatasetMeta(1);
+          const meta2 = chart.getDatasetMeta(2);
+          const meta3 = chart.getDatasetMeta(3);
+
+          const el0 = meta0?.data?.[index];
+          const el1 = meta1?.data?.[index];
+          const el2 = meta2?.data?.[index];
+          const el3 = meta3?.data?.[index];
+
+          const valFgP = m.fgFast;
+          const valWipP = m.wipFast;
+          const valFgS = m.fgSlow;
+          const valWipS = m.wipSlow;
+
+          const hFgP = (visFgP && el0) ? Math.abs(el0.base - el0.y) : 0;
+          const hWipP = (visWipP && el1) ? Math.abs(el1.base - el1.y) : 0;
+          const hFgS = (visFgS && el2) ? Math.abs(el2.base - el2.y) : 0;
+          const hWipS = (visWipS && el3) ? Math.abs(el3.base - el3.y) : 0;
+
+          // --- 1. BATANG PRIME (Stack 1) ---
+          const xPrime = el0?.x ?? el1?.x;
+          if (xPrime !== undefined) {
+            // Segment 0: Prime FG
+            if (visFgP && valFgP > 0.05 && el0) {
+              if (hFgP >= 14) {
+                drawInside(formatTon(valFgP), xPrime, (el0.base + el0.y) / 2);
+              } else if (hWipP < 14) {
+                drawFloatingBadge(formatTon(valFgP), xPrime, Math.max(el0.y - 9, 10), 'prime');
+              }
+            }
+
+            // Segment 1: Prime WIP
+            if (visWipP && valWipP > 0.05 && el1) {
+              if (hWipP >= 14) {
+                drawInside(formatTon(valWipP), xPrime, (el1.base + el1.y) / 2);
+              } else {
+                const topYPrime = Math.min(el1.y, (visFgP && el0 && valFgP > 0.05) ? el0.y : Infinity);
+                drawFloatingBadge(`WIP ${formatTon(valWipP)}`, xPrime, Math.max(topYPrime - 9, 10), 'prime');
+              }
+            }
+          }
+
+          // --- 2. BATANG SLOW MOVING (Stack 2) ---
+          const xSlow = el2?.x ?? el3?.x;
+          if (xSlow !== undefined && (visFgS || visWipS)) {
+            const hasFg = visFgS && valFgS > 0.05;
+            const hasWip = visWipS && valWipS > 0.05;
+            const topYSlow = Math.min(
+              (hasWip && el3) ? el3.y : Infinity,
+              (hasFg && el2) ? el2.y : Infinity
+            );
+
+            if (hFgS >= 14 && hWipS >= 14) {
+              if (hasFg && el2) drawInside(formatTon(valFgS), xSlow, (el2.base + el2.y) / 2);
+              if (hasWip && el3) drawInside(formatTon(valWipS), xSlow, (el3.base + el3.y) / 2);
+            } else if (hFgS >= 14 && hWipS < 14) {
+              if (hasFg && el2) drawInside(formatTon(valFgS), xSlow, (el2.base + el2.y) / 2);
+              if (hasWip) {
+                drawFloatingBadge(`WIP ${formatTon(valWipS)}`, xSlow, Math.max(topYSlow - 9, 10), 'wip');
+              }
+            } else if (hFgS < 14 && hWipS >= 14) {
+              if (hasWip && el3) drawInside(formatTon(valWipS), xSlow, (el3.base + el3.y) / 2);
+              if (hasFg) {
+                drawFloatingBadge(`FG ${formatTon(valFgS)}`, xSlow, Math.max(topYSlow - 9, 10), 'fg');
+              }
+            } else {
+              // Both short (< 14px)
+              if (hasFg && hasWip) {
+                const yFg = Math.max(topYSlow - 9, 24);
+                const yWip = Math.max(yFg - 16, 8);
+                drawFloatingBadge(`FG ${formatTon(valFgS)}`, xSlow, yFg, 'fg');
+                drawFloatingBadge(`WIP ${formatTon(valWipS)}`, xSlow, yWip, 'wip');
+              } else if (hasWip) {
+                drawFloatingBadge(`WIP ${formatTon(valWipS)}`, xSlow, Math.max(topYSlow - 9, 10), 'wip');
+              } else if (hasFg) {
+                drawFloatingBadge(`FG ${formatTon(valFgS)}`, xSlow, Math.max(topYSlow - 9, 10), 'fg');
+              }
+            }
+          }
+        } else {
+          // When selectedProcessType === 'FG' or 'WIP' (2 datasets: Prime & Slow)
+          const isFG = selectedProcessType === 'FG';
+          const valPrime = isFG ? m.fgFast : m.wipFast;
+          const valSlow = isFG ? m.fgSlow : m.wipSlow;
+          const vis0 = chart.isDatasetVisible(0);
+          const vis1 = chart.isDatasetVisible(1);
+          const el0 = chart.getDatasetMeta(0)?.data?.[index];
+          const el1 = chart.getDatasetMeta(1)?.data?.[index];
+
+          if (vis0 && valPrime > 0.05 && el0) {
+            const h0 = Math.abs(el0.base - el0.y);
+            if (h0 >= 14) {
+              drawInside(formatTon(valPrime), el0.x, (el0.base + el0.y) / 2);
+            } else {
+              drawFloatingBadge(formatTon(valPrime), el0.x, Math.max(el0.y - 9, 10), 'prime');
+            }
+          }
+
+          if (vis1 && valSlow > 0.05 && el1) {
+            const h1 = Math.abs(el1.base - el1.y);
+            const badgeType = isFG ? 'fg' : 'wip';
+            if (h1 >= 14) {
+              drawInside(formatTon(valSlow), el1.x, (el1.base + el1.y) / 2);
+            } else {
+              drawFloatingBadge(formatTon(valSlow), el1.x, Math.max(el1.y - 9, 10), badgeType);
+            }
+          }
+        }
       });
     },
-  }), [chartMode, dataLabelMode, filteredBarData, selectedProcessType]);
+  }), [chartMode, filteredBarData, selectedProcessType, pipeCapacities]);
 
   const barChartOptions = useMemo(() => {
     const isPercentMode = chartMode === 'stacked-percent';
@@ -524,7 +679,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
       },
       layout: {
         padding: {
-          top: 28,
+          top: 42,
           right: 8,
           left: 4,
           bottom: 2,
@@ -561,25 +716,24 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
               const w = filteredBarData[idx];
               if (!w) return ` ${context.dataset.label}: ${context.raw || 0}`;
 
-              const fg = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
-              const wip = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
-              const effectiveFg = (fg === 0 && wip === 0 && w.slowTon > 0) ? w.slowTon : fg;
-              const totalSlow = selectedProcessType === 'FG' ? effectiveFg : selectedProcessType === 'WIP' ? wip : (effectiveFg + wip);
-              const totalStock = w.fastTon + totalSlow;
-
+              const m = getWarehouseMetrics(w);
               const dsLabel = context.dataset.label || '';
               let itemTon = 0;
-              if (dsLabel.includes('Fast Moving') || dsLabel.includes('Prime')) {
-                itemTon = w.fastTon;
+              if (dsLabel.includes('Prime') && dsLabel.includes('FG')) {
+                itemTon = m.fgFast;
+              } else if (dsLabel.includes('Prime') && dsLabel.includes('WIP')) {
+                itemTon = m.wipFast;
+              } else if (dsLabel.includes('Prime')) {
+                itemTon = selectedProcessType === 'FG' ? m.fgFast : selectedProcessType === 'WIP' ? m.wipFast : m.totalFast;
               } else if (dsLabel.includes('FG')) {
-                itemTon = effectiveFg;
+                itemTon = m.fgSlow;
               } else if (dsLabel.includes('WIP')) {
-                itemTon = wip;
+                itemTon = m.wipSlow;
               } else {
-                itemTon = totalSlow;
+                itemTon = m.totalSlow;
               }
 
-              const pct = totalStock > 0 ? (itemTon / totalStock) * 100 : 0;
+              const pct = m.totalStock > 0 ? (itemTon / m.totalStock) * 100 : 0;
               const tonFormatted = itemTon.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
               return ` ${dsLabel}: ${tonFormatted} Ton (${pct.toFixed(1)}%)`;
@@ -591,59 +745,39 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
               const w = filteredBarData[idx];
               if (!w) return [];
 
-              const fg = Number(((w.fgLtSlow || 0) + (w.fgStSlow || 0)).toFixed(2));
-              const wip = Number(((w.wipLtSlow || 0) + (w.wipStSlow || 0)).toFixed(2));
-              const effectiveFg = (fg === 0 && wip === 0 && w.slowTon > 0) ? w.slowTon : fg;
+              const m = getWarehouseMetrics(w);
 
-              let isFastVisible = true;
-              let isFgVisible = true;
-              let isWipVisible = true;
-
-              if (chart && chart.data && chart.data.datasets) {
-                chart.data.datasets.forEach((ds: any, dsIdx: number) => {
-                  const visible = chart.isDatasetVisible(dsIdx);
-                  const label = ds.label || '';
-                  if (label.includes('Fast Moving') || label.includes('Prime')) isFastVisible = visible;
-                  else if (label.includes('FG')) isFgVisible = visible;
-                  else if (label.includes('WIP')) isWipVisible = visible;
-                });
-              }
-
+              let activePrime = 0;
               let activeSlow = 0;
-              let slowLabel = 'Total Slow';
-              if (selectedProcessType === 'FG') {
-                if (isFgVisible) activeSlow = effectiveFg;
-                slowLabel = 'Slow FG';
-              } else if (selectedProcessType === 'WIP') {
-                if (isWipVisible) activeSlow = wip;
-                slowLabel = 'Slow WIP';
-              } else {
-                if (isFgVisible && isWipVisible) {
-                  activeSlow = effectiveFg + wip;
-                  slowLabel = 'Total Slow';
-                } else if (isFgVisible && !isWipVisible) {
-                  activeSlow = effectiveFg;
-                  slowLabel = 'Total Slow (FG)';
-                } else if (!isFgVisible && isWipVisible) {
-                  activeSlow = wip;
-                  slowLabel = 'Total Slow (WIP)';
-                } else {
-                  activeSlow = 0;
-                }
-              }
 
-              const totalStock = w.fastTon + effectiveFg + wip;
-              if (totalStock <= 0) return [];
+              chart.data.datasets.forEach((ds: any, dsIdx: number) => {
+                if (!chart.isDatasetVisible(dsIdx)) return;
+                const label = ds.label || '';
+                if (label.includes('Prime') && label.includes('FG')) activePrime += m.fgFast;
+                else if (label.includes('Prime') && label.includes('WIP')) activePrime += m.wipFast;
+                else if (label.includes('Prime')) activePrime += (selectedProcessType === 'FG' ? m.fgFast : m.wipFast);
+                else if (label.includes('FG')) activeSlow += m.fgSlow;
+                else if (label.includes('WIP')) activeSlow += m.wipSlow;
+              });
 
-              const slowPct = (activeSlow / totalStock) * 100;
-              const totalSlowFormatted = activeSlow.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-              const totalStockFormatted = totalStock.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+              const activeTotal = activePrime + activeSlow;
+              if (activeTotal <= 0) return [];
+
+              const primePct = m.totalStock > 0 ? (activePrime / m.totalStock) * 100 : 0;
+              const slowPct = m.totalStock > 0 ? (activeSlow / m.totalStock) * 100 : 0;
+
+              const primeFormatted = activePrime.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+              const slowFormatted = activeSlow.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+              const totalFormatted = m.totalStock.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
               const lines = ['-----------------------------'];
-              if (activeSlow > 0) {
-                lines.push(`  ${slowLabel.padEnd(12, ' ')}: ${totalSlowFormatted} Ton (${slowPct.toFixed(1)}%)`);
+              if (activePrime > 0) {
+                lines.push(`  Total Prime : ${primeFormatted} Ton (${primePct.toFixed(1)}%)`);
               }
-              lines.push(`  Total Stock : ${totalStockFormatted} Ton (100.0%)`);
+              if (activeSlow > 0) {
+                lines.push(`  Total Slow  : ${slowFormatted} Ton (${slowPct.toFixed(1)}%)`);
+              }
+              lines.push(`  Total Stock : ${totalFormatted} Ton (100.0%)`);
               return lines;
             },
           },
@@ -666,11 +800,11 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
           },
           border: { dash: [4, 4], color: '#e2e8f0' },
           max: isPercentMode ? 100 : undefined,
-          grace: isPercentMode ? undefined : '14%',
+          grace: isPercentMode ? undefined : '18%',
         },
       },
     };
-  }, [chartMode, filteredBarData, selectedProcessType]);
+  }, [chartMode, filteredBarData, selectedProcessType, pipeCapacities]);
 
   // Doughnut Chart Configuration (Reflects Active Gudang or Global)
   const activeFastTon = activeGudangData ? activeGudangData.fastTon : totalFast;
@@ -977,7 +1111,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     });
 
     if (Object.keys(map).length === 0 && modalProcessFilter === 'ALL') {
-      const relevantWarehouses = modalYearGudang === 'ALL' ? safeData : safeData.filter((d) => d.gudang === modalYearGudang);
+      const relevantWarehouses = modalYearGudang === 'ALL' ? data : data.filter((d) => d.gudang === modalYearGudang);
       relevantWarehouses.forEach((w) => {
         if (w.yearlySlowTon) {
           Object.entries(w.yearlySlowTon).forEach(([yr, ton]) => {
@@ -995,7 +1129,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
       if (b.year === 'Tidak Diketahui') return -1;
       return b.year.localeCompare(a.year);
     });
-  }, [slowPipeItems, modalYearGudang, modalProcessFilter, safeData]);
+  }, [slowPipeItems, modalYearGudang, modalProcessFilter, data]);
 
   const modalTotalSlowTon = useMemo(() => {
     return yearlySlowBreakdown.reduce((sum, d) => sum + d.totalTon, 0);
@@ -1402,7 +1536,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
               onChange={(e) => setSelectedGudang(e.target.value)}
               className="bg-emerald-900 border border-emerald-700 text-white text-xs font-bold rounded px-1.5 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer"
             >
-              <option value="ALL">Semua Gudang ({safeData.length})</option>
+              <option value="ALL">Semua Gudang ({data.length})</option>
               {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
                 <option key={g} value={g}>
                   {g}
@@ -1475,50 +1609,6 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 }
                 headerAction={
                   <div className="flex items-center gap-1.5 font-mono">
-                    {/* PILIHAN LABEL DATA ANGKA */}
-                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 px-1 hidden md:inline">Data:</span>
-                      <button
-                        type="button"
-                        onClick={() => setDataLabelMode('ton')}
-                        className={cn(
-                          "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
-                          dataLabelMode === 'ton'
-                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold"
-                            : "text-slate-600 hover:text-slate-900"
-                        )}
-                        title="Tampilkan angka tonase slow moving pada diagram"
-                      >
-                        Ton
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDataLabelMode('percent')}
-                        className={cn(
-                          "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
-                          dataLabelMode === 'percent'
-                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold"
-                            : "text-slate-600 hover:text-slate-900"
-                        )}
-                        title="Tampilkan persentase slow moving pada diagram"
-                      >
-                        %
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDataLabelMode('both')}
-                        className={cn(
-                          "px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all cursor-pointer",
-                          dataLabelMode === 'both'
-                            ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold"
-                            : "text-slate-600 hover:text-slate-900"
-                        )}
-                        title="Tampilkan angka tonase dan persentase bersamaan"
-                      >
-                        Ton &amp; %
-                      </button>
-                    </div>
-
                     {/* SKALA DIAGRAM */}
                     <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                       <button
@@ -1553,7 +1643,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
               >
                 {(expanded) => (
                   <div className="flex flex-col h-full w-full gap-5">
-                    <div className={expanded ? 'h-64 sm:h-72 w-full shrink-0' : 'h-64 w-full'}>
+                    <div className={expanded ? 'h-80 sm:h-96 w-full shrink-0' : 'h-72 sm:h-80 w-full'}>
                       <Bar data={barChartData} options={barChartOptions} plugins={[slowPercentageDataLabelsPlugin]} />
                     </div>
 
@@ -1589,49 +1679,6 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                                     </button>
                                   );
                                 })}
-                              </div>
-                            </div>
-
-                            {/* PILIHAN LABEL DATA ANGKA */}
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[10px] uppercase font-bold text-slate-400 px-1 tracking-wider">Data:</span>
-                              <div className="flex items-center gap-0.5 bg-slate-200/70 p-0.5 rounded-lg border border-slate-300/40">
-                                <button
-                                  type="button"
-                                  onClick={() => setDataLabelMode('ton')}
-                                  className={cn(
-                                    "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
-                                    dataLabelMode === 'ton'
-                                      ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
-                                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                                  )}
-                                >
-                                  Tonase
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDataLabelMode('percent')}
-                                  className={cn(
-                                    "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
-                                    dataLabelMode === 'percent'
-                                      ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
-                                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                                  )}
-                                >
-                                  % Rasio
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDataLabelMode('both')}
-                                  className={cn(
-                                    "px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer",
-                                    dataLabelMode === 'both'
-                                      ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80 font-extrabold'
-                                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                                  )}
-                                >
-                                  Ton &amp; %
-                                </button>
                               </div>
                             </div>
 
@@ -1681,7 +1728,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                                 )}
                               >
-                                Semua ({safeData.length})
+                                Semua ({data.length})
                               </button>
                               {availableGudangs
                                 .filter((g) => g !== 'ALL')
@@ -1891,7 +1938,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                       </span>
                     )}
                     <span className="text-[10px] font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-300 font-semibold">
-                      {safeData.length} Gudang
+                      {data.length} Gudang
                     </span>
                   </div>
                 }
@@ -1916,7 +1963,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
-                        {safeData.map((item) => {
+                        {data.map((item) => {
                           const currentSlowTon = getWarehouseSlowTon(item, selectedProcessType);
                           const currentTotalTon = item.fastTon + currentSlowTon;
                           const currentFastPct = currentTotalTon > 0 ? (item.fastTon / currentTotalTon) * 100 : 0;
@@ -2037,7 +2084,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100/90 text-slate-700 bg-white">
-                        {safeData.map((r) => {
+                        {data.map((r) => {
                           const rowSlowTotal = getWarehouseSlowTon(r, selectedProcessType);
                           const isSelected = selectedGudang === r.gudang;
                           return (
@@ -2082,16 +2129,16 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                         <tr>
                           <td className="py-3 px-3.5 font-mono">TOTAL</td>
                           <td className={`py-3 px-3 text-right font-mono ${isFgOnly ? 'bg-emerald-100/50 font-bold text-emerald-950' : 'text-emerald-900'}`}>
-                            {safeData.reduce((acc, c) => acc + (c.fgLtSlow || 0), 0).toFixed(2)}
+                            {data.reduce((acc, c) => acc + (c.fgLtSlow || 0), 0).toFixed(2)}
                           </td>
                           <td className={`py-3 px-3 text-right font-mono ${isFgOnly ? 'bg-emerald-100/50 font-bold text-emerald-950' : 'text-emerald-900'}`}>
-                            {safeData.reduce((acc, c) => acc + (c.fgStSlow || 0), 0).toFixed(2)}
+                            {data.reduce((acc, c) => acc + (c.fgStSlow || 0), 0).toFixed(2)}
                           </td>
                           <td className={`py-3 px-3 text-right font-mono ${isWipOnly ? 'bg-amber-100/50 font-bold text-amber-950' : 'text-amber-900'}`}>
-                            {safeData.reduce((acc, c) => acc + (c.wipLtSlow || 0), 0).toFixed(2)}
+                            {data.reduce((acc, c) => acc + (c.wipLtSlow || 0), 0).toFixed(2)}
                           </td>
                           <td className={`py-3 px-3 text-right font-mono ${isWipOnly ? 'bg-amber-100/50 font-bold text-amber-950' : 'text-amber-900'}`}>
-                            {safeData.reduce((acc, c) => acc + (c.wipStSlow || 0), 0).toFixed(2)}
+                            {data.reduce((acc, c) => acc + (c.wipStSlow || 0), 0).toFixed(2)}
                           </td>
                           <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-950">
                             {totalSlow.toFixed(2)}
