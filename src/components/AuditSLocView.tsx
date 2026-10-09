@@ -2504,10 +2504,10 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
           )}
         </CustomizableCard>
 
-        {/* CARD 6: TABEL DETAIL 14 KOLOM SAP */}
+        {/* CARD 6: TABEL DETAIL HASIL REKONSILIASI AUDIT SLOC */}
         <CustomizableCard
           id="table-asloc-detail"
-          title="Tabel Detail 14 Kolom Rekonsiliasi Audit SLoc SAP"
+          title="Detail Hasil Rekonsiliasi Audit SLoc"
           icon={Table2}
           width={cards.find((c) => c.id === 'table-asloc-detail')?.width || 'col-span-12'}
           isCustomizing={isCustomizing}
@@ -2515,13 +2515,6 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
           canMoveLeft={true}
           canMoveRight={false}
           onMoveLeft={() => handleMove(5, 'left')}
-          headerAction={
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500 font-mono font-medium bg-slate-100/80 px-2.5 py-1 rounded-xl border border-slate-200/60 shadow-2xs">
-                Menampilkan {paginatedItems.length} dari {filteredItems.length} baris
-              </span>
-            </div>
-          }
         >
           {(expanded) => (
             <div className={cn('flex flex-col space-y-3', expanded && 'flex-1 h-full')}>
@@ -2708,32 +2701,13 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                 <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
                   <thead className="bg-slate-50/95 backdrop-blur-xs sticky top-0 z-10 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] tracking-wider font-mono select-none">
                     <tr>
-                      <th className="py-2.5 px-2.5 text-center w-10">No</th>
+                      <th className="py-2.5 px-3 text-center w-12">No</th>
                       <th
-                        className="py-2.5 px-2.5 cursor-pointer hover:bg-slate-100 transition-colors group"
-                        onClick={() => handleSort('label')}
-                      >
-                        <div className="flex items-center gap-1">
-                          <span>Label</span>
-                          {renderSortIcon('label')}
-                        </div>
-                      </th>
-                      <th className="py-2.5 px-2 text-center">Plant</th>
-                      <th
-                        className="py-2.5 px-2.5 cursor-pointer hover:bg-slate-100 transition-colors group"
-                        onClick={() => handleSort('gudang')}
-                      >
-                        <div className="flex items-center gap-1">
-                          <span>Gudang</span>
-                          {renderSortIcon('gudang')}
-                        </div>
-                      </th>
-                      <th
-                        className="py-2.5 px-2.5 cursor-pointer hover:bg-slate-100 transition-colors group"
+                        className="py-2.5 px-3 cursor-pointer hover:bg-slate-100 transition-colors group"
                         onClick={() => handleSort('sloc')}
                       >
                         <div className="flex items-center gap-1">
-                          <span>SLoc</span>
+                          <span>SLoc / Gudang</span>
                           {renderSortIcon('sloc')}
                         </div>
                       </th>
@@ -2742,13 +2716,12 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                         onClick={() => handleSort('material')}
                       >
                         <div className="flex items-center gap-1">
-                          <span>Material</span>
+                          <span>Material & Ukuran</span>
                           {renderSortIcon('material')}
                         </div>
                       </th>
-                      <th className="py-2.5 px-2.5">Ukuran</th>
                       <th
-                        className="py-2.5 px-2.5 cursor-pointer hover:bg-slate-100 transition-colors group"
+                        className="py-2.5 px-3 cursor-pointer hover:bg-slate-100 transition-colors group"
                         onClick={() => handleSort('batch')}
                       >
                         <div className="flex items-center gap-1">
@@ -2757,74 +2730,20 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                         </div>
                       </th>
                       <th
-                        className="py-2.5 px-2.5 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
-                        onClick={() => handleSort('sapInitialQty')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          <span>SAP Awal</span>
-                          {renderSortIcon('sapInitialQty')}
-                        </div>
-                      </th>
-                      <th
-                        className="py-2.5 px-2.5 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
-                        onClick={() => handleSort('eomWeight')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          <span>Eom (KG)</span>
-                          {renderSortIcon('eomWeight')}
-                        </div>
-                      </th>
-                      <th
-                        className="py-2.5 px-2.5 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
-                        onClick={() => handleSort('qtyAudit')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          <span>Qty Audit</span>
-                          {renderSortIcon('qtyAudit')}
-                        </div>
-                      </th>
-                      <th
-                        className="py-2.5 px-2.5 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
-                        onClick={() => handleSort('kgAudit')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          <span>KG Audit</span>
-                          {renderSortIcon('kgAudit')}
-                        </div>
-                      </th>
-                      <th
-                        className="py-2.5 px-2.5 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
-                        onClick={() => handleSort('diffKgAudit')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          <span>Diff KG</span>
-                          {renderSortIcon('diffKgAudit')}
-                        </div>
-                      </th>
-                      <th
-                        className="py-2.5 px-2.5 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
-                        onClick={() => handleSort('diffQtyInitial')}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          <span>Diff Qty Awal</span>
-                          {renderSortIcon('diffQtyInitial')}
-                        </div>
-                      </th>
-                      <th
-                        className="py-2.5 px-2.5 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
+                        className="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
                         onClick={() => handleSort('sapFinalQty')}
                       >
                         <div className="flex items-center justify-end gap-1">
-                          <span>SAP Final</span>
+                          <span>SAP (Pcs)</span>
                           {renderSortIcon('sapFinalQty')}
                         </div>
                       </th>
                       <th
-                        className="py-2.5 px-2.5 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
+                        className="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
                         onClick={() => handleSort('actualFinalQty')}
                       >
                         <div className="flex items-center justify-end gap-1">
-                          <span>Actual Final</span>
+                          <span>Fisik (Pcs)</span>
                           {renderSortIcon('actualFinalQty')}
                         </div>
                       </th>
@@ -2833,16 +2752,16 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                         onClick={() => handleSort('diffAuditFinalQty')}
                       >
                         <div className="flex items-center justify-end gap-1">
-                          <span>Diff Final</span>
+                          <span>Selisih (Pcs)</span>
                           {renderSortIcon('diffAuditFinalQty')}
                         </div>
                       </th>
                       <th
-                        className="py-2.5 px-2.5 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
+                        className="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition-colors group"
                         onClick={() => handleSort('tonDiffFinal')}
                       >
                         <div className="flex items-center justify-end gap-1">
-                          <span>Selisih Ton</span>
+                          <span>Selisih (Ton)</span>
                           {renderSortIcon('tonDiffFinal')}
                         </div>
                       </th>
@@ -2852,7 +2771,10 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                   <tbody className="divide-y divide-slate-100 font-mono">
                     {paginatedItems.length === 0 ? (
                       <tr>
-                        <td colSpan={19} className="py-12 text-center text-slate-400 font-sans">
+                        <td
+                          colSpan={9}
+                          className="py-12 text-center text-slate-400 font-sans"
+                        >
                           <MapPinCheck className="h-9 w-9 mx-auto mb-2 text-slate-300 stroke-[1.5]" />
                           <p className="font-semibold text-slate-600">Tidak ada data audit SLoc</p>
                           <p className="text-xs text-slate-400 mt-0.5">
@@ -2874,61 +2796,40 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                               isPlus && 'bg-amber-50/25 hover:bg-amber-50/50'
                             )}
                           >
-                            <td className="py-2 px-2.5 text-center text-slate-400 text-[11px]">
+                            <td className="py-2 px-3 text-center text-slate-400 text-[11px]">
                               {(currentPage - 1) * pageSize + idx + 1}
                             </td>
-                            <td className="py-2 px-2.5 text-slate-600 text-[11px]">
-                              {item.label || item.labelId || '-'}
-                            </td>
-                            <td className="py-2 px-2 text-center text-slate-500 text-[11px]">
-                              {item.plant}
-                            </td>
-                            <td className="py-2 px-2.5 text-slate-700 font-semibold text-xs">
-                              {item.gudang}
-                            </td>
-                            <td className="py-2 px-2.5 font-bold text-slate-900 text-xs">
-                              {item.sloc}
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900 text-xs">{item.sloc}</span>
+                                <span className="text-[10px] font-mono bg-slate-100 text-slate-700 font-semibold px-1.5 py-0.2 rounded border border-slate-200">
+                                  {item.gudang}
+                                </span>
+                              </div>
                             </td>
                             <td className="py-2 px-3">
                               <div className="flex flex-col">
                                 <span className="font-bold text-slate-900 text-xs tracking-tight">
                                   {item.material}
                                 </span>
-                                {item.materialDescription && (
-                                  <span className="text-[10px] text-slate-400 truncate max-w-[200px]" title={item.materialDescription}>
-                                    {item.materialDescription}
-                                  </span>
-                                )}
+                                <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500">
+                                  {item.ukuran && <span className="font-medium text-slate-600">{item.ukuran}</span>}
+                                  {item.ukuran && item.materialDescription && <span>•</span>}
+                                  {item.materialDescription && (
+                                    <span className="truncate max-w-[220px]" title={item.materialDescription}>
+                                      {item.materialDescription}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </td>
-                            <td className="py-2 px-2.5 text-slate-600 text-[11px]">
-                              {item.ukuran || '-'}
-                            </td>
-                            <td className="py-2 px-2.5 text-slate-700 font-semibold text-[11px]">
+                            <td className="py-2 px-3 text-slate-700 font-semibold text-xs">
                               {item.batch}
                             </td>
-                            <td className="py-2 px-2.5 text-right text-slate-700 text-xs">
-                              {item.sapInitialQty.toLocaleString('id-ID')}
-                            </td>
-                            <td className="py-2 px-2.5 text-right text-slate-600 text-[11px]">
-                              {item.eomWeight.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-2 px-2.5 text-right text-slate-700 text-xs">
-                              {item.qtyAudit.toLocaleString('id-ID')}
-                            </td>
-                            <td className="py-2 px-2.5 text-right text-slate-600 text-[11px]">
-                              {item.kgAudit.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-2 px-2.5 text-right text-slate-600 text-[11px]">
-                              {item.diffKgAudit.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-2 px-2.5 text-right text-slate-600 text-[11px]">
-                              {item.diffQtyInitial.toLocaleString('id-ID')}
-                            </td>
-                            <td className="py-2 px-2.5 text-right font-medium text-slate-800 text-xs">
+                            <td className="py-2 px-3 text-right font-medium text-slate-800 text-xs">
                               {item.sapFinalQty.toLocaleString('id-ID')}
                             </td>
-                            <td className="py-2 px-2.5 text-right font-medium text-emerald-800 text-xs">
+                            <td className="py-2 px-3 text-right font-medium text-emerald-800 text-xs">
                               {item.actualFinalQty.toLocaleString('id-ID')}
                             </td>
                             <td
@@ -2942,7 +2843,7 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                             </td>
                             <td
                               className={cn(
-                                'py-2 px-2.5 text-right font-bold text-xs',
+                                'py-2 px-3 text-right font-bold text-xs',
                                 isMinus ? 'text-rose-600' : isPlus ? 'text-amber-700' : 'text-slate-500'
                               )}
                             >
@@ -2976,31 +2877,13 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                   {filteredItems.length > 0 && (
                     <tfoot className="bg-slate-100 border-t-2 border-slate-300 text-slate-800 font-mono font-bold text-xs sticky bottom-0 z-10 shadow-xs">
                       <tr>
-                        <td colSpan={8} className="py-2.5 px-3 text-right uppercase tracking-wider text-[11px] font-sans">
-                          TOTAL TERHITUNG ({filteredTotals.count} item • Akurasi: {filteredTotals.accuracy.toFixed(1)}%):
+                        <td colSpan={4} className="py-2.5 px-3 text-right uppercase tracking-wider text-[11px] font-sans">
+                          TOTAL ({filteredTotals.count} item • Akurasi: {filteredTotals.accuracy.toFixed(1)}%):
                         </td>
-                        <td className="py-2.5 px-2.5 text-right text-slate-900">
-                          {filteredTotals.sapInitialQty.toLocaleString('id-ID')}
-                        </td>
-                        <td className="py-2.5 px-2.5 text-right text-slate-700 text-[11px]">
-                          {filteredTotals.eomWeight.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                        </td>
-                        <td className="py-2.5 px-2.5 text-right text-slate-900">
-                          {filteredTotals.qtyAudit.toLocaleString('id-ID')}
-                        </td>
-                        <td className="py-2.5 px-2.5 text-right text-slate-700 text-[11px]">
-                          {filteredTotals.kgAudit.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                        </td>
-                        <td className="py-2.5 px-2.5 text-right text-slate-700 text-[11px]">
-                          {filteredTotals.diffKgAudit.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                        </td>
-                        <td className="py-2.5 px-2.5 text-right text-slate-700 text-[11px]">
-                          {filteredTotals.diffQtyInitial.toLocaleString('id-ID')}
-                        </td>
-                        <td className="py-2.5 px-2.5 text-right text-slate-900">
+                        <td className="py-2.5 px-3 text-right text-slate-900">
                           {filteredTotals.sapFinalQty.toLocaleString('id-ID')}
                         </td>
-                        <td className="py-2.5 px-2.5 text-right text-emerald-800">
+                        <td className="py-2.5 px-3 text-right text-emerald-800">
                           {filteredTotals.actualFinalQty.toLocaleString('id-ID')}
                         </td>
                         <td
@@ -3018,7 +2901,7 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                         </td>
                         <td
                           className={cn(
-                            'py-2.5 px-2.5 text-right',
+                            'py-2.5 px-3 text-right',
                             filteredTotals.tonDiffFinal < 0
                               ? 'text-rose-700'
                               : filteredTotals.tonDiffFinal > 0
