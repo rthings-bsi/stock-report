@@ -541,5 +541,131 @@ export interface StockOpnamePeriodSummary {
   }>;
 }
 
+// ==========================================
+// AUDIT SLOC TYPES (14 KOLOM LAPORAN SAP)
+// ==========================================
+
+export type AuditSLocDifferenceStatus = 'SESUAI' | 'SELISIH_MINUS' | 'SELISIH_PLUS';
+
+export interface AuditSLocItem {
+  id: string;
+  label: string;
+  labelId?: string;
+  plant: string;
+  sloc: string;
+  gudang: string;               // Hasil normalisasi SLoc: Gd.01 - Gd.14
+  material: string;
+  materialDescription?: string;
+  ukuran?: string;              // Ekstraksi dimensi pipa
+  batch: string;
+  sapInitialQty: number;        // Col 5: SAP (Awal)
+  eomWeight: number;            // Col 6: Eom (KG EOM)
+  qtyAudit: number;             // Col 7: Qty Audit
+  kgAudit: number;              // Col 8: KG Audit
+  diffKgAudit: number;          // Col 9: Diff KG Audit
+  diffQtyInitial: number;       // Col 10: Diff (Qty Diff Awal)
+  sapFinalQty: number;          // Col 11: SAP (Final)
+  actualFinalQty: number;       // Col 12: Actual (Final)
+  diffAuditFinalQty: number;    // Col 13: Diff Audit (Final Qty Diff)
+  diffSign: string;             // '(+)' | '(-)' | '(0)'
+  kgDiffFinal: number;          // Estimasi selisih berat final (KG)
+  tonDiffFinal: number;         // Estimasi selisih berat final (Ton)
+  status: AuditSLocDifferenceStatus;
+  uom?: string;
+  remarks?: string;
+}
+
+export interface AuditSLocSummary {
+  totalItems: number;
+  matchingItems: number;
+  minusItems: number;
+  plusItems: number;
+  accuracyRate: number;         // (matchingItems / totalItems) * 100
+  totalSapQty: number;
+  totalActualQty: number;
+  netVarianceQty: number;       // totalActualQty - totalSapQty
+  totalSapTon: number;
+  totalActualTon: number;
+  netVarianceTon: number;
+  totalMinusTon: number;
+  totalPlusTon: number;
+}
+
+export interface AuditSLocGudangRecap {
+  gudang: string;
+  itemCount: number;
+  matchingCount: number;
+  minusCount: number;
+  plusCount: number;
+  accuracyRate: number;
+  sapQty: number;
+  actualQty: number;
+  varianceQty: number;
+  sapTon: number;
+  actualTon: number;
+  varianceTon: number;
+  matchingTon: number;
+  minusTon: number;
+  plusTon: number;
+  matchingQty: number;
+  minusQty: number;
+  plusQty: number;
+  sapItemCount?: number;
+  actualItemCount?: number;
+}
+
+export interface AuditSLocRecap {
+  sloc: string;
+  gudang: string;
+  itemCount: number;
+  matchingCount: number;
+  minusCount: number;
+  plusCount: number;
+  accuracyRate: number;
+  varianceQty: number;
+  varianceTon: number;
+  minusQty: number;
+  plusQty: number;
+  minusTon: number;
+  plusTon: number;
+  matchingQty?: number;
+  matchingTon?: number;
+  sapQty?: number;
+  actualQty?: number;
+  sapTon?: number;
+  actualTon?: number;
+  sapItemCount?: number;
+  actualItemCount?: number;
+}
+
+export interface AuditSLocPeriodSummary {
+  periodKey: string;
+  label: string;
+  lastUpdated: string;
+  totalItems: number;
+  matchingCount: number;
+  minusCount: number;
+  plusCount: number;
+  accuracyRate: number;
+  sapQty: number;
+  actualQty: number;
+  varianceQty: number;
+  sapTon: number;
+  actualTon: number;
+  varianceTon: number;
+  sapItemCount: number;
+  actualItemCount: number;
+  gudangBreakdown?: Record<string, {
+    itemCount: number;
+    matchingCount: number;
+    accuracyRate: number;
+    sapQty: number;
+    actualQty: number;
+    sapTon: number;
+    actualTon: number;
+    varianceTon: number;
+  }>;
+}
+
 
 

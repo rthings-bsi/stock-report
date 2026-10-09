@@ -306,6 +306,32 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     return data.filter((d) => d.gudang === selectedGudang);
   }, [data, selectedGudang]);
 
+  // Aggregated totals for bar chart display (FG/WIP Fast & Slow)
+  const barChartTotals = useMemo(() => {
+    return filteredBarData.reduce(
+      (acc, w) => {
+        const m = getWarehouseMetrics(w);
+        acc.fgFast += m.fgFast;
+        acc.wipFast += m.wipFast;
+        acc.fgSlow += m.fgSlow;
+        acc.wipSlow += m.wipSlow;
+        acc.totalFast += m.totalFast;
+        acc.totalSlow += m.totalSlow;
+        acc.totalStock += m.totalStock;
+        return acc;
+      },
+      {
+        fgFast: 0,
+        wipFast: 0,
+        fgSlow: 0,
+        wipSlow: 0,
+        totalFast: 0,
+        totalSlow: 0,
+        totalStock: 0,
+      }
+    );
+  }, [filteredBarData, pipeCapacities]);
+
   const slowDatasetLabel =
     selectedProcessType === 'ALL'
       ? 'Slow Moving'
@@ -1588,24 +1614,32 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  selectedGudang !== 'ALL' || selectedProcessType !== 'ALL' ? (
-                    <div className="flex items-center gap-1.5">
-                      {selectedProcessType !== 'ALL' && (
-                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                          selectedProcessType === 'FG'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                            : 'bg-amber-50 text-amber-900 border-amber-300'
-                        }`}>
-                          {selectedProcessType}
-                        </span>
-                      )}
-                      {selectedGudang !== 'ALL' && (
-                        <span className="text-[10px] font-mono bg-slate-100 text-slate-700 font-semibold px-2.5 py-0.5 rounded-full border border-slate-200">
-                          {selectedGudang}
-                        </span>
-                      )}
-                    </div>
-                  ) : undefined
+                  <div className="flex items-center gap-1.5">
+                    {selectedProcessType !== 'ALL' && (
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                        selectedProcessType === 'FG'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-50 text-amber-900 border-amber-300'
+                      }`}>
+                        {selectedProcessType}
+                      </span>
+                    )}
+                    {selectedGudang !== 'ALL' && (
+                      <span className="text-[10px] font-mono bg-slate-100 text-slate-700 font-semibold px-2.5 py-0.5 rounded-full border border-slate-200">
+                        {selectedGudang}
+                      </span>
+                    )}
+                    <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200/70">
+                      {formatTon(
+                        selectedProcessType === 'FG'
+                          ? barChartTotals.fgFast + barChartTotals.fgSlow
+                          : selectedProcessType === 'WIP'
+                          ? barChartTotals.wipFast + barChartTotals.wipSlow
+                          : barChartTotals.totalStock,
+                        { decimals: 2 }
+                      )} Ton
+                    </span>
+                  </div>
                 }
                 headerAction={
                   <div className="flex items-center gap-1.5 font-mono">
@@ -1642,7 +1676,52 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                 }
               >
                 {(expanded) => (
-                  <div className="flex flex-col h-full w-full gap-5">
+                  <div className="flex flex-col h-full w-full gap-2">
+                    {/* MINIMALIST SUMMARY: TOTAL TONASE FAST & SLOW (FG/WIP) */}
+                    <div className="flex items-center justify-end gap-1.5 sm:gap-2 font-mono text-[10px] sm:text-[11px] select-none">
+                      {/* FAST (PRIME) TOTALS */}
+                      <div
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50/70 border border-emerald-200/70 text-emerald-950 shadow-2xs"
+                        title={`Total Fast Moving (Prime): ${formatTon(barChartTotals.totalFast)} Ton`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
+                        <span className="font-bold text-emerald-800">Fast:</span>
+                        {selectedProcessType === 'ALL' ? (
+                          <>
+                            <span className="text-slate-600">FG <strong className="text-slate-900 font-extrabold">{formatTon(barChartTotals.fgFast)}</strong></span>
+                            <span className="text-emerald-300/80 font-normal">|</span>
+                            <span className="text-slate-600">WIP <strong className="text-slate-900 font-extrabold">{formatTon(barChartTotals.wipFast)}</strong></span>
+                          </>
+                        ) : selectedProcessType === 'FG' ? (
+                          <span className="text-slate-600">FG <strong className="text-slate-900 font-extrabold">{formatTon(barChartTotals.fgFast)}</strong></span>
+                        ) : (
+                          <span className="text-slate-600">WIP <strong className="text-slate-900 font-extrabold">{formatTon(barChartTotals.wipFast)}</strong></span>
+                        )}
+                        <span className="text-slate-400 text-[9px] font-semibold">T</span>
+                      </div>
+
+                      {/* SLOW MOVING TOTALS */}
+                      <div
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50/70 border border-amber-200/70 text-amber-950 shadow-2xs"
+                        title={`Total Slow Moving: ${formatTon(barChartTotals.totalSlow)} Ton`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600 shrink-0" />
+                        <span className="font-bold text-amber-800">Slow:</span>
+                        {selectedProcessType === 'ALL' ? (
+                          <>
+                            <span className="text-slate-600">FG <strong className="text-slate-900 font-extrabold">{formatTon(barChartTotals.fgSlow)}</strong></span>
+                            <span className="text-amber-300/80 font-normal">|</span>
+                            <span className="text-slate-600">WIP <strong className="text-slate-900 font-extrabold">{formatTon(barChartTotals.wipSlow)}</strong></span>
+                          </>
+                        ) : selectedProcessType === 'FG' ? (
+                          <span className="text-slate-600">FG <strong className="text-slate-900 font-extrabold">{formatTon(barChartTotals.fgSlow)}</strong></span>
+                        ) : (
+                          <span className="text-slate-600">WIP <strong className="text-slate-900 font-extrabold">{formatTon(barChartTotals.wipSlow)}</strong></span>
+                        )}
+                        <span className="text-slate-400 text-[9px] font-semibold">T</span>
+                      </div>
+                    </div>
+
                     <div className={expanded ? 'h-80 sm:h-96 w-full shrink-0' : 'h-72 sm:h-80 w-full'}>
                       <Bar data={barChartData} options={barChartOptions} plugins={[slowPercentageDataLabelsPlugin]} />
                     </div>

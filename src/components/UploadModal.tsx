@@ -7,6 +7,7 @@ import { parseDamagedPackagingFile } from '../lib/parseDamagedPackaging';
 import { parseIncomingPackagingFile } from '../lib/parseIncomingPackaging';
 import { parseNCProgressRows } from '../lib/parseNCProgress';
 import { parseStockOpnameFile } from '../lib/parseStockOpname';
+import { parseAuditSLocFile } from '../lib/parseAuditSLoc';
 import { RolePermissions } from '../types/auth';
 import { WarehouseCapacityConfig } from '../types/warehouse';
 
@@ -143,6 +144,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [incomingFile, setIncomingFile] = useState<File | null>(null);
   const [ncProgressFile, setNcProgressFile] = useState<File | null>(null);
   const [stoFile, setStoFile] = useState<File | null>(null);
+  const [auditSLocFile, setAuditSLocFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -153,7 +155,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const canUploadIncomingPkg = isAdmin || Boolean(userPermissions?.canUploadIncomingPkg ?? userPermissions?.canUploadSAP ?? true);
   const canUploadProgressNC = isAdmin || Boolean(userPermissions?.canUploadProgressNC ?? userPermissions?.canUploadSAP ?? true);
   const canUploadSTO = isAdmin || Boolean(userPermissions?.canUploadSTO ?? userPermissions?.canUploadSAP ?? true);
-  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg || canUploadProgressNC || canUploadSTO;
+  const canUploadAuditSLoc = isAdmin || Boolean(userPermissions?.canUploadAuditSLoc ?? userPermissions?.canUploadSAP ?? true);
+  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg || canUploadProgressNC || canUploadSTO || canUploadAuditSLoc;
 
   const pipeInputRef = useRef<HTMLInputElement>(null);
   const coilInputRef = useRef<HTMLInputElement>(null);
@@ -162,6 +165,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const incomingInputRef = useRef<HTMLInputElement>(null);
   const ncProgressInputRef = useRef<HTMLInputElement>(null);
   const stoInputRef = useRef<HTMLInputElement>(null);
+  const auditSLocInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -174,10 +178,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   })();
 
   const isBackdate = targetDate !== todayStr;
-  const selectedCount = [pipeFile, coilFile, looFile, packagingFile, incomingFile, ncProgressFile, stoFile].filter(Boolean).length;
+  const selectedCount = [pipeFile, coilFile, looFile, packagingFile, incomingFile, ncProgressFile, stoFile, auditSLocFile].filter(Boolean).length;
 
   const handleProcessFiles = async () => {
-    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile && !ncProgressFile && !stoFile) {
+    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile && !ncProgressFile && !stoFile && !auditSLocFile) {
       setErrorMsg('Silakan pilih minimal satu file spreadsheet export SAP (.xlsx / .xls).');
       return;
     }
@@ -193,6 +197,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       let incomingRows: Record<string, unknown>[] = [];
       let ncProgressRows: Record<string, unknown>[] = [];
       let stoRawMatrix: unknown[][] = [];
+      let auditSLocRawMatrix: unknown[][] = [];
 
       // 1. Baca tiap file secara terisolasi agar error spesifik file terlihat jelas
       // Cek apakah user memilih file yang sama untuk slot Pipa dan Coil
@@ -274,6 +279,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         }
       }
 
+      if (auditSLocFile && canUploadAuditSLoc) {
+        try {
+          auditSLocRawMatrix = await readExcelFileRawMatrix(auditSLocFile);
+        } catch (e: unknown) {
+          const m = e instanceof Error ? e.message : 'Format file tidak dapat dibaca';
+          throw new Error(`File Data Audit SLoc (${auditSLocFile.name}): ${m}`);
+        }
+      }
+
       // 2. Parse struktur data (otomatis segregasi pipe vs coil jika 1 file zppshstock diupload di slot pipa)
       let parsedResult: ParsedWarehouseState;
       try {
@@ -283,7 +297,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         throw new Error(`Gagal memproses data Stock / LOO: ${m}`);
       }
 
-      const uploadedCategories: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto')[] = [];
+      const uploadedCategories: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto' | 'audit_sloc')[] = [];
 
       if (pipeFile && pipeRows.length > 0) {
         const pipeStockTotal = (parsedResult.pipeCapacities || []).reduce((acc, c) => acc + (c.stock || 0), 0);
@@ -358,6 +372,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         } catch (e: unknown) {
           const m = e instanceof Error ? e.message : 'Format kolom Stock Opname tidak sesuai';
           throw new Error(`Gagal memproses Data Stock Opname: ${m}`);
+        }
+      }
+
+      if (auditSLocFile && canUploadAuditSLoc && auditSLocRawMatrix.length > 0) {
+        try {
+          const parsedAudit = parseAuditSLocFile(auditSLocRawMatrix);
+          if (!parsedAudit || parsedAudit.length === 0) {
+            throw new Error('Tidak ada baris data Audit SLoc yang valid ditemukan. Pastikan file Excel memuat 14 kolom laporan SAP (Label, Plant, SLoc, Material, Batch, dll).');
+          }
+          parsedResult.auditSLocData = parsedAudit;
+          uploadedCategories.push('audit_sloc');
+        } catch (e: unknown) {
+          const m = e instanceof Error ? e.message : 'Format kolom Audit SLoc tidak sesuai';
+          throw new Error(`Gagal memproses Data Audit SLoc: ${m}`);
         }
       }
 
@@ -526,6 +554,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               file={stoFile}
               onFileChange={setStoFile}
               inputRef={stoInputRef}
+            />
+
+            {/* 8. Data Audit SLoc Harian */}
+            <UploadItemRow
+              canUpload={canUploadAuditSLoc}
+              title="Data Audit SLoc Harian"
+              file={auditSLocFile}
+              onFileChange={setAuditSLocFile}
+              inputRef={auditSLocInputRef}
             />
           </div>
         </div>

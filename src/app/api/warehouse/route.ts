@@ -8,6 +8,7 @@ import {
   deleteAllNormalizedSnapshotsFromSupabase,
 } from '../../../lib/supabaseNormalized';
 import { calculateSTOPeriodSummary } from '../../../lib/parseStockOpname';
+import { calculateAuditSLocPeriodSummary } from '../../../lib/parseAuditSLoc';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -97,8 +98,10 @@ export async function GET(request: Request) {
     const key = searchParams.get('key') || 'latest';
     const listOnly = searchParams.get('list') === 'true';
     const stoHistory = searchParams.get('sto_history') === 'true';
+    const auditSLocHistory = searchParams.get('audit_sloc_history') === 'true';
     const moduleParam = searchParams.get('module');
     const includeSto = searchParams.get('include_sto') === 'true';
+    const includeAuditSLoc = searchParams.get('include_audit_sloc') === 'true';
 
     // Handler on-demand module STO (dipanggil saat membuka tab Stock Opname)
     if (moduleParam === 'sto') {
@@ -230,6 +233,113 @@ export async function GET(request: Request) {
           }
         } catch (supaEx) {
           console.warn('Supabase sto_history error:', supaEx);
+        }
+      }
+
+      return NextResponse.json({ success: true, periods });
+    }
+
+    // Handler on-demand module Audit SLoc (dipanggil saat membuka tab Audit SLoc / 14 Kolom SAP)
+    if (moduleParam === 'audit_sloc') {
+      const db = getLocalDb();
+      if (db) {
+        try {
+          const stmt = key === 'latest'
+            ? db.prepare(`SELECT audit_sloc_data FROM warehouse_snapshots WHERE audit_sloc_data IS NOT NULL AND length(audit_sloc_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`)
+            : db.prepare(`SELECT audit_sloc_data FROM warehouse_snapshots WHERE snapshot_key = ? LIMIT 1`);
+          let r = key === 'latest' ? stmt.get() : stmt.get(key);
+          if (!r?.audit_sloc_data && key !== 'latest') {
+            r = db.prepare(`SELECT audit_sloc_data FROM warehouse_snapshots WHERE audit_sloc_data IS NOT NULL AND length(audit_sloc_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`).get();
+          }
+          if (r?.audit_sloc_data) {
+            const auditSLocData = parseJsonSafe(r.audit_sloc_data, []);
+            if (Array.isArray(auditSLocData) && auditSLocData.length > 0) {
+              return NextResponse.json({ success: true, auditSLocData, data: auditSLocData, source: 'sqlite' });
+            }
+          }
+        } catch (e) {
+          console.warn('SQLite Audit SLoc module read warning:', e);
+        }
+      }
+
+      if (isSupabaseConfigured && supabase) {
+        try {
+          let legQuery = supabase.from('warehouse_snapshots').select('audit_sloc_data, snapshot_key');
+          if (key === 'latest') {
+            legQuery = legQuery.order('snapshot_key', { ascending: false }).limit(1);
+          } else {
+            legQuery = legQuery.eq('snapshot_key', key).limit(1);
+          }
+          let { data: legRows } = await legQuery;
+
+          if ((!legRows || legRows.length === 0) && key !== 'latest') {
+            const fbLegRes = await supabase
+              .from('warehouse_snapshots')
+              .select('audit_sloc_data, snapshot_key')
+              .not('audit_sloc_data', 'is', null)
+              .order('snapshot_key', { ascending: false })
+              .limit(1);
+            if (!fbLegRes.error && fbLegRes.data && fbLegRes.data.length > 0) {
+              legRows = fbLegRes.data;
+            }
+          }
+
+          if (legRows && legRows.length > 0 && legRows[0].audit_sloc_data) {
+            const auditSLocData = parseJsonSafe(legRows[0].audit_sloc_data, []);
+            if (Array.isArray(auditSLocData) && auditSLocData.length > 0) {
+              return NextResponse.json({ success: true, auditSLocData, data: auditSLocData, source: 'supabase_legacy' });
+            }
+          }
+        } catch (supaErr) {
+          console.warn('Supabase Audit SLoc module read warning:', supaErr);
+        }
+      }
+
+      return NextResponse.json({ success: true, auditSLocData: [], data: [] });
+    }
+
+    // Handler riwayat komparasi Audit SLoc per periode (snapshot)
+    if (auditSLocHistory) {
+      const periods: any[] = [];
+      const db = getLocalDb();
+      if (db) {
+        try {
+          const rows = db.prepare(`
+            SELECT snapshot_key, last_updated, audit_sloc_data
+            FROM warehouse_snapshots
+            WHERE audit_sloc_data IS NOT NULL AND length(audit_sloc_data) > 10
+            ORDER BY snapshot_key ASC
+          `).all();
+          if (rows && rows.length > 0) {
+            for (const r of rows) {
+              const items = parseJsonSafe(r.audit_sloc_data, []);
+              if (Array.isArray(items) && items.length > 0) {
+                periods.push(calculateAuditSLocPeriodSummary(items, r.snapshot_key, r.last_updated));
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('SQLite audit_sloc_history failed:', e);
+        }
+      }
+
+      if (periods.length === 0 && isSupabaseConfigured && supabase) {
+        try {
+          const { data: rows, error: supaErr } = await supabase
+            .from('warehouse_snapshots')
+            .select('snapshot_key, last_updated, audit_sloc_data')
+            .not('audit_sloc_data', 'is', null)
+            .order('snapshot_key', { ascending: true });
+          if (!supaErr && rows) {
+            for (const r of rows) {
+              const items = parseJsonSafe(r.audit_sloc_data, []);
+              if (Array.isArray(items) && items.length > 0) {
+                periods.push(calculateAuditSLocPeriodSummary(items, r.snapshot_key, r.last_updated));
+              }
+            }
+          }
+        } catch (supaEx) {
+          console.warn('Supabase audit_sloc_history error:', supaEx);
         }
       }
 
@@ -413,6 +523,13 @@ export async function GET(request: Request) {
               if (hasArray(p)) stoData = p;
             }
 
+            let auditSLocData = parseJsonSafe(row.audit_sloc_data, []);
+            if (!hasArray(auditSLocData)) {
+              const fb = getLatestNonEmptySqliteCol(db, 'audit_sloc_data', 10);
+              const p = parseJsonSafe(fb, []);
+              if (hasArray(p)) auditSLocData = p;
+            }
+
             let customerBreakdown = parseJsonSafe(row.customer_breakdown, {});
             if (!hasObject(customerBreakdown)) {
               const fb = getLatestNonEmptySqliteCol(db, 'customer_breakdown', 5);
@@ -437,6 +554,7 @@ export async function GET(request: Request) {
               incomingPackagingData,
               ncProgressData,
               stoData,
+              auditSLocData,
               customerBreakdown,
               createdAt: row.created_at,
             };
@@ -528,6 +646,7 @@ export async function GET(request: Request) {
         let incomingPackagingData = parseJsonSafe(row.incoming_packaging_data, []);
         let ncProgressData = parseJsonSafe(row.nc_progress_data, []);
         let stoData = includeSto ? parseJsonSafe(row.sto_data, []) : [];
+        let auditSLocData = parseJsonSafe(row.audit_sloc_data, []);
         let customerBreakdown = parseJsonSafe(row.customer_breakdown, {});
 
         const needsLegacyFallback =
@@ -613,6 +732,10 @@ export async function GET(request: Request) {
                 const p = parseJsonSafe(lr.sto_data, []);
                 if (hasArray(p)) stoData = p;
               }
+              if (!hasArray(auditSLocData)) {
+                const p = parseJsonSafe(lr.audit_sloc_data, []);
+                if (hasArray(p)) auditSLocData = p;
+              }
               if (!hasObject(customerBreakdown)) {
                 const p = parseJsonSafe(lr.customer_breakdown, {});
                 if (hasObject(p)) customerBreakdown = p;
@@ -638,6 +761,7 @@ export async function GET(request: Request) {
           incomingPackagingData,
           ncProgressData,
           stoData,
+          auditSLocData,
           customerBreakdown,
           createdAt: row.created_at,
         };
@@ -704,6 +828,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: 'STO data saved successfully' });
     }
 
+    // Handler simpan modul Audit SLoc secara terpisah agar tidak kena limit payload Vercel
+    const isAuditSLocModulePost = searchParams.get('module') === 'audit_sloc' || body.module === 'audit_sloc';
+    if (isAuditSLocModulePost) {
+      const dateKey = body.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
+      const nowStr = body.lastUpdated || new Date().toLocaleString('id-ID');
+      const auditList = Array.isArray(body.auditSLocData) ? body.auditSLocData : (Array.isArray(body.data) ? body.data : []);
+
+      if (auditList.length > 0) {
+        const db = getLocalDb();
+        if (db) {
+          try {
+            db.prepare(`
+              INSERT INTO warehouse_snapshots (snapshot_key, last_updated, audit_sloc_data)
+              VALUES (?, ?, ?)
+              ON CONFLICT(snapshot_key) DO UPDATE SET
+                audit_sloc_data = excluded.audit_sloc_data,
+                last_updated = excluded.last_updated
+            `).run(dateKey, nowStr, JSON.stringify(auditList));
+          } catch (e) {
+            console.warn('SQLite Audit SLoc module save warning:', e);
+          }
+        }
+
+        if (isSupabaseConfigured && supabase) {
+          try {
+            await supabase.from('snapshots').upsert({ snapshot_key: dateKey, last_updated: nowStr }, { onConflict: 'snapshot_key' });
+            await supabase.from('warehouse_snapshots').upsert({
+              snapshot_key: dateKey,
+              last_updated: nowStr,
+              audit_sloc_data: auditList,
+            }, { onConflict: 'snapshot_key' });
+          } catch (supaErr) {
+            console.warn('Supabase Audit SLoc module save warning:', supaErr);
+          }
+        }
+      }
+      return NextResponse.json({ success: true, message: 'Audit SLoc data saved successfully' });
+    }
+
     const {
       pipeCapacities,
       fastSlowData,
@@ -719,6 +882,7 @@ export async function POST(request: Request) {
       incomingPackagingData,
       ncProgressData,
       stoData,
+      auditSLocData,
       customerBreakdown,
       lastUpdated,
       snapshotKey,
@@ -745,6 +909,7 @@ export async function POST(request: Request) {
     let prevIncomingPkg: any[] = [];
     let prevNcProgress: any[] = [];
     let prevStoData: any[] = [];
+    let prevAuditSLocData: any[] = [];
     let prevCustBreakdown: Record<string, any> = {};
 
     if (db) {
@@ -769,6 +934,7 @@ export async function POST(request: Request) {
           prevIncomingPkg = parseJsonSafe(existingRow.incoming_packaging_data, []);
           prevNcProgress = parseJsonSafe(existingRow.nc_progress_data, []);
           prevStoData = parseJsonSafe(existingRow.sto_data, []);
+          prevAuditSLocData = parseJsonSafe(existingRow.audit_sloc_data, []);
           prevCustBreakdown = parseJsonSafe(existingRow.customer_breakdown, {});
         }
 
@@ -844,6 +1010,11 @@ export async function POST(request: Request) {
           const p = parseJsonSafe(raw, []);
           if (hasArray(p)) prevStoData = p;
         }
+        if (!hasArray(prevAuditSLocData)) {
+          const raw = getLatestNonEmptySqliteCol(db, 'audit_sloc_data', 10);
+          const p = parseJsonSafe(raw, []);
+          if (hasArray(p)) prevAuditSLocData = p;
+        }
         if (!hasObject(prevCustBreakdown)) {
           const raw = getLatestNonEmptySqliteCol(db, 'customer_breakdown', 5);
           const p = parseJsonSafe(raw, {});
@@ -870,6 +1041,7 @@ export async function POST(request: Request) {
       !hasArray(prevDamagedPkg) ||
       !hasArray(prevNcProgress) ||
       !hasArray(prevStoData) ||
+      !hasArray(prevAuditSLocData) ||
       !hasObject(prevCustBreakdown);
 
     if (needsCloudFallback && isSupabaseConfigured && supabase) {
@@ -898,6 +1070,7 @@ export async function POST(request: Request) {
           if (!hasArray(prevDamagedPkg)) prevDamagedPkg = cloudRef.damagedPackagingData || [];
           if (!hasArray(prevNcProgress)) prevNcProgress = cloudRef.ncProgressData || [];
           if (!hasArray(prevStoData)) prevStoData = cloudRef.stoData || [];
+          if (!hasArray(prevAuditSLocData)) prevAuditSLocData = cloudRef.auditSLocData || [];
           if (!hasObject(prevCustBreakdown)) prevCustBreakdown = cloudRef.customerBreakdown || {};
         }
 
@@ -916,6 +1089,7 @@ export async function POST(request: Request) {
           !hasArray(prevDamagedPkg) ||
           !hasArray(prevNcProgress) ||
           !hasArray(prevStoData) ||
+          !hasArray(prevAuditSLocData) ||
           !hasObject(prevCustBreakdown);
 
         if (stillMissing) {
@@ -984,6 +1158,10 @@ export async function POST(request: Request) {
                 const p = parseJsonSafe(sRow.sto_data, []);
                 if (hasArray(p)) prevStoData = p;
               }
+              if (!hasArray(prevAuditSLocData)) {
+                const p = parseJsonSafe(sRow.audit_sloc_data, []);
+                if (hasArray(p)) prevAuditSLocData = p;
+              }
               if (!hasObject(prevCustBreakdown)) {
                 const p = parseJsonSafe(sRow.customer_breakdown, {});
                 if (hasObject(p)) prevCustBreakdown = p;
@@ -1049,6 +1227,7 @@ export async function POST(request: Request) {
     const uploadHasIncomingPkg = isExplicitUpload ? uploadedCategories.includes('incoming_pkg') : hasArray(incomingPackagingData);
     const uploadHasProgressNC = isExplicitUpload ? uploadedCategories.includes('progress_nc') : hasArray(ncProgressData);
     const uploadHasSTO = isExplicitUpload ? uploadedCategories.includes('sto') : hasArray(stoData);
+    const uploadHasAuditSLoc = isExplicitUpload ? uploadedCategories.includes('audit_sloc') : hasArray(auditSLocData);
 
     const finalPipe = uploadHasPipe && hasRealPipe(pipeCapacities) ? pipeCapacities : (hasRealPipe(prevPipe) ? prevPipe : (pipeCapacities || []));
     const finalFastSlow = uploadHasPipe && hasArray(fastSlowData) ? fastSlowData : prevFastSlow;
@@ -1068,6 +1247,7 @@ export async function POST(request: Request) {
     const finalIncomingPkg = uploadHasIncomingPkg && hasArray(incomingPackagingData) ? incomingPackagingData : prevIncomingPkg;
     const finalNcProgress = uploadHasProgressNC && hasArray(ncProgressData) ? ncProgressData : prevNcProgress;
     const finalStoData = uploadHasSTO ? (Array.isArray(stoData) ? stoData : []) : prevStoData;
+    const finalAuditSLocData = uploadHasAuditSLoc ? (Array.isArray(auditSLocData) ? auditSLocData : []) : prevAuditSLocData;
     const finalCustBreakdown = uploadHasPipe && hasObject(customerBreakdown) ? customerBreakdown : prevCustBreakdown;
 
     let sqliteSaved = false;
@@ -1093,6 +1273,7 @@ export async function POST(request: Request) {
             incoming_packaging_data,
             nc_progress_data,
             sto_data,
+            audit_sloc_data,
             customer_breakdown
           ) VALUES (
             @snapshotKey,
@@ -1111,6 +1292,7 @@ export async function POST(request: Request) {
             @incomingPackagingData,
             @ncProgressData,
             @stoData,
+            @auditSLocData,
             @customerBreakdown
           )
           ON CONFLICT(snapshot_key) DO UPDATE SET
@@ -1129,6 +1311,7 @@ export async function POST(request: Request) {
             incoming_packaging_data = excluded.incoming_packaging_data,
             nc_progress_data = excluded.nc_progress_data,
             sto_data = excluded.sto_data,
+            audit_sloc_data = excluded.audit_sloc_data,
             customer_breakdown = excluded.customer_breakdown,
             created_at = CURRENT_TIMESTAMP;
         `);
@@ -1150,6 +1333,7 @@ export async function POST(request: Request) {
           incomingPackagingData: JSON.stringify(finalIncomingPkg),
           ncProgressData: JSON.stringify(finalNcProgress),
           stoData: JSON.stringify(finalStoData),
+          auditSLocData: JSON.stringify(finalAuditSLocData),
           customerBreakdown: JSON.stringify(finalCustBreakdown),
         });
         sqliteSaved = true;
@@ -1233,16 +1417,22 @@ export async function POST(request: Request) {
           legacyPayload.sto_data = finalStoData;
         }
 
+        // Hindari payload bloat Vercel (>4.5MB) pada legacy single column jika Audit SLoc sangat besar
+        if (finalAuditSLocData && Array.isArray(finalAuditSLocData) && finalAuditSLocData.length < 5000) {
+          legacyPayload.audit_sloc_data = finalAuditSLocData;
+        }
+
         const legacyPromise = (async () => {
           let { error: supaErr } = await supabase
             .from('warehouse_snapshots')
             .upsert(legacyPayload, { onConflict: 'snapshot_key' });
 
-          // Fallback jika kolom nc_progress_data atau sto_data belum ada di schema Supabase
-          if (supaErr && (supaErr.message?.includes('nc_progress_data') || supaErr.message?.includes('sto_data'))) {
+          // Fallback jika kolom nc_progress_data, sto_data, atau audit_sloc_data belum ada di schema Supabase
+          if (supaErr && (supaErr.message?.includes('nc_progress_data') || supaErr.message?.includes('sto_data') || supaErr.message?.includes('audit_sloc_data'))) {
             const fallbackPayload = { ...legacyPayload };
             delete fallbackPayload.nc_progress_data;
             delete fallbackPayload.sto_data;
+            delete fallbackPayload.audit_sloc_data;
             const retry = await supabase
               .from('warehouse_snapshots')
               .upsert(fallbackPayload, { onConflict: 'snapshot_key' });

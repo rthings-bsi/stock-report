@@ -49,6 +49,8 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
             incoming_packaging_data TEXT,
             nc_progress_data TEXT,
             customer_breakdown TEXT,
+            sto_data TEXT,
+            audit_sloc_data TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           );
 
@@ -125,6 +127,7 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
             ['nc_progress_data', 'TEXT'],
             ['customer_breakdown', 'TEXT'],
             ['sto_data', 'TEXT'],
+            ['audit_sloc_data', 'TEXT'],
           ];
           for (const [colName, colType] of requiredCols) {
             if (!snapshotCols.has(colName)) {
@@ -150,11 +153,11 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
           const adminPerms = JSON.stringify({
             viewCapacity: true, viewFastSlow: true, viewCoilStrip: true, viewNC: true,
             viewUnfifo: true, viewLoo: true, viewDamagedPkg: true, viewIncomingPkg: true,
-            viewProgressNC: true, viewCapacitySettings: true, viewSTO: true,
+            viewProgressNC: true, viewCapacitySettings: true, viewSTO: true, viewAuditSLoc: true,
             viewUserManagement: true, canUploadSAP: true,
             canUploadPipe: true, canUploadCoil: true, canUploadLoo: true, canUploadDamagedPkg: true, canUploadIncomingPkg: true,
-            canUploadProgressNC: true, canUploadSTO: true,
-            canEditIncomingPkg: true, canEditDamagedPkg: true, canEditProgressNC: true, canEditSTO: true,
+            canUploadProgressNC: true, canUploadSTO: true, canUploadAuditSLoc: true,
+            canEditIncomingPkg: true, canEditDamagedPkg: true, canEditProgressNC: true, canEditSTO: true, canEditAuditSLoc: true,
             canExportExcel: true, canCustomizeLayout: true, canManageCapacity: true,
             canManageUsers: true, canSaveSnapshot: true
           });
@@ -162,11 +165,11 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
           const staffPerms = JSON.stringify({
             viewCapacity: true, viewFastSlow: true, viewCoilStrip: true, viewNC: true,
             viewUnfifo: true, viewLoo: true, viewDamagedPkg: true, viewIncomingPkg: true,
-            viewProgressNC: true, viewCapacitySettings: true, viewSTO: true,
+            viewProgressNC: true, viewCapacitySettings: true, viewSTO: true, viewAuditSLoc: true,
             viewUserManagement: false, canUploadSAP: false,
             canUploadPipe: false, canUploadCoil: false, canUploadLoo: false, canUploadDamagedPkg: false, canUploadIncomingPkg: false,
-            canUploadProgressNC: false, canUploadSTO: false,
-            canEditIncomingPkg: true, canEditDamagedPkg: false, canEditProgressNC: true, canEditSTO: false,
+            canUploadProgressNC: false, canUploadSTO: false, canUploadAuditSLoc: false,
+            canEditIncomingPkg: true, canEditDamagedPkg: false, canEditProgressNC: true, canEditSTO: false, canEditAuditSLoc: false,
             canExportExcel: true, canCustomizeLayout: false, canManageCapacity: false,
             canManageUsers: false, canSaveSnapshot: false
           });
@@ -174,11 +177,11 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
           const viewerPerms = JSON.stringify({
             viewCapacity: true, viewFastSlow: true, viewCoilStrip: true, viewNC: true,
             viewUnfifo: true, viewLoo: true, viewDamagedPkg: true, viewIncomingPkg: true,
-            viewProgressNC: true, viewCapacitySettings: true, viewSTO: true,
+            viewProgressNC: true, viewCapacitySettings: true, viewSTO: true, viewAuditSLoc: true,
             viewUserManagement: false, canUploadSAP: false,
             canUploadPipe: false, canUploadCoil: false, canUploadLoo: false, canUploadDamagedPkg: false, canUploadIncomingPkg: false,
-            canUploadProgressNC: false, canUploadSTO: false,
-            canEditIncomingPkg: false, canEditDamagedPkg: false, canEditProgressNC: false, canEditSTO: false,
+            canUploadProgressNC: false, canUploadSTO: false, canUploadAuditSLoc: false,
+            canEditIncomingPkg: false, canEditDamagedPkg: false, canEditProgressNC: false, canEditSTO: false, canEditAuditSLoc: false,
             canExportExcel: true, canCustomizeLayout: false, canManageCapacity: false,
             canManageUsers: false, canSaveSnapshot: false
           });

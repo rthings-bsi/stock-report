@@ -14,7 +14,8 @@ import {
   IncomingPackagingItem,
   NCProgressTransaction,
   WarehouseCapacityConfig,
-  StockOpnameItem
+  StockOpnameItem,
+  AuditSLocItem
 } from '../types/warehouse';
 
 export interface ParsedWarehouseState {
@@ -32,16 +33,17 @@ export interface ParsedWarehouseState {
   incomingPackagingData?: IncomingPackagingItem[];
   ncProgressData?: NCProgressTransaction[];
   stoData?: StockOpnameItem[];
+  auditSLocData?: AuditSLocItem[];
   customerBreakdown?: Record<string, Array<{ customer: string; qty: number; tonase: number }>>;
   lastUpdated: string;
   snapshotKey?: string;
   targetDate?: string;
-  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto')[];
+  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto' | 'audit_sloc')[];
 }
 
 export interface ParseExcelOptions {
   targetDate?: string;
-  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto')[];
+  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto' | 'audit_sloc')[];
   customCapacities?: WarehouseCapacityConfig;
 }
 
@@ -2213,4 +2215,15 @@ export {
   calculateSTOPeriodSummary,
   generateMockStockOpnameData,
 } from './parseStockOpname';
+
+export {
+  parseAuditSLocFile,
+  calculateAuditSLocSummary,
+  calculateAuditSLocGudangRecap,
+  calculateAuditSLocRecap,
+  calculateAuditSLocPeriodSummary,
+  normalizeAuditSLocItem,
+  getAuditSLocItemWeights,
+} from './parseAuditSLoc';
+
 

@@ -24,7 +24,8 @@ import {
   X,
   GitFork,
   SlidersHorizontal,
-  ClipboardCheck
+  ClipboardCheck,
+  MapPinCheck
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { LoginPage } from '@/components/LoginPage';
@@ -42,6 +43,7 @@ import { CoilStripView } from '@/components/CoilStripView';
 import { NCQualityView } from '@/components/NCQualityView';
 import { NCProgressView } from '@/components/NCProgressView';
 import { StockOpnameView } from '@/components/StockOpnameView';
+import { AuditSLocView } from '@/components/AuditSLocView';
 import { LooFulfillmentView } from '@/components/LooFulfillmentView';
 import { UnfifoView } from '@/components/UnfifoView';
 import { DamagedPackagingView } from '@/components/DamagedPackagingView';
@@ -76,6 +78,7 @@ import {
   IncomingPackagingItem,
   NCProgressTransaction,
   StockOpnameItem,
+  AuditSLocItem,
   WarehouseCapacityConfig,
   DEFAULT_PIPE_CAPACITIES,
   DEFAULT_COIL_CAPACITIES,
@@ -91,6 +94,7 @@ const VALID_TABS = [
   'nc',
   'nc_progress',
   'sto',
+  'audit_sloc',
   'loo',
   'unfifo',
   'packaging',
@@ -124,6 +128,7 @@ export default function Home() {
   const [incomingPackagingData, setIncomingPackagingData] = useState<IncomingPackagingItem[]>(initialIncomingPackagingData);
   const [ncProgressData, setNcProgressData] = useState<NCProgressTransaction[]>(initialNCProgressData);
   const [stoData, setStoData] = useState<StockOpnameItem[]>([]);
+  const [auditSLocData, setAuditSLocData] = useState<AuditSLocItem[]>([]);
   const [customerBreakdown, setCustomerBreakdown] = useState<Record<string, Array<{ customer: string; qty: number; tonase: number }>>>({});
 
   // Application State
@@ -354,6 +359,30 @@ export default function Home() {
             }
           } catch {}
         }
+
+        if (Array.isArray(d.auditSLocData) && d.auditSLocData.length > 0) {
+          setAuditSLocData(d.auditSLocData);
+          try {
+            sessionStorage.setItem('spindo_audit_sloc_cache', JSON.stringify(d.auditSLocData));
+          } catch {}
+        } else {
+          // Coba fetch modul Audit SLoc untuk snapshot ini
+          try {
+            const aslocRes = await fetch(`/api/warehouse?module=audit_sloc&key=${encodeURIComponent(key)}`, { cache: 'no-store' });
+            if (aslocRes.ok) {
+              const aslocJson = await aslocRes.json();
+              const items = Array.isArray(aslocJson?.data)
+                ? aslocJson.data
+                : (Array.isArray(aslocJson?.auditSLocData) ? aslocJson.auditSLocData : []);
+              if (items.length > 0) {
+                setAuditSLocData(items);
+                try {
+                  sessionStorage.setItem('spindo_audit_sloc_cache', JSON.stringify(items));
+                } catch {}
+              }
+            }
+          } catch {}
+        }
         setCustomerBreakdown(d.customerBreakdown || {});
         setLastUpdated(d.lastUpdated || '');
         setIsCustomData(true);
@@ -361,8 +390,8 @@ export default function Home() {
           localStorage.setItem('spindo_selected_snapshot_key', key);
         } catch {}
         try {
-          // Omit raw STO data from localStorage cache to prevent QuotaExceededError (5MB quota)
-          const cacheableD = { ...d, stoData: [] };
+          // Omit raw STO & Audit SLoc data from localStorage cache to prevent QuotaExceededError (5MB quota)
+          const cacheableD = { ...d, stoData: [], auditSLocData: [] };
           localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableD));
         } catch {}
       } else {
@@ -409,6 +438,7 @@ export default function Home() {
           if (d.incomingPackagingData?.length > 0) setIncomingPackagingData(d.incomingPackagingData);
           if (d.ncProgressData?.length > 0) setNcProgressData(d.ncProgressData);
           if (d.stoData?.length > 0) setStoData(d.stoData);
+          if (d.auditSLocData?.length > 0) setAuditSLocData(d.auditSLocData);
           if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
           if (d.lastUpdated) setLastUpdated(d.lastUpdated);
           setIsCustomData(true);
@@ -417,7 +447,7 @@ export default function Home() {
         console.error('Failed to parse localStorage cache:', err);
       }
 
-      // Restore STO cache dari sessionStorage agar instan tersedia saat refresh web
+      // Restore STO & Audit SLoc cache dari sessionStorage agar instan tersedia saat refresh web
       try {
         const localSto = sessionStorage.getItem('spindo_sto_cache');
         if (localSto) {
@@ -429,6 +459,19 @@ export default function Home() {
         }
       } catch (err) {
         console.warn('Failed to parse STO cache from sessionStorage:', err);
+      }
+
+      try {
+        const localASLoc = sessionStorage.getItem('spindo_audit_sloc_cache');
+        if (localASLoc) {
+          const aslocItems = JSON.parse(localASLoc);
+          if (Array.isArray(aslocItems) && aslocItems.length > 0) {
+            setAuditSLocData(aslocItems);
+            setIsCustomData(true);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to parse Audit SLoc cache from sessionStorage:', err);
       }
 
       // 2. Sinkronkan dengan server database Supabase / SQLite
@@ -482,6 +525,12 @@ export default function Home() {
                   sessionStorage.setItem('spindo_sto_cache', JSON.stringify(d.stoData));
                 } catch {}
               }
+              if (Array.isArray(d.auditSLocData) && d.auditSLocData.length > 0) {
+                setAuditSLocData(d.auditSLocData);
+                try {
+                  sessionStorage.setItem('spindo_audit_sloc_cache', JSON.stringify(d.auditSLocData));
+                } catch {}
+              }
               if (d.snapshotKey) {
                 setSelectedSnapshotKey(d.snapshotKey);
                 try {
@@ -492,8 +541,8 @@ export default function Home() {
               if (d.lastUpdated) setLastUpdated(d.lastUpdated);
               setIsCustomData(true);
               try {
-                // Omit raw STO data from localStorage cache to prevent QuotaExceededError (5MB quota)
-                const cacheableD = { ...d, stoData: [] };
+                // Omit raw STO & Audit SLoc data from localStorage cache to prevent QuotaExceededError (5MB quota)
+                const cacheableD = { ...d, stoData: [], auditSLocData: [] };
                 localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableD));
               } catch {}
             } else {
@@ -563,6 +612,52 @@ export default function Home() {
     }
   }, [activeTab, selectedSnapshotKey, stoData.length]);
 
+  // Load Audit SLoc data on-demand saat tab audit_sloc aktif agar initial page load cepat & aman dari limit payload Vercel
+  useEffect(() => {
+    if (activeTab === 'audit_sloc' && auditSLocData.length === 0) {
+      const fetchAuditSLocOnDemand = async () => {
+        try {
+          // 1. Coba pulihkan dari sessionStorage dulu jika tersedia untuk render 0ms
+          try {
+            const cachedASLoc = sessionStorage.getItem('spindo_audit_sloc_cache');
+            if (cachedASLoc) {
+              const parsed = JSON.parse(cachedASLoc);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setAuditSLocData(parsed);
+                setIsCustomData(true);
+                return;
+              }
+            }
+          } catch {}
+
+          const savedKey = selectedSnapshotKey && selectedSnapshotKey !== 'latest'
+            ? selectedSnapshotKey
+            : (typeof window !== 'undefined' ? localStorage.getItem('spindo_selected_snapshot_key') : null);
+          const aslocUrl = savedKey && savedKey !== 'latest'
+            ? `/api/warehouse?module=audit_sloc&key=${encodeURIComponent(savedKey)}`
+            : '/api/warehouse?module=audit_sloc';
+          const res = await fetch(aslocUrl, { cache: 'no-store' });
+          if (res.ok) {
+            const json = await res.json();
+            const aslocList = Array.isArray(json?.data)
+              ? json.data
+              : (Array.isArray(json?.auditSLocData) ? json.auditSLocData : []);
+            if (json?.success && aslocList.length > 0) {
+              setAuditSLocData(aslocList);
+              setIsCustomData(true);
+              try {
+                sessionStorage.setItem('spindo_audit_sloc_cache', JSON.stringify(aslocList));
+              } catch {}
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to load Audit SLoc on-demand:', err);
+        }
+      };
+      fetchAuditSLocOnDemand();
+    }
+  }, [activeTab, selectedSnapshotKey, auditSLocData.length]);
+
   // Simpan manual / Simpan Otomatis state aktif ke Database & LocalStorage
   const handleSaveData = async () => {
     setIsSaving(true);
@@ -581,13 +676,14 @@ export default function Home() {
       incomingPackagingData,
       ncProgressData,
       stoData,
+      auditSLocData,
       customerBreakdown,
       lastUpdated: new Date().toLocaleString('id-ID'),
     };
 
-    // 1. Simpan ke Browser LocalStorage & SessionStorage untuk STO
+    // 1. Simpan ke Browser LocalStorage & SessionStorage untuk STO & Audit SLoc
     try {
-      const cacheableState = { ...currentState, stoData: [] };
+      const cacheableState = { ...currentState, stoData: [], auditSLocData: [] };
       localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableState));
     } catch (e) {
       console.error('Failed to save to localStorage:', e);
@@ -597,10 +693,15 @@ export default function Home() {
         sessionStorage.setItem('spindo_sto_cache', JSON.stringify(stoData));
       } catch {}
     }
+    if (auditSLocData.length > 0) {
+      try {
+        sessionStorage.setItem('spindo_audit_sloc_cache', JSON.stringify(auditSLocData));
+      } catch {}
+    }
 
-    // 2. Simpan ke Database Backend (Omit stoData agar tidak kena limit payload Vercel)
+    // 2. Simpan ke Database Backend (Omit stoData & auditSLocData agar tidak kena limit payload Vercel)
     try {
-      const { stoData: _, ...mainState } = currentState;
+      const { stoData: _, auditSLocData: __, ...mainState } = currentState;
       await fetch('/api/warehouse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -620,6 +721,22 @@ export default function Home() {
           });
         } catch (stoErr) {
           console.warn('Failed to persist STO module on manual save:', stoErr);
+        }
+      }
+
+      if (auditSLocData.length > 0) {
+        try {
+          await fetch('/api/warehouse?module=audit_sloc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              snapshotKey: selectedSnapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`,
+              lastUpdated: currentState.lastUpdated,
+              auditSLocData,
+            }),
+          });
+        } catch (aslocErr) {
+          console.warn('Failed to persist Audit SLoc module on manual save:', aslocErr);
         }
       }
       setLastUpdated(currentState.lastUpdated);
@@ -669,6 +786,9 @@ export default function Home() {
     const hasSTO = newState.uploadedCategories
       ? newState.uploadedCategories.includes('sto')
       : Boolean(newState.stoData && newState.stoData.length > 0);
+    const hasAuditSLoc = newState.uploadedCategories
+      ? newState.uploadedCategories.includes('audit_sloc')
+      : Boolean(newState.auditSLocData && newState.auditSLocData.length > 0);
 
     // Helper untuk memperkaya item LOO dengan data stock eksisting jika hanya LOO yang diunggah
     const enrichLooWithExistingStock = (
@@ -739,6 +859,7 @@ export default function Home() {
     const nextIncomingPackagingData = hasIncomingPkg ? newState.incomingPackagingData! : (incomingPackagingData.length > 0 ? incomingPackagingData : (currentSaved.incomingPackagingData || []));
     const nextNcProgressData = hasProgressNC ? newState.ncProgressData! : (ncProgressData.length > 0 ? ncProgressData : (currentSaved.ncProgressData || []));
     const nextStoData = hasSTO ? newState.stoData! : (stoData.length > 0 ? stoData : (currentSaved.stoData || []));
+    const nextAuditSLocData = hasAuditSLoc ? newState.auditSLocData! : (auditSLocData.length > 0 ? auditSLocData : (currentSaved.auditSLocData || []));
 
     const snapshotKey = newState.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
     const nowStr = newState.lastUpdated || new Date().toLocaleString('id-ID');
@@ -774,6 +895,9 @@ export default function Home() {
     if (hasSTO) {
       setStoData(nextStoData);
     }
+    if (hasAuditSLoc) {
+      setAuditSLocData(nextAuditSLocData);
+    }
 
     setLastUpdated(nowStr);
     setIsCustomData(true);
@@ -795,6 +919,7 @@ export default function Home() {
       incomingPackagingData: nextIncomingPackagingData,
       ncProgressData: nextNcProgressData,
       stoData: nextStoData,
+      auditSLocData: nextAuditSLocData,
       customerBreakdown: nextCustomerBreakdown,
       lastUpdated: nowStr,
       snapshotKey: snapshotKey,
@@ -804,8 +929,8 @@ export default function Home() {
 
     // 1. Simpan ke database server (Prioritas utama)
     try {
-      // Pisahkan modul STO agar main warehouse POST tidak melampaui limit payload Vercel (4.5 MB)
-      const { stoData: _, ...mainPostState } = mergedFullState;
+      // Pisahkan modul STO & Audit SLoc agar main warehouse POST tidak melampaui limit payload Vercel (4.5 MB)
+      const { stoData: _, auditSLocData: __, ...mainPostState } = mergedFullState;
       const res = await fetch('/api/warehouse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -831,6 +956,20 @@ export default function Home() {
         });
       }
 
+      // Jika file Audit SLoc baru diunggah, simpan ke endpoint modul audit_sloc terpisah
+      if (hasAuditSLoc && newState.auditSLocData && newState.auditSLocData.length > 0) {
+        await fetch('/api/warehouse?module=audit_sloc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            snapshotKey,
+            lastUpdated: nowStr,
+            targetDate: newState.targetDate,
+            auditSLocData: newState.auditSLocData,
+          }),
+        });
+      }
+
       if (hasIncomingPkg && newState.incomingPackagingData) {
         await fetch('/api/incoming-packaging', {
           method: 'POST',
@@ -850,8 +989,8 @@ export default function Home() {
       localStorage.setItem('spindo_selected_snapshot_key', snapshotKey);
     } catch {}
     try {
-      // Omit data mentah STO yang besar (4MB) dari cache LocalStorage agar tidak melebihi 5MB kuota
-      const cacheableState = { ...mergedFullState, stoData: [] };
+      // Omit data mentah STO & Audit SLoc yang besar (4MB) dari cache LocalStorage agar tidak melebihi 5MB kuota
+      const cacheableState = { ...mergedFullState, stoData: [], auditSLocData: [] };
       localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(cacheableState));
     } catch (lsErr) {
       console.warn('LocalStorage quota exceeded (data tetap aman di server database):', lsErr);
@@ -859,6 +998,11 @@ export default function Home() {
     if (nextStoData && nextStoData.length > 0) {
       try {
         sessionStorage.setItem('spindo_sto_cache', JSON.stringify(nextStoData));
+      } catch {}
+    }
+    if (nextAuditSLocData && nextAuditSLocData.length > 0) {
+      try {
+        sessionStorage.setItem('spindo_audit_sloc_cache', JSON.stringify(nextAuditSLocData));
       } catch {}
     }
   };
@@ -875,6 +1019,9 @@ export default function Home() {
     } catch {}
     try {
       sessionStorage.removeItem('spindo_sto_cache');
+    } catch {}
+    try {
+      sessionStorage.removeItem('spindo_audit_sloc_cache');
     } catch {}
 
     localStorage.removeItem('spindo_warehouse_saved_state');
@@ -894,6 +1041,7 @@ export default function Home() {
     setIncomingPackagingData(initialIncomingPackagingData);
     setNcProgressData(initialNCProgressData);
     setStoData([]);
+    setAuditSLocData([]);
     setCustomerBreakdown({});
     setIsCustomData(false);
   };
@@ -1007,6 +1155,7 @@ export default function Home() {
       userPermissions.canUploadIncomingPkg ||
       userPermissions.canUploadProgressNC ||
       userPermissions.canUploadSTO ||
+      userPermissions.canUploadAuditSLoc ||
       userPermissions.canUploadSAP
     );
   const canCustomizeLayout = currentUser?.role === 'admin' || Boolean(userPermissions.canCustomizeLayout);
@@ -1025,6 +1174,7 @@ export default function Home() {
     { id: 'nc', label: 'Stock NC', icon: ShieldAlert, desc: 'Grade E & Mutu C', permKey: 'viewNC' },
     { id: 'nc_progress', label: 'Progres NC & Repair', icon: GitFork, desc: 'MVT 309, 261 & 101', permKey: 'viewProgressNC' },
     { id: 'sto', label: 'Stock Opname (STO)', icon: ClipboardCheck, desc: 'Rekonsiliasi Actual vs SAP', permKey: 'viewSTO' },
+    { id: 'audit_sloc', label: 'Audit SLoc Harian', icon: MapPinCheck, desc: 'Rekonsiliasi Fisik SLoc vs SAP', permKey: 'viewAuditSLoc' },
     { id: 'unfifo', label: 'UNFIFO', icon: RefreshCcw, desc: 'Audit Alur Pengeluaran', permKey: 'viewUnfifo' },
     { id: 'loo', label: 'Stock Pipa vs LOO', icon: TrendingUp, desc: 'Pemenuhan Target LOO', permKey: 'viewLoo' },
     { id: 'packaging', label: 'Data Packaging Rusak', icon: PackageX, desc: 'Temuan & Status Repack', permKey: 'viewDamagedPkg' },
@@ -1905,7 +2055,7 @@ export default function Home() {
 
                     // Cache ke LocalStorage secara terpisah (aman dari QuotaExceededError)
                     try {
-                      const { stoData: _, ...safeState } = updatedState;
+                      const { stoData: _, auditSLocData: __, ...safeState } = updatedState;
                       localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(safeState));
                       if (selectedSnapshotKey) {
                         localStorage.setItem('spindo_selected_snapshot_key', selectedSnapshotKey);
@@ -1913,6 +2063,70 @@ export default function Home() {
                     } catch {}
                   } catch (err) {
                     console.error('Failed to sync STO data:', err);
+                  }
+                }}
+              />
+            )}
+
+            {activeTab === 'audit_sloc' && (currentUser.role === 'admin' || userPermissions.viewAuditSLoc) && (
+              <AuditSLocView
+                data={auditSLocData}
+                isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
+                targetDate={lastUpdated}
+                onDataUpdate={async (newData) => {
+                  setAuditSLocData(newData);
+                  setIsCustomData(true);
+                  try {
+                    const updatedState: ParsedWarehouseState = {
+                      pipeCapacities,
+                      fastSlowData,
+                      coilStripData,
+                      ncWarehouseData,
+                      ncItems,
+                      looSTData,
+                      looLTData,
+                      unfifoData,
+                      unfifoCoilData,
+                      unfifoPipeData,
+                      damagedPackagingData,
+                      incomingPackagingData,
+                      ncProgressData,
+                      stoData,
+                      auditSLocData: newData,
+                      customerBreakdown,
+                      lastUpdated,
+                      snapshotKey: selectedSnapshotKey,
+                      uploadedCategories: ['audit_sloc'],
+                    };
+
+                    // Simpan ke database server modul audit_sloc
+                    const res = await fetch('/api/warehouse?module=audit_sloc', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        snapshotKey: selectedSnapshotKey,
+                        lastUpdated,
+                        auditSLocData: newData,
+                      }),
+                    });
+                    const resJson = await res.json().catch(() => null);
+                    if (!res.ok || !resJson?.success) {
+                      console.error('Server save error for Audit SLoc update:', resJson);
+                    }
+
+                    // Cache ke LocalStorage secara terpisah (aman dari QuotaExceededError)
+                    try {
+                      const { stoData: _, auditSLocData: __, ...safeState } = updatedState;
+                      localStorage.setItem('spindo_warehouse_saved_state', JSON.stringify(safeState));
+                      if (selectedSnapshotKey) {
+                        localStorage.setItem('spindo_selected_snapshot_key', selectedSnapshotKey);
+                      }
+                    } catch {}
+                    try {
+                      sessionStorage.setItem('spindo_audit_sloc_cache', JSON.stringify(newData));
+                    } catch {}
+                  } catch (err) {
+                    console.error('Failed to sync Audit SLoc data:', err);
                   }
                 }}
               />

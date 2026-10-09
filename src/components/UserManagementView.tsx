@@ -311,7 +311,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
         canUploadCoil: p.canUploadCoil !== undefined ? p.canUploadCoil : legacyUpload,
         canUploadLoo: p.canUploadLoo !== undefined ? p.canUploadLoo : legacyUpload,
         canUploadDamagedPkg: p.canUploadDamagedPkg !== undefined ? p.canUploadDamagedPkg : legacyUpload,
-        canUploadIncomingPkg: p.canUploadIncomingPkg !== undefined ? p.canUploadIncomingPkg : legacyUpload
+        canUploadIncomingPkg: p.canUploadIncomingPkg !== undefined ? p.canUploadIncomingPkg : legacyUpload,
+        canUploadProgressNC: p.canUploadProgressNC !== undefined ? p.canUploadProgressNC : legacyUpload,
+        canUploadSTO: p.canUploadSTO !== undefined ? p.canUploadSTO : legacyUpload,
+        canUploadAuditSLoc: p.canUploadAuditSLoc !== undefined ? p.canUploadAuditSLoc : legacyUpload
       }
     });
     setRoleFormError('');
@@ -864,10 +867,14 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                 { key: 'viewFastSlow', label: 'Fast/Slow' },
                 { key: 'viewCoilStrip', label: 'Coil & Strip' },
                 { key: 'viewNC', label: 'Stock NC' },
+                { key: 'viewProgressNC', label: 'Progres NC' },
+                { key: 'viewSTO', label: 'Stock Opname' },
+                { key: 'viewAuditSLoc', label: 'Audit SLoc' },
                 { key: 'viewUnfifo', label: 'UNFIFO' },
                 { key: 'viewLoo', label: 'LOO' },
                 { key: 'viewDamagedPkg', label: 'Packaging Rusak' },
                 { key: 'viewIncomingPkg', label: 'Audit Packaging' },
+                { key: 'viewCapacitySettings', label: 'Master Kapasitas' },
                 { key: 'viewUserManagement', label: 'Kelola User' }
               ] as const;
 
@@ -876,14 +883,21 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                 { key: 'canUploadCoil', label: 'Coil/Strip' },
                 { key: 'canUploadLoo', label: 'Data LOO' },
                 { key: 'canUploadDamagedPkg', label: 'Pkg Rusak' },
-                { key: 'canUploadIncomingPkg', label: 'Incoming RTP' }
+                { key: 'canUploadIncomingPkg', label: 'Incoming RTP' },
+                { key: 'canUploadProgressNC', label: 'Progres NC' },
+                { key: 'canUploadSTO', label: 'Upload STO' },
+                { key: 'canUploadAuditSLoc', label: 'Audit SLoc' }
               ] as const;
 
               const actionPermsList = [
                 { key: 'canEditIncomingPkg', label: 'Input RTP' },
                 { key: 'canEditDamagedPkg', label: 'Edit Packaging' },
+                { key: 'canEditProgressNC', label: 'Edit Progres NC' },
+                { key: 'canEditSTO', label: 'Edit STO' },
+                { key: 'canEditAuditSLoc', label: 'Edit Audit SLoc' },
                 { key: 'canExportExcel', label: 'Export Excel' },
                 { key: 'canCustomizeLayout', label: 'Ubah Layout' },
+                { key: 'canManageCapacity', label: 'Atur Kapasitas' },
                 { key: 'canManageUsers', label: 'Kelola Hak Akses' },
                 { key: 'canSaveSnapshot', label: 'Simpan DB' }
               ] as const;
@@ -1352,6 +1366,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                     { key: 'viewCoilStrip', label: 'Coil & Strip', desc: 'Monitoring Bahan Baku Induk' },
                     { key: 'viewNC', label: 'Stock NC Quality', desc: 'Data Pipa Grade E & Mutu C' },
                     { key: 'viewProgressNC', label: 'Progres NC & Repair', desc: 'Tracking Mutasi Alur NC & Status Repair' },
+                    { key: 'viewSTO', label: 'Stock Opname (STO)', desc: 'Rekonsiliasi Fisik Actual vs SAP' },
+                    { key: 'viewAuditSLoc', label: 'Audit SLoc SAP (14 Kolom)', desc: 'Rekonsiliasi Fisik SLoc vs Catatan SAP' },
                     { key: 'viewUnfifo', label: 'UNFIFO Audit', desc: 'Audit Alur Pengeluaran Barang' },
                     { key: 'viewLoo', label: 'Stock Pipa vs LOO', desc: 'Pemenuhan Target Order Terbuka' },
                     { key: 'viewDamagedPkg', label: 'Data Packaging Rusak', desc: 'Temuan Kerusakan & Status Repack' },
@@ -1403,7 +1419,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                     { key: 'canUploadLoo', label: 'Upload Raw Order LOO', desc: 'File open order delivery LOO SAP' },
                     { key: 'canUploadDamagedPkg', label: 'Upload Raw Packaging Rusak', desc: 'File spreadsheet temuan packaging rusak (NG)' },
                     { key: 'canUploadIncomingPkg', label: 'Upload Raw Incoming RTP', desc: 'File audit harian mutasi incoming packaging' },
-                    { key: 'canUploadProgressNC', label: 'Upload Raw Progres NC & Repair', desc: 'File export transaksi SAP MB51 / ZMM Progres NC' }
+                    { key: 'canUploadProgressNC', label: 'Upload Raw Progres NC & Repair', desc: 'File export transaksi SAP MB51 / ZMM Progres NC' },
+                    { key: 'canUploadSTO', label: 'Upload Raw Stock Opname (STO)', desc: 'File hasil sensus fisik & rekonsiliasi STO SAP' },
+                    { key: 'canUploadAuditSLoc', label: 'Upload Raw Audit SLoc SAP', desc: 'File rekonsiliasi 14 kolom audit storage location SAP' }
                   ].map((item) => {
                     const isChecked = Boolean(roleFormData.permissions[item.key as keyof RolePermissions]);
                     return (
@@ -1447,6 +1465,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                     { key: 'canEditIncomingPkg', label: 'Tambah & Edit Data RTP', desc: 'Input / ubah data mutasi packaging' },
                     { key: 'canEditDamagedPkg', label: 'Ubah Status Repack Packaging', desc: 'Update status perbaikan fisik' },
                     { key: 'canEditProgressNC', label: 'Tambah & Edit Transaksi NC', desc: 'Input & modifikasi data alur repair NC' },
+                    { key: 'canEditSTO', label: 'Edit Rekonsiliasi STO', desc: 'Penyesuaian manual data hasil sensus STO' },
+                    { key: 'canEditAuditSLoc', label: 'Edit Rekonsiliasi Audit SLoc', desc: 'Penyesuaian manual data hasil audit SLoc' },
                     { key: 'canManageCapacity', label: 'Atur & Simpan Kapasitas Gudang', desc: 'Mengubah limit kapasitas pipa & coil per gudang' },
                     { key: 'canExportExcel', label: 'Export Data Spreadsheet Excel', desc: 'Download laporan ke Excel (.xlsx)' },
                     { key: 'canCustomizeLayout', label: 'Kustomisasi Layout Dashboard', desc: 'Mengatur urutan kartu & widget' },
