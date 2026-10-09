@@ -25,10 +25,13 @@ export function formatTon(
     return '-';
   }
 
-  // Jika nilai sangat kecil (contoh: 0.005 Ton) dan decimals = 2, naikkan ke 3 desimal agar tidak tampil 0,00
+  // Jika nilai sangat kecil (contoh: 0.005 Ton atau -0.005 Ton), naikkan desimal agar tidak tampil 0,00 atau 0,0
   let effectiveDecimals = decimals;
-  if (val > 0 && val < 0.01 && decimals === 2) {
+  const absVal = Math.abs(val);
+  if (absVal > 0 && absVal < 0.01) {
     effectiveDecimals = 3;
+  } else if (absVal > 0 && absVal < 0.1 && decimals === 1) {
+    effectiveDecimals = 2;
   }
 
   const formatted = val.toLocaleString('id-ID', {

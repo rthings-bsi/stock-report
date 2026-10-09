@@ -964,7 +964,9 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
 
     if (slocFilterMode === 'all' || slocFilterMode === 'minus') {
       const minusData = displaySLocs.map((s) => {
-        if (slocMetric === 'ton') return Number(s.minusTon.toFixed(2));
+        if (slocMetric === 'ton') {
+          return s.minusTon > 0 ? Number(s.minusTon.toFixed(3)) : 0;
+        }
         return s.minusQty;
       });
 
@@ -986,7 +988,9 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
 
     if (slocFilterMode === 'all' || slocFilterMode === 'plus') {
       const plusData = displaySLocs.map((s) => {
-        if (slocMetric === 'ton') return Number(s.plusTon.toFixed(2));
+        if (slocMetric === 'ton') {
+          return s.plusTon > 0 ? Number(s.plusTon.toFixed(3)) : 0;
+        }
         return s.plusQty;
       });
 
@@ -1053,7 +1057,11 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
             const sign = isMinus ? '-' : '+';
             const valFormatted =
               currentMetric === 'ton'
-                ? val.toFixed(1)
+                ? val >= 1
+                  ? val.toFixed(1)
+                  : val >= 0.01
+                  ? val.toFixed(2)
+                  : val.toFixed(3)
                 : Math.round(val).toLocaleString('id-ID');
             const text = `${sign}${valFormatted} ${unit}`;
 
@@ -1141,16 +1149,25 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                 return ` Akurasi: ${val}%`;
               }
               const unit = slocMetric === 'ton' ? 'Ton' : 'Pcs';
-              return ` ${context.dataset.label}: ${Number(val).toLocaleString('id-ID')} ${unit}`;
+              const valFormatted =
+                slocMetric === 'ton'
+                  ? typeof val === 'number'
+                    ? val < 0.01 && val > 0
+                      ? val.toFixed(3)
+                      : val.toFixed(2)
+                    : val
+                  : Number(val).toLocaleString('id-ID');
+              return ` ${context.dataset.label}: ${valFormatted} ${unit}`;
             },
             afterBody: (context: any) => {
               const idx = context[0]?.dataIndex;
               const s = displaySLocs[idx];
               if (!s) return [];
+              const formatSLocTon = (t: number) => (t < 0.01 && t > 0 ? t.toFixed(3) : t.toFixed(2));
               return [
                 `• Akurasi: ${(s.accuracyRate || 0).toFixed(1)}% (${s.matchingCount} / ${s.itemCount} item)`,
-                `• Selisih (-): ${s.minusCount} item (${s.minusTon.toFixed(2)} T | ${s.minusQty.toLocaleString('id-ID')} Pcs)`,
-                `• Selisih (+): ${s.plusCount} item (${s.plusTon.toFixed(2)} T | ${s.plusQty.toLocaleString('id-ID')} Pcs)`,
+                `• Selisih (-): ${s.minusCount} item (${formatSLocTon(s.minusTon)} T | ${s.minusQty.toLocaleString('id-ID')} Pcs)`,
+                `• Selisih (+): ${s.plusCount} item (${formatSLocTon(s.plusTon)} T | ${s.plusQty.toLocaleString('id-ID')} Pcs)`,
               ];
             },
           },
@@ -1177,7 +1194,10 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
             font: { family: 'ui-monospace, monospace', size: 10 },
             callback: (val: any) => {
               if (slocMetric === 'percent') return val <= 100 ? `${val}%` : '';
-              if (slocMetric === 'ton') return `${val} T`;
+              if (slocMetric === 'ton') {
+                const num = Number(val);
+                return num < 0.01 && num > 0 ? `${num.toFixed(3)} T` : `${num} T`;
+              }
               return val >= 1000 ? `${(val / 1000).toFixed(0)}k` : `${val}`;
             },
           },

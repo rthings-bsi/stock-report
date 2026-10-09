@@ -40,43 +40,95 @@ export function getAuditSLocItemWeights(item: AuditSLocItem): {
   sapTon: number;
   diffTon: number;
 } {
+  const absQtyAudit = Math.abs(item.qtyAudit || 0);
+  const absKgAudit = Math.abs(item.kgAudit || 0);
+  const absSapInit = Math.abs(item.sapInitialQty || 0);
+  const absEomWeight = Math.abs(item.eomWeight || 0);
+  const absDiffQtyInit = Math.abs(item.diffQtyInitial || 0);
+  const absDiffKgAudit = Math.abs(item.diffKgAudit || 0);
+  const absDiffFinalQty = Math.abs(item.diffAuditFinalQty || 0);
+  const absKgDiffFinal = Math.abs(item.kgDiffFinal || 0);
+
+  // 1. Tentukan bobot per unit (kg/btg atau kg/pcs)
   let unitWeightKg = 0;
-  if (item.qtyAudit > 0 && item.kgAudit > 0) {
-    unitWeightKg = item.kgAudit / item.qtyAudit;
-  } else if (item.sapInitialQty > 0 && item.eomWeight > 0) {
-    unitWeightKg = item.eomWeight / item.sapInitialQty;
-  } else if (item.diffQtyInitial !== 0 && item.diffKgAudit !== 0) {
-    unitWeightKg = Math.abs(item.diffKgAudit / item.diffQtyInitial);
+  if (absQtyAudit > 0 && absKgAudit > 0) {
+    unitWeightKg = absKgAudit / absQtyAudit;
+  } else if (absSapInit > 0 && absEomWeight > 0) {
+    unitWeightKg = absEomWeight / absSapInit;
+  } else if (absDiffQtyInit > 0 && absDiffKgAudit > 0) {
+    unitWeightKg = absDiffKgAudit / absDiffQtyInit;
+  } else if (absDiffFinalQty > 0 && absKgDiffFinal > 0) {
+    unitWeightKg = absKgDiffFinal / absDiffFinalQty;
   }
 
+  // Fallback estimasi bobot jika tidak ada bobot di kolom awal (standar pipa Spindo ~15-45 kg)
+  if (unitWeightKg === 0) {
+    const ukuran = item.ukuran || '';
+    if (ukuran.includes('4"') || ukuran.includes('4 INCH') || ukuran.includes('114')) {
+      unitWeightKg = 45;
+    } else if (ukuran.includes('3"') || ukuran.includes('3 INCH') || ukuran.includes('89')) {
+      unitWeightKg = 30;
+    } else if (ukuran.includes('2"') || ukuran.includes('2 INCH') || ukuran.includes('60')) {
+      unitWeightKg = 20;
+    } else if (ukuran.includes('1"') || ukuran.includes('1 INCH') || ukuran.includes('33') || ukuran.includes('42')) {
+      unitWeightKg = 12;
+    } else if (ukuran.includes('1/2') || ukuran.includes('3/4') || ukuran.includes('21') || ukuran.includes('27')) {
+      unitWeightKg = 7;
+    } else {
+      unitWeightKg = 20; // Default standar pipa Spindo
+    }
+  }
+
+  // 2. Bobot aktual final dan SAP final berdasarkan kuantitas rekonsiliasi final
   let actualWeightKg = 0;
-  if (item.kgAudit > 0) {
-    actualWeightKg = item.kgAudit;
-  } else if (unitWeightKg > 0) {
+  if (item.actualFinalQty !== 0 && unitWeightKg > 0) {
     actualWeightKg = item.actualFinalQty * unitWeightKg;
+  } else if (item.kgAudit !== 0) {
+    actualWeightKg = item.kgAudit;
   }
 
   let sapWeightKg = 0;
-  if (item.eomWeight > 0) {
-    sapWeightKg = item.eomWeight;
-  } else if (unitWeightKg > 0) {
+  if (item.sapFinalQty !== 0 && unitWeightKg > 0) {
     sapWeightKg = item.sapFinalQty * unitWeightKg;
+  } else if (item.eomWeight !== 0) {
+    sapWeightKg = item.eomWeight;
   }
 
+  // 3. Selisih bobot (kg)
   let diffWeightKg = 0;
-  if (item.status === 'SESUAI') {
+  if (item.status === 'SESUAI' || item.diffAuditFinalQty === 0) {
     diffWeightKg = 0;
-    if (actualWeightKg > 0 && sapWeightKg === 0) sapWeightKg = actualWeightKg;
-    if (sapWeightKg > 0 && actualWeightKg === 0) actualWeightKg = sapWeightKg;
+    if (actualWeightKg !== 0 && sapWeightKg === 0) sapWeightKg = actualWeightKg;
+    if (sapWeightKg !== 0 && actualWeightKg === 0) actualWeightKg = sapWeightKg;
+  } else if (item.kgDiffFinal !== undefined && item.kgDiffFinal !== 0) {
+    diffWeightKg = item.kgDiffFinal;
+  } else if (unitWeightKg > 0 && item.diffAuditFinalQty !== 0) {
+    diffWeightKg = item.diffAuditFinalQty * unitWeightKg;
   } else {
     diffWeightKg = actualWeightKg - sapWeightKg;
   }
 
+  // Pastikan arah tanda diffWeightKg selalu konsisten dengan diffAuditFinalQty
+  if (item.diffAuditFinalQty < 0 && diffWeightKg > 0) {
+    diffWeightKg = -diffWeightKg;
+  } else if (item.diffAuditFinalQty > 0 && diffWeightKg < 0) {
+    diffWeightKg = Math.abs(diffWeightKg);
+  } else if (item.diffAuditFinalQty === 0) {
+    diffWeightKg = 0;
+  }
+
   const actualTon = Math.abs(actualWeightKg) / 1000;
   const sapTon = Math.abs(sapWeightKg) / 1000;
-  let diffTon = item.tonDiffFinal !== undefined && item.tonDiffFinal !== 0
-    ? item.tonDiffFinal
-    : (diffWeightKg / 1000);
+
+  // 4. Selisih tonase final
+  let diffTon = 0;
+  if (item.diffAuditFinalQty === 0) {
+    diffTon = 0;
+  } else if (item.tonDiffFinal !== undefined && item.tonDiffFinal !== 0) {
+    diffTon = item.tonDiffFinal;
+  } else {
+    diffTon = diffWeightKg / 1000;
+  }
 
   if (item.diffAuditFinalQty < 0 && diffTon > 0) {
     diffTon = -diffTon;
@@ -113,11 +165,34 @@ export function normalizeAuditSLocItem(item: any): AuditSLocItem {
     diffSign = '(+)';
   }
 
+  // Hitung unit weight jika tersedia untuk derivasi kgDiffFinal
+  const absQtyAudit = Math.abs(Number(item.qtyAudit ?? 0));
+  const absKgAudit = Math.abs(Number(item.kgAudit ?? 0));
+  const absSapInit = Math.abs(Number(item.sapInitialQty ?? 0));
+  const absEomWeight = Math.abs(Number(item.eomWeight ?? 0));
+  const absDiffQtyInit = Math.abs(Number(item.diffQtyInitial ?? 0));
+  const absDiffKgAudit = Math.abs(Number(item.diffKgAudit ?? 0));
+
+  let unitWeight = 0;
+  if (absQtyAudit > 0 && absKgAudit > 0) {
+    unitWeight = absKgAudit / absQtyAudit;
+  } else if (absSapInit > 0 && absEomWeight > 0) {
+    unitWeight = absEomWeight / absSapInit;
+  } else if (absDiffQtyInit > 0 && absDiffKgAudit > 0) {
+    unitWeight = absDiffKgAudit / absDiffQtyInit;
+  }
+
   let kgDiffFinal = Number(item.kgDiffFinal ?? 0);
   if (diffAuditFinalQty === 0) {
     kgDiffFinal = 0;
-  } else if (kgDiffFinal === 0 && item.diffKgAudit) {
-    kgDiffFinal = Number(item.diffKgAudit);
+  } else if (kgDiffFinal === 0) {
+    if (item.diffKgAudit && Number(item.diffKgAudit) !== 0) {
+      kgDiffFinal = Math.abs(Number(item.diffKgAudit)) * (diffAuditFinalQty < 0 ? -1 : 1);
+    } else if (unitWeight > 0) {
+      kgDiffFinal = diffAuditFinalQty * unitWeight;
+    } else {
+      kgDiffFinal = diffAuditFinalQty * 20; // Fallback standar pipa Spindo 20 kg
+    }
   }
 
   if (diffAuditFinalQty < 0 && kgDiffFinal > 0) {
@@ -292,18 +367,19 @@ export function parseAuditSLocFile(rawRows: unknown[][]): AuditSLocItem[] {
     const gudang = normalizeSLocGudang(rawSloc);
     const uom = eomWeight > 0 ? 'Ton' : 'Btg';
 
-    // Estimasi KG / Ton selisih final
+    // Estimasi KG / Ton selisih final (berdasarkan bobot per unit aktual)
     let kgDiffFinal = 0;
     if (diffAuditFinalQty !== 0) {
-      if (diffKgAudit !== 0) {
-        // Tanda diffKgAudit di SAP biasanya dihitung SAP - Actual, dibalik untuk Actual - SAP
-        kgDiffFinal = -diffKgAudit;
+      if (qtyAudit > 0 && kgAudit > 0) {
+        kgDiffFinal = diffAuditFinalQty * (kgAudit / qtyAudit);
       } else if (sapInitialQty !== 0 && eomWeight !== 0) {
         kgDiffFinal = (diffAuditFinalQty / Math.abs(sapInitialQty)) * eomWeight;
-      } else if (qtyAudit > 0 && kgAudit > 0) {
-        kgDiffFinal = diffAuditFinalQty * (kgAudit / qtyAudit);
+      } else if (diffQtyInitial !== 0 && diffKgAudit !== 0) {
+        kgDiffFinal = diffAuditFinalQty * Math.abs(diffKgAudit / diffQtyInitial);
+      } else if (diffKgAudit !== 0) {
+        kgDiffFinal = diffAuditFinalQty < 0 ? -Math.abs(diffKgAudit) : Math.abs(diffKgAudit);
       } else {
-        kgDiffFinal = diffAuditFinalQty * 2.5;
+        kgDiffFinal = diffAuditFinalQty * 20; // Fallback standar pipa Spindo
       }
     }
 
