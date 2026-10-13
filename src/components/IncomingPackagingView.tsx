@@ -38,7 +38,9 @@ import {
   Calendar,
   Filter,
   CheckCircle2,
-  Box
+  Box,
+  Settings2,
+  ArrowLeft
 } from 'lucide-react';
 
 interface IncomingPackagingViewProps {
@@ -154,6 +156,230 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   // Reset All Confirm Modal
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
+  // Master Customer & Type Box State
+  const [masterData, setMasterData] = useState<Record<string, string[]>>(PACKAGING_CUSTOMER_BOX_MASTER);
+  const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
+  const [selectedMasterCust, setSelectedMasterCust] = useState<string>(MASTER_CUSTOMERS[0] || '');
+  const [masterSearchQuery, setMasterSearchQuery] = useState('');
+  const [newCustInput, setNewCustInput] = useState('');
+  const [editingCustOldName, setEditingCustOldName] = useState<string | null>(null);
+  const [editingCustNewName, setEditingCustNewName] = useState('');
+  const [newBoxInput, setNewBoxInput] = useState('');
+  const [editingBoxOldName, setEditingBoxOldName] = useState<string | null>(null);
+  const [editingBoxNewName, setEditingBoxNewName] = useState('');
+  const [deleteCustConfirm, setDeleteCustConfirm] = useState<string | null>(null);
+  const [isResetMasterModalOpen, setIsResetMasterModalOpen] = useState(false);
+  const [mobileMasterTab, setMobileMasterTab] = useState<'customers' | 'boxes'>('customers');
+
+  // Dynamic Master Customer list
+  const masterCustomerList = useMemo(() => {
+    return Object.keys(masterData).sort();
+  }, [masterData]);
+
+  const totalMasterBoxesCount = useMemo(() => {
+    return Object.values(masterData).reduce((sum, boxes) => sum + (boxes?.length || 0), 0);
+  }, [masterData]);
+
+  const filteredMasterCustomers = useMemo(() => {
+    if (!masterSearchQuery.trim()) return masterCustomerList;
+    const q = masterSearchQuery.toLowerCase();
+    return masterCustomerList.filter((c) => c.toLowerCase().includes(q));
+  }, [masterCustomerList, masterSearchQuery]);
+
+  // Dynamic Box Types lookup from masterData
+  const getDynamicBoxTypes = (customerName: string): string[] => {
+    if (!customerName) return [];
+    const trimmed = customerName.trim();
+    if (masterData[trimmed]) return masterData[trimmed];
+    const foundKey = Object.keys(masterData).find(
+      (k) => k.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (foundKey) return masterData[foundKey];
+    return [];
+  };
+
+  // Sync Master Data on Mount from local cache & server database
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('spindo_packaging_master_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          setMasterData(parsed);
+          setSelectedMasterCust((prev) => (prev && parsed[prev] ? prev : Object.keys(parsed).sort()[0] || ''));
+        }
+      }
+    } catch {}
+
+    const fetchMasterData = async () => {
+      try {
+        const res = await fetch('/api/settings?key=packaging_master_db', { cache: 'no-store' });
+        const json = await res.json();
+        if (json?.success && json.data && typeof json.data === 'object' && Object.keys(json.data).length > 0) {
+          setMasterData(json.data);
+          try {
+            localStorage.setItem('spindo_packaging_master_cache', JSON.stringify(json.data));
+          } catch {}
+          setSelectedMasterCust((prev) => (prev && json.data[prev] ? prev : Object.keys(json.data).sort()[0] || ''));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch packaging master data from server:', err);
+      }
+    };
+    fetchMasterData();
+  }, []);
+
+  const saveMasterData = async (newMaster: Record<string, string[]>) => {
+    setMasterData(newMaster);
+    try {
+      localStorage.setItem('spindo_packaging_master_cache', JSON.stringify(newMaster));
+    } catch {}
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'packaging_master_db', value: newMaster })
+      });
+    } catch (err) {
+      console.error('Failed to save packaging master data to server:', err);
+    }
+  };
+
+  const handleAddCustomer = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (masterCustomerList.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      alert(`Customer "${trimmed}" sudah terdaftar di master.`);
+      return;
+    }
+    const updated = { ...masterData, [trimmed]: [] };
+    saveMasterData(updated);
+    setSelectedMasterCust(trimmed);
+    setNewCustInput('');
+    setMobileMasterTab('boxes');
+  };
+
+  const handleRenameCustomer = (oldName: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === oldName) {
+      setEditingCustOldName(null);
+      return;
+    }
+    if (
+      masterCustomerList.some(
+        (c) => c.toLowerCase() === trimmed.toLowerCase() && c.toLowerCase() !== oldName.toLowerCase()
+      )
+    ) {
+      alert(`Customer "${trimmed}" sudah terdaftar di master.`);
+      return;
+    }
+    const existingBoxes = masterData[oldName] || [];
+    const updated: Record<string, string[]> = {};
+    Object.keys(masterData).forEach((k) => {
+      if (k === oldName) {
+        updated[trimmed] = existingBoxes;
+      } else {
+        updated[k] = masterData[k];
+      }
+    });
+    saveMasterData(updated);
+    if (selectedMasterCust === oldName) {
+      setSelectedMasterCust(trimmed);
+    }
+    setEditingCustOldName(null);
+    if (formData.customer === oldName) {
+      setFormData((prev) => ({ ...prev, customer: trimmed }));
+    }
+  };
+
+  const handleDeleteCustomer = (custName: string) => {
+    const updated: Record<string, string[]> = {};
+    Object.keys(masterData).forEach((k) => {
+      if (k !== custName) {
+        updated[k] = masterData[k];
+      }
+    });
+    saveMasterData(updated);
+    const remaining = Object.keys(updated).sort();
+    setSelectedMasterCust(remaining[0] || '');
+    setDeleteCustConfirm(null);
+    if (formData.customer === custName) {
+      const nextCust = remaining[0] || '';
+      const nextBoxes = updated[nextCust] || [];
+      setFormData((prev) => ({
+        ...prev,
+        customer: nextCust,
+        type: nextBoxes[0] || ''
+      }));
+    }
+  };
+
+  const handleAddBoxType = (custName: string, boxCode: string) => {
+    const trimmed = boxCode.trim();
+    if (!custName || !trimmed) return;
+    const currentBoxes = masterData[custName] || [];
+    if (currentBoxes.some((b) => b.toLowerCase() === trimmed.toLowerCase())) {
+      alert(`Tipe box "${trimmed}" sudah ada untuk customer ini.`);
+      return;
+    }
+    const updated = {
+      ...masterData,
+      [custName]: [...currentBoxes, trimmed]
+    };
+    saveMasterData(updated);
+    setNewBoxInput('');
+    if (formData.customer === custName && !formData.type) {
+      setFormData((prev) => ({ ...prev, type: trimmed }));
+    }
+  };
+
+  const handleRenameBoxType = (custName: string, oldBox: string, newBox: string) => {
+    const trimmed = newBox.trim();
+    if (!custName || !trimmed || trimmed === oldBox) {
+      setEditingBoxOldName(null);
+      return;
+    }
+    const currentBoxes = masterData[custName] || [];
+    if (
+      currentBoxes.some(
+        (b) => b.toLowerCase() === trimmed.toLowerCase() && b.toLowerCase() !== oldBox.toLowerCase()
+      )
+    ) {
+      alert(`Tipe box "${trimmed}" sudah ada untuk customer ini.`);
+      return;
+    }
+    const updated = {
+      ...masterData,
+      [custName]: currentBoxes.map((b) => (b === oldBox ? trimmed : b))
+    };
+    saveMasterData(updated);
+    setEditingBoxOldName(null);
+    if (formData.customer === custName && formData.type === oldBox) {
+      setFormData((prev) => ({ ...prev, type: trimmed }));
+    }
+  };
+
+  const handleDeleteBoxType = (custName: string, boxCode: string) => {
+    if (!custName || !boxCode) return;
+    const currentBoxes = masterData[custName] || [];
+    const updatedBoxes = currentBoxes.filter((b) => b !== boxCode);
+    const updated = {
+      ...masterData,
+      [custName]: updatedBoxes
+    };
+    saveMasterData(updated);
+    if (formData.customer === custName && formData.type === boxCode) {
+      setFormData((prev) => ({ ...prev, type: updatedBoxes[0] || '' }));
+    }
+  };
+
+  const handleResetMasterToDefault = () => {
+    saveMasterData(PACKAGING_CUSTOMER_BOX_MASTER);
+    const defaultCust = MASTER_CUSTOMERS[0] || '';
+    setSelectedMasterCust(defaultCust);
+    setIsResetMasterModalOpen(false);
+  };
+
   // Sorting
   const [sortField, setSortField] = useState<keyof IncomingPackagingItem>('stockSaatIni');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -231,8 +457,8 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   // Open Create Form
   const handleOpenCreate = () => {
     setEditingId(null);
-    const defaultCust = MASTER_CUSTOMERS[0] || '';
-    const availableBoxes = getBoxTypesForCustomer(defaultCust);
+    const defaultCust = masterCustomerList[0] || '';
+    const availableBoxes = getDynamicBoxTypes(defaultCust);
     const defaultBox = availableBoxes[0] || '';
 
     setFormData({
@@ -254,8 +480,8 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   // Open Edit Form
   const handleOpenEdit = (item: IncomingPackagingItem) => {
     setEditingId(item.id);
-    const isMasterCust = MASTER_CUSTOMERS.includes(item.customer);
-    const availableBoxes = getBoxTypesForCustomer(item.customer);
+    const isMasterCust = masterCustomerList.includes(item.customer);
+    const availableBoxes = getDynamicBoxTypes(item.customer);
     const isMasterBox = availableBoxes.includes(item.type);
 
     setIsCustomCustomer(!isMasterCust);
@@ -297,7 +523,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     }
 
     setIsCustomCustomer(false);
-    const boxes = getBoxTypesForCustomer(newCust);
+    const boxes = getDynamicBoxTypes(newCust);
     const nextBox = boxes.includes(formData.type) ? formData.type : (boxes[0] || '');
     setIsCustomType(false);
     setFormData((prev) => ({
@@ -413,31 +639,31 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
   // Combined Unique Customer list from Master + Actual Items
   const customerList = useMemo(() => {
-    const set = new Set<string>(MASTER_CUSTOMERS);
+    const set = new Set<string>(masterCustomerList);
     items.forEach((i) => {
       if (i.customer) set.add(i.customer.trim());
     });
     return Array.from(set).sort();
-  }, [items]);
+  }, [items, masterCustomerList]);
 
   // Unique Type list reactive to selected customer
   const typeList = useMemo(() => {
     if (selectedCustomer !== 'ALL') {
-      const masterBoxes = getBoxTypesForCustomer(selectedCustomer);
+      const masterBoxes = getDynamicBoxTypes(selectedCustomer);
       const itemBoxes = items
         .filter((i) => i.customer === selectedCustomer && i.type)
         .map((i) => i.type.trim());
       return Array.from(new Set([...masterBoxes, ...itemBoxes])).sort();
     }
     const set = new Set<string>();
-    Object.values(PACKAGING_CUSTOMER_BOX_MASTER).forEach((boxes) => {
+    Object.values(masterData).forEach((boxes) => {
       boxes.forEach((b) => set.add(b));
     });
     items.forEach((i) => {
       if (i.type) set.add(i.type.trim());
     });
     return Array.from(set).sort();
-  }, [items, selectedCustomer]);
+  }, [items, selectedCustomer, masterData]);
 
   // Filtered & Sorted Data
   const filteredData = useMemo(() => {
@@ -525,8 +751,8 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
   const currentBoxOptions = useMemo(() => {
     if (!formData.customer) return [];
-    return getBoxTypesForCustomer(formData.customer);
-  }, [formData.customer]);
+    return getDynamicBoxTypes(formData.customer);
+  }, [formData.customer, masterData]);
 
   const renderSortHeader = (
     label: string,
@@ -573,6 +799,30 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
         {/* Action Toolbar */}
         <div className="flex items-center gap-2 ml-auto font-mono text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedMasterCust((prev) => (prev && masterData[prev] ? prev : masterCustomerList[0] || ''));
+              setIsMasterModalOpen(true);
+            }}
+            className="px-2.5 py-1.5 rounded-lg border border-emerald-750 bg-emerald-950/80 hover:bg-emerald-800 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+            title="Kelola Master Data Customer & Type Box"
+          >
+            <Settings2 className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
+            <span className="hidden sm:inline">Master Data</span>
+            <span className="sm:hidden">Master</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            className="hidden sm:inline-flex px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-bold transition-all shadow-2xs cursor-pointer items-center justify-center gap-1.5 text-xs"
+            title="Tambah Data Audit Packaging Baru"
+          >
+            <Plus className="h-3.5 w-3.5 text-emerald-950" strokeWidth={2.5} />
+            <span>+ Input Audit</span>
+          </button>
+
           <button
             type="button"
             onClick={handleExportExcel}
@@ -682,6 +932,19 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                 {activeFilterCount}
               </span>
             )}
+          </button>
+
+          {/* Master Data Button (Mobile) */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedMasterCust((prev) => (prev && masterData[prev] ? prev : masterCustomerList[0] || ''));
+              setIsMasterModalOpen(true);
+            }}
+            className="p-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer shadow-2xs shrink-0"
+            title="Kelola Master Customer & Box"
+          >
+            <Settings2 className="h-4 w-4 text-emerald-800" strokeWidth={2.2} />
           </button>
 
           {/* Export Check Sheet Button (Mobile) */}
@@ -1379,9 +1642,23 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               <div className="space-y-1">
                 <label className="text-[10.5px] font-bold text-slate-600 uppercase flex items-center justify-between font-sans">
                   <span>Customer *</span>
-                  <span className="text-emerald-800 text-[9.5px] font-semibold">Master DB ({MASTER_CUSTOMERS.length} PT)</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMasterCust(formData.customer || masterCustomerList[0] || '');
+                        setMobileMasterTab('customers');
+                        setIsMasterModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 hover:text-emerald-950 hover:underline cursor-pointer transition-colors"
+                      title="Kelola Master Customer & Box"
+                    >
+                      <Settings2 className="h-3 w-3 text-emerald-700" />
+                      <span>Atur Master DB ({masterCustomerList.length} PT)</span>
+                    </button>
+                  </div>
                 </label>
-                
+
                 {!isCustomCustomer ? (
                   <select
                     required
@@ -1390,7 +1667,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                     className="w-full px-3 py-2 rounded-md border border-slate-300 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700/20 shadow-2xs text-xs font-mono cursor-pointer"
                   >
                     <option value="" disabled>-- Pilih Customer --</option>
-                    {MASTER_CUSTOMERS.map((c) => (
+                    {masterCustomerList.map((c) => (
                       <option key={c} value={c}>
                         {c}
                       </option>
@@ -1412,7 +1689,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                       type="button"
                       onClick={() => {
                         setIsCustomCustomer(false);
-                        handleCustomerChange(MASTER_CUSTOMERS[0] || '');
+                        handleCustomerChange(masterCustomerList[0] || '');
                       }}
                       className="px-2 py-2 rounded-md border border-slate-300 text-[10px] text-slate-600 hover:bg-slate-100 whitespace-nowrap cursor-pointer"
                     >
@@ -1426,11 +1703,31 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               <div className="space-y-1">
                 <label className="text-[10.5px] font-bold text-slate-600 uppercase flex items-center justify-between font-sans">
                   <span>Type Box Packaging *</span>
-                  {currentBoxOptions.length > 0 && !isCustomType && (
-                    <span className="text-emerald-800 text-[9.5px] font-semibold">
-                      {currentBoxOptions.length} Tipe Tersedia
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {currentBoxOptions.length > 0 && !isCustomType && (
+                      <span className="text-slate-500 text-[9.5px] font-medium">
+                        {currentBoxOptions.length} Tipe Tersedia
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (formData.customer) {
+                          setSelectedMasterCust(formData.customer);
+                          setMobileMasterTab('boxes');
+                        } else {
+                          setSelectedMasterCust(masterCustomerList[0] || '');
+                          setMobileMasterTab('customers');
+                        }
+                        setIsMasterModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 hover:text-emerald-950 hover:underline cursor-pointer transition-colors"
+                      title="Kelola Master Tipe Box Customer ini"
+                    >
+                      <Settings2 className="h-3 w-3 text-emerald-700" />
+                      <span>+ Atur Tipe Box</span>
+                    </button>
+                  </div>
                 </label>
 
                 {!isCustomType && currentBoxOptions.length > 0 ? (
@@ -1896,6 +2193,519 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               >
                 <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
                 <span>Terapkan ({sortedData.length} Baris)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: KELOLA MASTER DATA CUSTOMER & TYPE BOX (RTP)                        */}
+      {/* ========================================================================= */}
+      {isMasterModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-5 font-sans animate-in fade-in duration-150">
+          <div className="w-full max-w-4xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[86vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-emerald-100 p-3.5 sm:p-4 bg-emerald-50/60 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-800 text-white shadow-2xs">
+                  <Settings2 className="h-4 w-4 text-emerald-100" strokeWidth={2.2} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                    Master Data Customer & Type Box (RTP)
+                  </h3>
+                  <p className="text-[10.5px] text-slate-600 font-sans">
+                    Standarisasi database packaging & kode returnable box Spindo Unit 5 Karawang
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMasterModalOpen(false);
+                  setEditingCustOldName(null);
+                  setEditingBoxOldName(null);
+                }}
+                className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-emerald-100/60 transition-colors cursor-pointer"
+                title="Tutup Modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Mobile Tab Switcher (Visible on <sm screens) */}
+            <div className="sm:hidden flex border-b border-slate-200 bg-slate-50 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setMobileMasterTab('customers')}
+                className={`flex-1 py-2 px-3 text-center font-bold border-b-2 transition-colors cursor-pointer ${
+                  mobileMasterTab === 'customers'
+                    ? 'border-emerald-700 text-emerald-950 bg-white'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                1. Customer ({masterCustomerList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileMasterTab('boxes')}
+                className={`flex-1 py-2 px-3 text-center font-bold border-b-2 transition-colors cursor-pointer ${
+                  mobileMasterTab === 'boxes'
+                    ? 'border-emerald-700 text-emerald-950 bg-white'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                2. Tipe Box ({selectedMasterCust ? masterData[selectedMasterCust]?.length || 0 : 0})
+              </button>
+            </div>
+
+            {/* Modal Body: 2-Column Split */}
+            <div className="flex-1 overflow-hidden grid grid-cols-1 sm:grid-cols-12 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 font-mono text-xs">
+              {/* Left Column: Customer Directory (5 cols on sm+) */}
+              <div
+                className={`sm:col-span-5 flex flex-col h-full overflow-hidden bg-slate-50/50 ${
+                  mobileMasterTab === 'customers' ? 'flex' : 'hidden sm:flex'
+                }`}
+              >
+                {/* Search & Add Customer Header */}
+                <div className="p-3 border-b border-slate-200 bg-white space-y-2 shrink-0">
+                  <div className="relative">
+                    <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Cari customer PT..."
+                      value={masterSearchQuery}
+                      onChange={(e) => setMasterSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-7 py-1.5 rounded-md border border-slate-300 text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-emerald-700 shadow-2xs font-mono"
+                    />
+                    {masterSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setMasterSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Quick Add Customer Input */}
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="+ Tambah PT baru..."
+                      value={newCustInput}
+                      onChange={(e) => setNewCustInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomer(newCustInput);
+                        }
+                      }}
+                      className="flex-1 px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-xs text-slate-900 uppercase focus:outline-hidden focus:border-emerald-700 shadow-2xs font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddCustomer(newCustInput)}
+                      disabled={!newCustInput.trim()}
+                      className="px-2.5 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white font-bold cursor-pointer text-xs shrink-0 shadow-2xs flex items-center gap-1 transition-all"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Tambah</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Customer List Scrollable Area */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                  {filteredMasterCustomers.length === 0 ? (
+                    <div className="py-8 text-center text-slate-400 text-xs font-sans">
+                      Tidak ada customer yang cocok dengan "{masterSearchQuery}".
+                    </div>
+                  ) : (
+                    filteredMasterCustomers.map((custName) => {
+                      const isSelected = selectedMasterCust === custName;
+                      const boxCount = masterData[custName]?.length || 0;
+                      const isEditing = editingCustOldName === custName;
+
+                      return (
+                        <div
+                          key={custName}
+                          className={`group rounded-lg border transition-all text-xs flex items-center justify-between p-2 cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-50/80 border-emerald-600 text-emerald-950 font-bold shadow-2xs ring-1 ring-emerald-500/20'
+                              : 'bg-white border-slate-200/90 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                          onClick={() => {
+                            if (!isEditing) {
+                              setSelectedMasterCust(custName);
+                              setMobileMasterTab('boxes');
+                            }
+                          }}
+                        >
+                          {isEditing ? (
+                            <div
+                              className="flex items-center gap-1.5 w-full"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                type="text"
+                                autoFocus
+                                value={editingCustNewName}
+                                onChange={(e) => setEditingCustNewName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleRenameCustomer(custName, editingCustNewName);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingCustOldName(null);
+                                  }
+                                }}
+                                className="flex-1 px-2 py-1 rounded border border-emerald-600 bg-white text-xs uppercase font-bold text-slate-900 focus:outline-hidden font-mono"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRenameCustomer(custName, editingCustNewName)}
+                                className="p-1 rounded bg-emerald-700 text-white hover:bg-emerald-800 cursor-pointer"
+                                title="Simpan Nama"
+                              >
+                                <Check className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingCustOldName(null)}
+                                className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300 cursor-pointer"
+                                title="Batal"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2 min-w-0 pr-2">
+                                <Building2
+                                  className={`h-3.5 w-3.5 shrink-0 ${
+                                    isSelected ? 'text-emerald-800' : 'text-slate-400 group-hover:text-slate-600'
+                                  }`}
+                                />
+                                <span className="truncate text-[11px] leading-tight">{custName}</span>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${
+                                    isSelected
+                                      ? 'bg-emerald-200/70 text-emerald-950'
+                                      : 'bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  {boxCount} Box
+                                </span>
+
+                                <div className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex items-center transition-opacity ml-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingCustOldName(custName);
+                                      setEditingCustNewName(custName);
+                                    }}
+                                    className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200 cursor-pointer"
+                                    title="Ubah Nama Customer"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeleteCustConfirm(custName);
+                                    }}
+                                    className="p-1 rounded text-slate-400 hover:text-rose-700 hover:bg-rose-50 cursor-pointer"
+                                    title="Hapus Customer"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Active Customer's Box Types (7 cols on sm+) */}
+              <div
+                className={`sm:col-span-7 flex flex-col h-full overflow-hidden bg-white ${
+                  mobileMasterTab === 'boxes' ? 'flex' : 'hidden sm:flex'
+                }`}
+              >
+                {selectedMasterCust ? (
+                  <>
+                    {/* Active Customer Sub-Header & Add Box */}
+                    <div className="p-3 border-b border-slate-200 bg-slate-50/70 space-y-2 shrink-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {/* Back Button on Mobile */}
+                          <button
+                            type="button"
+                            onClick={() => setMobileMasterTab('customers')}
+                            className="sm:hidden p-1 rounded hover:bg-slate-200 text-slate-600 cursor-pointer shrink-0"
+                            title="Kembali ke Daftar Customer"
+                          >
+                            <ArrowLeft className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 font-sans">
+                            Tipe Box Kemasan:
+                          </span>
+                          <span className="text-xs font-bold text-slate-900 truncate">
+                            {selectedMasterCust}
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[10px] font-bold font-mono shrink-0">
+                          {masterData[selectedMasterCust]?.length || 0} Tipe Terdaftar
+                        </span>
+                      </div>
+
+                      {/* Add Box Input Form */}
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="Kode tipe box baru (contoh: IDBM A / YMWJ A)..."
+                          value={newBoxInput}
+                          onChange={(e) => setNewBoxInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddBoxType(selectedMasterCust, newBoxInput);
+                            }
+                          }}
+                          className="flex-1 px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-xs text-slate-900 uppercase focus:outline-hidden focus:border-emerald-700 shadow-2xs font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddBoxType(selectedMasterCust, newBoxInput)}
+                          disabled={!newBoxInput.trim()}
+                          className="px-3 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white font-bold cursor-pointer text-xs shrink-0 shadow-2xs flex items-center gap-1 transition-all"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>+ Tipe Box</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Box Types List */}
+                    <div className="flex-1 overflow-y-auto p-3">
+                      {(masterData[selectedMasterCust]?.length || 0) === 0 ? (
+                        <div className="py-12 text-center text-slate-400 text-xs font-sans space-y-1">
+                          <Box className="h-6 w-6 text-slate-300 mx-auto" />
+                          <p className="font-semibold text-slate-600">Belum ada tipe box terdaftar.</p>
+                          <p className="text-[11px] text-slate-400">
+                            Masukkan kode box kemasan untuk {selectedMasterCust} di atas.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {masterData[selectedMasterCust].map((boxCode, bIdx) => {
+                            const isEditingBox = editingBoxOldName === boxCode;
+
+                            return (
+                              <div
+                                key={boxCode || bIdx}
+                                className="group flex items-center justify-between p-2 rounded-lg border border-slate-200 bg-slate-50/50 hover:bg-emerald-50/40 hover:border-emerald-300 transition-all text-xs"
+                              >
+                                {isEditingBox ? (
+                                  <div className="flex items-center gap-1.5 w-full">
+                                    <input
+                                      type="text"
+                                      autoFocus
+                                      value={editingBoxNewName}
+                                      onChange={(e) => setEditingBoxNewName(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          handleRenameBoxType(selectedMasterCust, boxCode, editingBoxNewName);
+                                        } else if (e.key === 'Escape') {
+                                          setEditingBoxOldName(null);
+                                        }
+                                      }}
+                                      className="flex-1 px-2 py-1 rounded border border-emerald-600 bg-white text-xs uppercase font-bold text-slate-900 focus:outline-hidden font-mono"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRenameBoxType(selectedMasterCust, boxCode, editingBoxNewName)}
+                                      className="p-1 rounded bg-emerald-700 text-white hover:bg-emerald-800 cursor-pointer"
+                                      title="Simpan"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingBoxOldName(null)}
+                                      className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300 cursor-pointer"
+                                      title="Batal"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="w-5 text-center text-[10px] text-slate-400 font-mono">
+                                        {bIdx + 1}.
+                                      </span>
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-emerald-950 font-bold border border-slate-300 shadow-2xs font-mono text-[11px] truncate">
+                                        {boxCode}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingBoxOldName(boxCode);
+                                          setEditingBoxNewName(boxCode);
+                                        }}
+                                        className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200 cursor-pointer"
+                                        title="Ubah Kode Box"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteBoxType(selectedMasterCust, boxCode)}
+                                        className="p-1 rounded text-slate-400 hover:text-rose-700 hover:bg-rose-50 cursor-pointer"
+                                        title="Hapus Tipe Box"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-20 text-center text-slate-400 text-xs font-sans">
+                    Pilih customer di sebelah kiri untuk melihat daftar tipe box.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between font-mono text-xs shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsResetMasterModalOpen(true)}
+                  className="px-2.5 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 text-slate-600 font-semibold cursor-pointer text-[10.5px] transition-colors flex items-center gap-1"
+                  title="Kembalikan master database ke standar Spindo Unit 5 Karawang"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  <span className="hidden sm:inline">Reset Standar Pabrik</span>
+                  <span className="sm:hidden">Reset</span>
+                </button>
+                <span className="text-[11px] text-slate-500 font-sans hidden sm:inline">
+                  {masterCustomerList.length} Customer &bull; {totalMasterBoxesCount} Tipe Box Total
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMasterModalOpen(false);
+                  setEditingCustOldName(null);
+                  setEditingBoxOldName(null);
+                }}
+                className="px-4 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 text-white font-bold cursor-pointer shadow-2xs flex items-center gap-1.5 text-xs"
+              >
+                <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                <span>Selesai</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM DELETE CUSTOMER MODAL */}
+      {deleteCustConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 font-sans animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-600 shrink-0">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 leading-tight">
+                  Hapus Customer dari Master?
+                </h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  Customer <strong className="text-slate-800">{deleteCustConfirm}</strong> dan seluruh{' '}
+                  <strong className="text-slate-800">
+                    {masterData[deleteCustConfirm]?.length || 0} tipe box
+                  </strong>{' '}
+                  terkait akan dihapus dari master database.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setDeleteCustConfirm(null)}
+                className="px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteCustomer(deleteCustConfirm)}
+                className="px-3.5 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer shadow-2xs"
+              >
+                Ya, Hapus Customer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM RESET MASTER MODAL */}
+      {isResetMasterModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 font-sans animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-700 shrink-0">
+                <RotateCcw className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 leading-tight">
+                  Kembalikan ke Standar Pabrik?
+                </h4>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  Seluruh master customer dan tipe box akan dikembalikan ke konfigurasi awal standar Spindo Unit 5 Karawang ({MASTER_CUSTOMERS.length} PT).
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setIsResetMasterModalOpen(false)}
+                className="px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleResetMasterToDefault}
+                className="px-3.5 py-1.5 rounded-md bg-emerald-800 hover:bg-emerald-900 text-white font-bold cursor-pointer shadow-2xs"
+              >
+                Ya, Reset Standar Pabrik
               </button>
             </div>
           </div>
