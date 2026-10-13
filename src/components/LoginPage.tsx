@@ -8,10 +8,9 @@ import {
   Lock,
   ArrowRight,
   AlertCircle,
-  Activity,
-  Users2,
-  FileSpreadsheet,
-  Building2
+  Clock,
+  Users,
+  FileSpreadsheet
 } from 'lucide-react';
 import { UserSession, StoredAccount, PRESET_ACCOUNTS } from '@/types/auth';
 
@@ -22,7 +21,7 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [rememberMe, setRememberMe] = useState<boolean>(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(true);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -101,109 +100,159 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-dvh w-full flex flex-col lg:flex-row font-sans selection:bg-[#047857] selection:text-white bg-[#fafafa]">
-      
+    <div className="min-h-screen w-full flex flex-col lg:flex-row font-sans selection:bg-[#16805c] selection:text-white bg-white">
+
       {/* =========================================================================
-          LEFT PANE: DESKTOP BRAND SHOWCASE (Spindo Forest & Emerald Gradient)
+          LEFT PANE: DESKTOP BRAND SHOWCASE (Clean Mint/Sky Tint with Spindo Assets)
           ========================================================================= */}
-      <div className="relative hidden lg:flex lg:w-[52%] xl:w-[55%] p-10 xl:p-16 flex-col justify-between bg-gradient-to-br from-[#041c14] via-[#064e3b] to-[#047857] overflow-hidden text-white min-h-screen">
-        
-        {/* Subtle geometric dot grid */}
-        <div 
-          className="absolute inset-0 opacity-15 pointer-events-none"
+      <div className="relative hidden lg:flex lg:w-[56%] xl:w-[58%] p-8 xl:p-14 flex-col justify-between bg-[#f3f9fe] overflow-hidden text-slate-800 min-h-screen border-r border-slate-200/70">
+
+        {/* Subtle background gradient overlay for soft depth */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-40"
           style={{
-            backgroundImage: `radial-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px)`,
-            backgroundSize: '24px 24px'
+            background: 'radial-gradient(circle at 15% 20%, rgba(209, 250, 229, 0.45) 0%, transparent 50%), radial-gradient(circle at 85% 75%, rgba(224, 242, 254, 0.45) 0%, transparent 60%)'
           }}
         />
 
-        {/* Ambient Top Glow */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-400/15 rounded-full blur-3xl pointer-events-none" />
-
         {/* TOP HEADER */}
         <div className="relative z-10 flex items-center justify-between">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs text-emerald-100 font-mono font-medium shadow-xs">
-            <Building2 className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
-            <span>Plant 1105 &bull; Unit 5 Karawang</span>
+          {/* Logo & Company Name */}
+          <div className="flex items-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/spindo-logo.png"
+              alt="SPINDO Logo"
+              className="h-9 w-auto object-contain"
+            />
+            <div className="h-7 w-[1.5px] bg-slate-300 mx-3.5" />
+            <div className="text-xs font-semibold text-slate-700 leading-tight">
+              <span className="block">PT Steel Pipe Industry</span>
+              <span className="block text-slate-500 font-normal">of Indonesia</span>
+            </div>
           </div>
 
-          {/* Monitoring Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-xs font-medium text-white shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+          {/* Monitoring Gudang Pill Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 backdrop-blur-xs border border-emerald-200/70 text-xs font-semibold text-slate-700 shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
             <span>Monitoring Gudang</span>
           </div>
         </div>
 
-        {/* CENTER HERO & PILLS */}
-        <div className="relative z-10 my-auto py-12 space-y-8">
-          <div className="space-y-3.5">
-            <h1 className="text-4xl xl:text-5xl font-black tracking-tight text-white leading-[1.15]">
-              Pergerakan Barang
+        {/* CENTER HERO & FEATURES */}
+        <div className="relative z-10 my-auto py-6 xl:py-10 space-y-6 max-w-xl">
+          {/* Green Top Accent Bar */}
+          <div className="w-12 h-1.5 rounded-full bg-[#16805c]" />
+
+          {/* Main Title */}
+          <div className="space-y-1">
+            <h1 className="text-5xl xl:text-[56px] font-black tracking-tight leading-[1.08] select-none">
+              <span className="block text-[#022854]">Pergerakan</span>
+              <span className="block text-[#16805c]">Barang</span>
             </h1>
-            <p className="text-base text-emerald-100/90 max-w-lg font-normal leading-relaxed">
-              Catat dan pantau seluruh pergerakan barang, kapasitas stok pipa, segregasi NC, dan mutasi packaging secara akurat.
-            </p>
           </div>
 
-          {/* Feature Pills */}
-          <div className="flex flex-wrap gap-3">
-            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-medium text-white shadow-2xs hover:bg-white/15 transition-all">
-              <Activity className="h-4 w-4 text-emerald-300" strokeWidth={2} />
-              <span>Real-time — Update langsung</span>
+          {/* Description */}
+          <p className="text-slate-600 text-sm xl:text-base max-w-md font-normal leading-relaxed">
+            Catat dan pantau seluruh pergerakan barang, kapasitas stok pipa, segregasi NC, dan mutasi packaging secara akurat.
+          </p>
+
+          {/* Feature Highlights Row */}
+          <div className="flex flex-wrap items-center gap-6 xl:gap-8 pt-3">
+            {/* 1. Real-time */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-100/70 text-[#16805c] flex items-center justify-center shrink-0 border border-emerald-200/60 shadow-2xs">
+                <Clock className="h-5 w-5" strokeWidth={2.2} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-slate-800 leading-tight">Real-time</div>
+                <div className="text-xs text-slate-500 leading-tight mt-0.5">Update langsung</div>
+              </div>
             </div>
 
-            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-medium text-white shadow-2xs hover:bg-white/15 transition-all">
-              <Users2 className="h-4 w-4 text-teal-300" strokeWidth={2} />
-              <span>Multi-user — Akses peran</span>
+            {/* 2. Multi-user */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-sky-100/70 text-[#0284c7] flex items-center justify-center shrink-0 border border-sky-200/60 shadow-2xs">
+                <Users className="h-5 w-5" strokeWidth={2.2} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-slate-800 leading-tight">Multi-user</div>
+                <div className="text-xs text-slate-500 leading-tight mt-0.5">Akses peran</div>
+              </div>
             </div>
 
-            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-medium text-white shadow-2xs hover:bg-white/15 transition-all">
-              <FileSpreadsheet className="h-4 w-4 text-amber-300" strokeWidth={2} />
-              <span>SAP Import — Otomatis</span>
+            {/* 3. SAP Import */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-100/70 text-[#16805c] flex items-center justify-center shrink-0 border border-emerald-200/60 shadow-2xs">
+                <FileSpreadsheet className="h-5 w-5" strokeWidth={2.2} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-slate-800 leading-tight">SAP Import</div>
+                <div className="text-xs text-slate-500 leading-tight mt-0.5">Otomatis</div>
+              </div>
             </div>
           </div>
         </div>
 
+        {/* BOTTOM FACTORY & PIPES ILLUSTRATION */}
+        <div className="relative w-full -mb-8 -mx-8 xl:-mb-14 xl:-mx-14 pointer-events-none select-none overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/warehouse-illustration.webp"
+            alt="Spindo Warehouse and Pipes Illustration"
+            className="w-full h-auto object-cover object-bottom max-h-[290px] xl:max-h-[320px] pointer-events-none"
+          />
+        </div>
+
         {/* BOTTOM FOOTER */}
-        <div className="relative z-10 pt-6 border-t border-white/15 flex items-center justify-between text-xs text-emerald-200/80 font-medium font-mono">
+        <div className="relative z-10 pt-4 flex items-center justify-between text-xs text-slate-500 font-mono">
           <span>&copy; 2026 SPINDO</span>
           <span>
-            Created by <strong className="text-white font-bold tracking-wide">Ricky Satria</strong>
+            Created by <strong className="text-slate-900 font-bold ml-0.5">Ricky Satria</strong>
           </span>
         </div>
       </div>
 
       {/* =========================================================================
-          RIGHT PANE / MOBILE VIEW: FORM LOGIN (Spindo Theme)
+          RIGHT PANE / MOBILE VIEW: FORM LOGIN
           ========================================================================= */}
-      <div className="w-full lg:w-[48%] xl:w-[45%] min-h-dvh flex flex-col justify-center items-center p-5 sm:p-8 lg:p-12 xl:p-16 bg-[#fafafa]">
-        
-        <div className="w-full max-w-sm space-y-6">
-          
-          {/* Centered Logo & Greeting Header */}
-          <div className="space-y-3.5 text-center">
-            <div className="flex items-center justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/spindo-logo.png"
-                alt="SPINDO Logo"
-                className="h-10 sm:h-12 w-auto object-contain"
-              />
-            </div>
+      <div className="w-full lg:w-[44%] xl:w-[42%] min-h-screen flex flex-col justify-center items-center p-6 sm:p-10 lg:p-12 xl:p-16 bg-white">
 
-            <div className="space-y-1">
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                Halo
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500">
-                Pakai akun SPINDO kamu untuk masuk ke sistem
-              </p>
+        {/* Mobile-Only Top Brand Bar */}
+        <div className="lg:hidden flex items-center justify-between w-full max-w-md mb-8 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/spindo-logo.png"
+              alt="SPINDO Logo"
+              className="h-8 w-auto object-contain"
+            />
+            <div className="text-[11px] font-semibold text-slate-700 leading-tight">
+              <span className="block">PT Steel Pipe Industry</span>
+              <span className="block text-slate-500 font-normal">of Indonesia</span>
             </div>
+          </div>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-[10.5px] font-semibold text-emerald-900">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span>Monitoring Gudang</span>
+          </div>
+        </div>
+
+        <div className="w-full max-w-md space-y-6">
+
+          {/* Greeting Header (Logo di atas Halo ditiadakan sesuai instruksi) */}
+          <div className="space-y-1.5 text-center">
+            <h2 className="text-3xl sm:text-4xl font-black text-[#022854] tracking-tight">
+              Halo
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 font-normal">
+              Pakai akun SPINDO kamu untuk masuk ke sistem
+            </p>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-            
+          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+
             {/* Error Notification */}
             {errorMsg && (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200/90 flex items-start gap-2.5 text-xs text-rose-800 animate-in fade-in zoom-in-95 duration-150 font-mono">
@@ -214,10 +263,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
             {/* Field: Username */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 block text-left font-mono">
+              <label className="text-xs font-semibold text-slate-700 block text-left">
                 Username
               </label>
               <div className="relative">
+                <User className="h-4.5 w-4.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.8} />
                 <input
                   type="text"
                   required
@@ -227,18 +277,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     setUsername(e.target.value);
                     setErrorMsg('');
                   }}
-                  placeholder="Masukkan username"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 shadow-2xs focus:border-[#047857] focus:outline-hidden focus:ring-4 focus:ring-[#047857]/15 transition-all placeholder:text-slate-400 font-mono"
+                  placeholder="admin"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 shadow-2xs focus:border-[#16805c] focus:outline-hidden focus:ring-4 focus:ring-[#16805c]/10 transition-all placeholder:text-slate-400 font-mono"
                 />
               </div>
             </div>
 
             {/* Field: Password */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 block text-left font-mono">
+              <label className="text-xs font-semibold text-slate-700 block text-left">
                 Password
               </label>
               <div className="relative">
+                <Lock className="h-4.5 w-4.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.8} />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
@@ -248,12 +299,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     setErrorMsg('');
                   }}
                   placeholder="••••••••••"
-                  className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 shadow-2xs focus:border-[#047857] focus:outline-hidden focus:ring-4 focus:ring-[#047857]/15 transition-all placeholder:text-slate-400 font-mono"
+                  className="w-full pl-10 pr-11 py-3 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 shadow-2xs focus:border-[#16805c] focus:outline-hidden focus:ring-4 focus:ring-[#16805c]/10 transition-all placeholder:text-slate-400 font-mono"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1.5 transition-colors cursor-pointer"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 transition-colors cursor-pointer"
                   tabIndex={-1}
                   aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
                 >
@@ -268,12 +319,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
             {/* Remember Me & Forgot Password Link */}
             <div className="flex items-center justify-between text-xs pt-1">
-              <label className="inline-flex items-center gap-2 cursor-pointer select-none text-slate-600 hover:text-slate-900 font-mono">
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none text-slate-600 hover:text-slate-900 font-sans">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-slate-300 text-[#047857] focus:ring-[#047857]/20 h-4 w-4 cursor-pointer accent-[#047857]"
+                  className="rounded border-slate-300 text-[#16805c] focus:ring-[#16805c]/20 h-4 w-4 cursor-pointer accent-[#16805c]"
                 />
                 <span>Ingat Saya</span>
               </label>
@@ -282,7 +333,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 href="https://wa.me/6287776216046?text=Halo%20Admin%2C%20saya%20ingin%20reset%20password%20akun%20Spindo%20Warehouse."
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#047857] hover:text-[#065f46] font-semibold hover:underline cursor-pointer font-mono"
+                className="text-[#16805c] hover:text-[#116246] font-semibold hover:underline cursor-pointer"
               >
                 Lupa Password?
               </a>
@@ -292,21 +343,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 py-3.5 px-4 rounded-xl bg-[#047857] hover:bg-[#065f46] active:bg-[#064e3b] text-white font-bold text-sm shadow-md shadow-emerald-950/20 hover:shadow-lg hover:shadow-emerald-950/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 group"
+              className="w-full mt-2 py-3.5 px-4 rounded-xl bg-[#16805c] hover:bg-[#126c4d] active:bg-[#0e563e] text-white font-bold text-sm shadow-md shadow-[#16805c]/20 hover:shadow-lg hover:shadow-[#16805c]/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 group"
             >
               {isLoading ? (
                 <span className="animate-pulse">Memproses Masuk...</span>
               ) : (
                 <>
                   <span>Masuk</span>
-                  <ArrowRight className="h-4 w-4 text-emerald-200 group-hover:translate-x-1 transition-transform" strokeWidth={2} />
+                  <ArrowRight className="h-4 w-4 text-emerald-100 group-hover:translate-x-1 transition-transform" strokeWidth={2.2} />
                 </>
               )}
             </button>
           </form>
 
           {/* Mobile Footer Meta */}
-          <div className="lg:hidden text-center pt-4 border-t border-slate-200/60 text-[11px] font-mono text-slate-400">
+          <div className="lg:hidden text-center pt-6 border-t border-slate-100 text-[11px] font-mono text-slate-400">
             <span>&copy; 2026 SPINDO &bull; Created by Ricky Satria</span>
           </div>
 
