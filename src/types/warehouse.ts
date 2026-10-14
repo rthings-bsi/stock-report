@@ -197,6 +197,17 @@ export interface IncomingPackagingItem {
   keterangan?: string;
 }
 
+export type PackagingBufferConfig = Record<string, number>;
+
+export interface PackagingBufferMasterItem {
+  id: string;
+  customer: string;
+  type: string;
+  standarBuffer: number;
+  keterangan?: string;
+  updatedAt?: string;
+}
+
 export interface UnfifoPipeItem {
   gudang: string;
   kodeMaterial: string;

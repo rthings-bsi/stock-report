@@ -14,9 +14,15 @@ function getLocalDb() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const dbModule = require('../../../lib/db');
-      localDb = dbModule.default || dbModule;
+      const resolved = dbModule?.default !== undefined ? dbModule.default : dbModule;
+      if (resolved && typeof resolved.prepare === 'function') {
+        localDb = resolved;
+      } else {
+        localDb = null;
+      }
     } catch (e) {
       console.warn('SQLite not available in this environment:', e);
+      localDb = null;
     }
   }
   return localDb;

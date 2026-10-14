@@ -10,9 +10,15 @@ function getLocalDb() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const dbModule = require('../../../lib/db');
-      localDb = dbModule.default || dbModule;
+      const resolved = dbModule?.default !== undefined ? dbModule.default : dbModule;
+      if (resolved && typeof resolved.prepare === 'function') {
+        localDb = resolved;
+      } else {
+        localDb = null;
+      }
     } catch (e) {
       console.warn('SQLite not available:', e);
+      localDb = null;
     }
   }
   return localDb;
@@ -85,6 +91,28 @@ export async function GET(request: Request) {
       } catch (sqlErr) {
         console.warn('SQLite app_settings error:', sqlErr);
       }
+    }
+
+    // 3. FILESYSTEM JSON FALLBACK
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const fs = require('fs');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const path = require('path');
+      const filePath = path.join(process.cwd(), 'data', 'settings.json');
+      if (fs.existsSync(filePath)) {
+        const fileContent = fs.readFileSync(filePath, 'utf-8');
+        const json = JSON.parse(fileContent);
+        if (key) {
+          return NextResponse.json({
+            success: true,
+            data: json[key] !== undefined ? json[key] : null
+          });
+        }
+        return NextResponse.json({ success: true, settings: json });
+      }
+    } catch (fsErr) {
+      console.warn('Filesystem settings read error:', fsErr);
     }
 
     return NextResponse.json({ success: true, data: null });
@@ -174,6 +202,32 @@ export async function POST(request: Request) {
       } catch (sqlErr) {
         console.warn('SQLite app_settings upsert error:', sqlErr);
       }
+    }
+
+    // 3. FILESYSTEM JSON FALLBACK (Always persists locally)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const fs = require('fs');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const path = require('path');
+      const dirPath = path.join(process.cwd(), 'data');
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+      const filePath = path.join(dirPath, 'settings.json');
+      let currentFileSettings: Record<string, any> = {};
+      if (fs.existsSync(filePath)) {
+        try {
+          currentFileSettings = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        } catch {}
+      }
+      currentFileSettings[key] = typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))
+        ? JSON.parse(value)
+        : value;
+      fs.writeFileSync(filePath, JSON.stringify(currentFileSettings, null, 2), 'utf-8');
+      return NextResponse.json({ success: true, message: 'Saved to local settings file' });
+    } catch (fsErr) {
+      console.warn('Filesystem settings write error:', fsErr);
     }
 
     return NextResponse.json({ success: true, message: 'Saved setting' });

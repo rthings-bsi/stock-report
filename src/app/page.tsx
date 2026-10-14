@@ -48,6 +48,7 @@ import { LooFulfillmentView } from '@/components/LooFulfillmentView';
 import { UnfifoView } from '@/components/UnfifoView';
 import { DamagedPackagingView } from '@/components/DamagedPackagingView';
 import { IncomingPackagingView } from '@/components/IncomingPackagingView';
+import { PackagingBufferSettingsView } from '@/components/PackagingBufferSettingsView';
 import { UserManagementView } from '@/components/UserManagementView';
 import { CapacitySettingsView } from '@/components/CapacitySettingsView';
 import { UploadModal } from '@/components/UploadModal';
@@ -99,6 +100,7 @@ const VALID_TABS = [
   'unfifo',
   'packaging',
   'incoming_pkg',
+  'pkg_master',
   'capacity_settings',
   'users',
 ] as const;
@@ -148,6 +150,30 @@ export default function Home() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [isDashboardGroupOpen, setIsDashboardGroupOpen] = useState<boolean>(true);
   const [systemRoles, setSystemRoles] = useState<CustomRole[]>([]);
+  const [packagingBufferConfig, setPackagingBufferConfig] = useState<Record<string, number>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const local = localStorage.getItem('spindo_packaging_buffer_stock');
+        if (local) return JSON.parse(local);
+      } catch {}
+    }
+    return {};
+  });
+
+  // Fetch packaging buffer stock settings
+  useEffect(() => {
+    fetch('/api/settings?key=packaging_buffer_stock')
+      .then((r) => r.json())
+      .then((res) => {
+        if (res?.data && typeof res.data === 'object') {
+          setPackagingBufferConfig(res.data);
+          try {
+            localStorage.setItem('spindo_packaging_buffer_stock', JSON.stringify(res.data));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Fetch all system & custom roles
   useEffect(() => {
@@ -1190,6 +1216,7 @@ export default function Home() {
 
   const allOperationalMenuItems = useMemo(() => [
     { id: 'incoming_pkg', label: 'Audit Harian Packaging', icon: PackageCheck, desc: 'Audit Mutasi & Kondisi RTP', permKey: 'viewIncomingPkg' },
+    { id: 'pkg_master', label: 'Master Buffer Stock', icon: Boxes, desc: 'Standar Kebutuhan Harian RTP', permKey: 'viewIncomingPkg' },
   ] as const, []);
 
   // Filter operational menu items dynamically based on role permissions
@@ -2201,6 +2228,8 @@ export default function Home() {
                 stockCustomers={allStockCustomers}
                 isAdmin={currentUser?.role === 'admin' || canUploadSAP}
                 isCustomizing={canEditIncomingPkg ? isCustomizingLayout : false}
+                bufferConfig={packagingBufferConfig}
+                onOpenBufferSettings={() => handleSelectTab('pkg_master')}
                 onDataUpdate={async (newData) => {
                   setIncomingPackagingData(newData);
                   setIsCustomData(true);
@@ -2214,6 +2243,19 @@ export default function Home() {
                   } catch (err) {
                     console.error('Failed to sync incoming packaging data:', err);
                   }
+                }}
+              />
+            )}
+
+            {activeTab === 'pkg_master' && (currentUser.role === 'admin' || userPermissions.viewIncomingPkg) && (
+              <PackagingBufferSettingsView
+                initialConfig={packagingBufferConfig}
+                canEdit={currentUser?.role === 'admin' || canManageCapacity || canUploadSAP}
+                onSave={(newCfg) => {
+                  setPackagingBufferConfig(newCfg);
+                  try {
+                    localStorage.setItem('spindo_packaging_buffer_stock', JSON.stringify(newCfg));
+                  } catch {}
                 }}
               />
             )}

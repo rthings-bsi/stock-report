@@ -50,3 +50,84 @@ export function getBoxTypesForCustomer(customerName: string): string[] {
   }
   return [];
 }
+
+/**
+ * Key format untuk identifikasi unik tipe box per customer:
+ * Format: `${customer}___${type}`
+ */
+export function getBufferStockKey(customer: string, type: string): string {
+  return `${(customer || '').trim()}___${(type || '').trim()}`;
+}
+
+/**
+ * Default Standar Kebutuhan / Buffer Stock per Hari (RTP)
+ * Berdasarkan volume rata-rata ritase harian Spindo Unit 5 Karawang
+ */
+export const DEFAULT_PACKAGING_BUFFER_STOCK: Record<string, number> = {
+  'PT ASTEMO MANUFACTURING___IDBM A': 120,
+  'PT ASTEMO MANUFACTURING___IDBM-B': 80,
+  'PT BERDIKARI METAL ENGINERING___BDK0 A': 100,
+  'PT CHANDRA NUGERAH CEMERLANG___CNC HC': 90,
+  'PT CHANDRA NUGERAH CEMERLANG___CNC0 C': 60,
+  'PT CHANDRA NUGERAH CIPTA___CNCT A': 150,
+  'PT CHANDRA NUGERAH CIPTA___CNCT B': 100,
+  'PT CHANDRA NUGERAH CIPTA___CNCT C': 80,
+  'PT DAYA PRESINDO UTAMA___DPU A': 100,
+  'PT DHARMA POLIMETAL TBK___1-DPM0-B': 140,
+  'PT DHARMA POLIMETAL TBK___1-DPM0-H': 100,
+  'PT DHARMA POLIMETAL TBK___1-DPM0-I': 80,
+  'PT DHARMA POLIMETAL TBK___1-DPM0-K': 120,
+  'PT DHARMA POLIMETAL TBK___1-DPM0-L': 90,
+  'PT INDOMAS WAHANA NUSANTARA___IDMS A': 100,
+  'PT INTI POLYMETAL___IPM A': 110,
+  'PT YAMAHA INDONESIA MFG___YMPG A': 200,
+  'PT YAMAHA INDONESIA MFG___YMPG B': 180,
+  'PT YAMAHA INDONESIA MFG___YMPG C': 150,
+  'PT YAMAHA INDONESIA MFG___YMWJ A': 160,
+  'PT YAMAHA INDONESIA MFG___YMWJ B': 140,
+  'PT YAMAHA INDONESIA MFG___YMWJ C': 120,
+  'PT YAMAHA INDONESIA MFG___YMWJ D': 100,
+  'PT YAMAHA INDONESIA MFG___YMWJ E': 80,
+  'PT YAMAHA INDONESIA MFG___YMWJ F': 100,
+  'PT YAMAHA INDONESIA MFG___YMWJ G': 90,
+  'PT CIPTA NISSIN INDONESIA___CNI A': 100,
+  'PT SEC INDONESIA___SEC A': 100,
+  'PT SEOUL PRESS INDONESIA___SPI A': 90,
+  'PT KAYABA INDONESIA___(PB) KYB A': 120,
+  'PT TRI CENTRUM___TCF A': 100,
+  'PT CIPTA PERDANA LANCAR___CPL A': 100
+};
+
+export type PackagingBufferStatus = 'SURPLUS' | 'SESUAI' | 'DEFISIT';
+
+/**
+ * Logika Penentuan Status Buffer Stock Packaging:
+ * - SURPLUS (Hijau) : Stock saat ini di atas standar (≥30% atau lebih dari kebutuhan per hari)
+ * - SESUAI  (Kuning): Stock saat ini pas dengan standar kebutuhan per hari
+ * - DEFISIT (Merah) : Stock saat ini kurang dari standar kebutuhan per hari
+ */
+export function getPackagingBufferStatus(stock: number, standar: number): PackagingBufferStatus {
+  if (standar <= 0) return 'SESUAI';
+  if (stock > standar) return 'SURPLUS';
+  if (stock === standar) return 'SESUAI';
+  return 'DEFISIT';
+}
+
+/**
+ * Mengambil nilai standar buffer stock dari konfigurasi user,
+ * dengan fallback ke default master data atau angka 100 jika belum terdaftar.
+ */
+export function getStandarBuffer(
+  config: Record<string, number> | undefined,
+  customer: string,
+  type: string
+): number {
+  const key = getBufferStockKey(customer, type);
+  if (config && config[key] !== undefined && config[key] !== null) {
+    return Number(config[key]);
+  }
+  if (DEFAULT_PACKAGING_BUFFER_STOCK[key] !== undefined) {
+    return DEFAULT_PACKAGING_BUFFER_STOCK[key];
+  }
+  return 100;
+}

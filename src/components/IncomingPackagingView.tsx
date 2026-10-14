@@ -3,13 +3,16 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { IncomingPackagingItem } from '../types/warehouse';
-import { formatQty } from '@/lib/utils';
+import { formatQty, cn } from '@/lib/utils';
 import { parseIncomingPackagingFile } from '@/lib/parseIncomingPackaging';
 import { readExcelFile } from '@/lib/parser';
 import {
   PACKAGING_CUSTOMER_BOX_MASTER,
   MASTER_CUSTOMERS,
-  getBoxTypesForCustomer
+  getBoxTypesForCustomer,
+  DEFAULT_PACKAGING_BUFFER_STOCK,
+  getStandarBuffer,
+  getPackagingBufferStatus
 } from '@/lib/packagingMaster';
 import { exportPackagingCheckSheet } from '@/lib/exportPackagingExcel';
 import {
@@ -48,7 +51,9 @@ interface IncomingPackagingViewProps {
   stockCustomers?: string[];
   isCustomizing?: boolean;
   isAdmin?: boolean;
+  bufferConfig?: Record<string, number>;
   onDataUpdate?: (newData: IncomingPackagingItem[]) => void;
+  onOpenBufferSettings?: () => void;
 }
 
 // Helpers for robust date normalization
@@ -121,13 +126,31 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   data = [],
   stockCustomers = [],
   isAdmin = false,
-  onDataUpdate
+  bufferConfig,
+  onDataUpdate,
+  onOpenBufferSettings
 }) => {
   const [items, setItems] = useState<IncomingPackagingItem[]>(data);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('ALL');
   const [selectedType, setSelectedType] = useState('ALL');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+
+  // Active Buffer Stock Configuration with local storage fallback
+  const activeBufferConfig = useMemo(() => {
+    if (bufferConfig && Object.keys(bufferConfig).length > 0) {
+      return bufferConfig;
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const local = localStorage.getItem('spindo_packaging_buffer_stock');
+        if (local) {
+          return { ...DEFAULT_PACKAGING_BUFFER_STOCK, ...JSON.parse(local) };
+        }
+      } catch {}
+    }
+    return DEFAULT_PACKAGING_BUFFER_STOCK;
+  }, [bufferConfig]);
 
   // Date Filter State: Default to today (Hari ini)
   const todayIso = useMemo(() => getTodayIsoString(), []);
@@ -615,7 +638,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     if (dataToExport.length === 0) return;
     try {
       const dateLabel = selectedDate ? formatDisplayDate(selectedDate) : undefined;
-      await exportPackagingCheckSheet(dataToExport, dateLabel);
+      await exportPackagingCheckSheet(dataToExport, dateLabel, activeBufferConfig);
     } catch (err) {
       console.error('Failed to export styled check sheet:', err);
     }
@@ -812,6 +835,19 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
             <span className="hidden sm:inline">Master Data</span>
             <span className="sm:hidden">Master</span>
           </button>
+
+          {onOpenBufferSettings && (
+            <button
+              type="button"
+              onClick={onOpenBufferSettings}
+              className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-800 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+              title="Atur Standar Kebutuhan Buffer Stock Harian"
+            >
+              <Boxes className="h-3.5 w-3.5 text-amber-300" strokeWidth={2} />
+              <span className="hidden sm:inline">Standar Buffer</span>
+              <span className="sm:hidden">Buffer</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -1180,6 +1216,32 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
               </div>
             </div>
 
+            {/* Status Buffer Indicator */}
+            {(() => {
+              const std = getStandarBuffer(activeBufferConfig, item.customer, item.type);
+              const status = getPackagingBufferStatus(item.stockSaatIni, std);
+              return (
+                <div className="flex items-center justify-between text-[11px] px-2 py-1.5 rounded-md bg-slate-50 border border-slate-100 font-mono">
+                  <span className="text-slate-500 font-sans text-[10.5px]">Status Buffer:</span>
+                  {status === 'SURPLUS' && (
+                    <span className="inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      ≥30% Kebutuhan (Surplus {item.stockSaatIni > std ? `+${item.stockSaatIni - std}` : ''})
+                    </span>
+                  )}
+                  {status === 'SESUAI' && (
+                    <span className="inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-[10px] bg-amber-100 text-amber-900 border border-amber-300">
+                      Pas Kebutuhan ({std} Unit)
+                    </span>
+                  )}
+                  {status === 'DEFISIT' && (
+                    <span className="inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-[10px] bg-rose-100 text-rose-900 border border-rose-300">
+                      &lt; Kebutuhan (Kurang {std - item.stockSaatIni} Unit)
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Temuan NG */}
             <div className="flex items-center justify-between text-[10.5px]">
               <span className="text-slate-500">Temuan NG:</span>
@@ -1320,6 +1382,32 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                   </div>
                 </div>
 
+                {/* Status Buffer Indicator */}
+                {(() => {
+                  const std = getStandarBuffer(activeBufferConfig, item.customer, item.type);
+                  const status = getPackagingBufferStatus(item.stockSaatIni, std);
+                  return (
+                    <div className="flex items-center justify-between text-[11px] px-2 py-1.5 rounded-md bg-slate-50 border border-slate-100 font-mono">
+                      <span className="text-slate-500 font-sans text-[10.5px]">Status Buffer:</span>
+                      {status === 'SURPLUS' && (
+                        <span className="inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300">
+                          ≥30% Kebutuhan (Surplus {item.stockSaatIni > std ? `+${item.stockSaatIni - std}` : ''})
+                        </span>
+                      )}
+                      {status === 'SESUAI' && (
+                        <span className="inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-[10px] bg-amber-100 text-amber-900 border border-amber-300">
+                          Pas Kebutuhan ({std} Unit)
+                        </span>
+                      )}
+                      {status === 'DEFISIT' && (
+                        <span className="inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-[10px] bg-rose-100 text-rose-900 border border-rose-300">
+                          &lt; Kebutuhan (Kurang {std - item.stockSaatIni} Unit)
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Temuan NG */}
                 <div className="flex items-center justify-between text-[10.5px]">
                   <span className="text-slate-500">Temuan NG:</span>
@@ -1390,6 +1478,11 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                     {renderSortHeader('IN', 'inQty', 'right', 'border-r border-slate-200/80 text-sky-800', 2)}
                     {renderSortHeader('Stock Akhir', 'stockSaatIni', 'right', 'border-r border-slate-200/80 text-emerald-950 font-black', 2)}
 
+                    {/* Group Header: Status Buffer Stock (3 Columns) */}
+                    <th colSpan={3} className="py-2.5 px-2 text-center font-bold border-r border-slate-200/80 bg-slate-900 text-white text-[10px]">
+                      Status
+                    </th>
+
                     {/* Group Header: Temuan NG */}
                     <th colSpan={4} className="py-2.5 px-3 text-center font-bold border-r border-slate-200/80 border-b border-amber-200/80 bg-amber-50/80 text-amber-950 text-[10px]">
                       Detail Temuan NG (Unit)
@@ -1403,8 +1496,19 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                     </th>
                   </tr>
 
-                  {/* Sub-header row for Detail NG */}
+                  {/* Sub-header row for Status and Detail NG */}
                   <tr className="text-slate-600 text-[10px] font-semibold uppercase">
+                    {/* Status Sub-headers matching user spreadsheet */}
+                    <th className="py-2 px-1 text-center border-r border-slate-200/80 bg-[#00a859] text-white font-bold text-[9px] leading-tight min-w-[76px]">
+                      ≥30% Dari<br />Kebutuhan / Hari
+                    </th>
+                    <th className="py-2 px-1 text-center border-r border-slate-200/80 bg-[#facc15] text-slate-950 font-bold text-[9px] leading-tight min-w-[76px]">
+                      Qty Sesuai<br />Kebutuhan / Hari
+                    </th>
+                    <th className="py-2 px-1 text-center border-r border-slate-200/80 bg-[#ef4444] text-white font-bold text-[9px] leading-tight min-w-[76px]">
+                      &lt; Qty Kebutuhan /<br />Hari
+                    </th>
+
                     <th className="py-2 px-2.5 text-center border-r border-slate-200/80 bg-amber-50/40 text-rose-800">
                       Slot
                     </th>
@@ -1451,6 +1555,73 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                           {formatQty(row.stockSaatIni)}
                         </span>
                       </td>
+
+                      {/* 3 Status Columns matching user image */}
+                      {(() => {
+                        const std = getStandarBuffer(activeBufferConfig, row.customer, row.type);
+                        const status = getPackagingBufferStatus(row.stockSaatIni, std);
+
+                        return (
+                          <>
+                            {/* 1. Green: >= 30% / Surplus */}
+                            <td
+                              className={cn(
+                                "py-2 px-1 text-center border-r border-slate-100/90 font-mono transition-colors",
+                                status === 'SURPLUS'
+                                  ? "bg-[#00a859] text-white font-black"
+                                  : "bg-white text-slate-200"
+                              )}
+                              title={`Standar: ${std} Unit | Stock: ${row.stockSaatIni} (Surplus)`}
+                            >
+                              {status === 'SURPLUS' ? (
+                                <span className="inline-block w-full text-center text-xs font-black">
+                                  ✓
+                                </span>
+                              ) : (
+                                <span className="text-transparent">-</span>
+                              )}
+                            </td>
+
+                            {/* 2. Yellow: Sesuai / Pas */}
+                            <td
+                              className={cn(
+                                "py-2 px-1 text-center border-r border-slate-100/90 font-mono transition-colors",
+                                status === 'SESUAI'
+                                  ? "bg-[#facc15] text-slate-950 font-black"
+                                  : "bg-white text-slate-200"
+                              )}
+                              title={`Standar: ${std} Unit | Stock: ${row.stockSaatIni} (Pas Sesuai Kebutuhan)`}
+                            >
+                              {status === 'SESUAI' ? (
+                                <span className="inline-block w-full text-center text-xs font-black text-slate-950">
+                                  =
+                                </span>
+                              ) : (
+                                <span className="text-transparent">-</span>
+                              )}
+                            </td>
+
+                            {/* 3. Red: < Qty / Kurang */}
+                            <td
+                              className={cn(
+                                "py-2 px-1 text-center border-r border-slate-100/90 font-mono transition-colors",
+                                status === 'DEFISIT'
+                                  ? "bg-[#ef4444] text-white font-black"
+                                  : "bg-white text-slate-200"
+                              )}
+                              title={`Standar: ${std} Unit | Stock: ${row.stockSaatIni} (Kurang ${std - row.stockSaatIni} Unit)`}
+                            >
+                              {status === 'DEFISIT' ? (
+                                <span className="inline-block w-full text-center text-xs font-black">
+                                  ✕
+                                </span>
+                              ) : (
+                                <span className="text-transparent">-</span>
+                              )}
+                            </td>
+                          </>
+                        );
+                      })()}
 
                       {/* NG Details */}
                       <td className="py-3 px-2 text-center border-r border-slate-100/90 font-medium">
