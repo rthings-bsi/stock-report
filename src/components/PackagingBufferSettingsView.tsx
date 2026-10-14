@@ -360,73 +360,77 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
   };
 
   return (
-    <div className="space-y-5">
-      {/* 1. Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-emerald-950 rounded-2xl p-5 md:p-6 text-white shadow-sm border border-emerald-700/50">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-3 sm:space-y-5 font-sans pb-16 sm:pb-0">
+      {/* 1. Top Banner & Header (Minimalist & Consistent with other views) */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
+            <Boxes className="h-4.5 w-4.5 text-amber-300" strokeWidth={2.4} />
+          </div>
           <div>
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-emerald-800/80 text-emerald-200 text-xs font-semibold mb-2 border border-emerald-600/40">
-              <Boxes className="h-3.5 w-3.5 text-amber-300" strokeWidth={2} />
-              <span>Unit 5 Karawang • Plant 1105</span>
-            </div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">
+            <h1 className="text-base font-bold text-white font-sans tracking-tight">
               Standar Buffer Stock Packaging (RTP)
             </h1>
-            <p className="text-sm text-emerald-100/80 mt-1 max-w-2xl">
-              Konfigurasi kuota kebutuhan harian & master tipe box Returnable Transport Packaging (RTP).
-              Menambahkan tipe box di sini akan otomatis mendaftarkannya ke seluruh modul Audit Harian.
-            </p>
+            <div className="text-[10.5px] text-emerald-200/80 font-sans hidden sm:block">
+              Unit 5 Karawang • Plant 1105 &bull; Standar Kuota Kebutuhan Harian & Master Tipe Box
+            </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 self-start md:self-auto">
-            {isDirty && (
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm(true)}
-                disabled={isSaving}
-                className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 text-white hover:bg-white/20 border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
-                <span>Reset Default</span>
-              </button>
-            )}
+        {/* Action Toolbar */}
+        <div className="flex items-center gap-2 ml-auto font-mono text-xs">
+          {isDirty && (
+            <button
+              type="button"
+              onClick={() => setShowResetConfirm(true)}
+              disabled={isSaving}
+              className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-800 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
+              title="Reset ke standar pabrik"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-amber-300" strokeWidth={2} />
+              <span className="hidden sm:inline">Reset Default</span>
+              <span className="sm:hidden">Reset</span>
+            </button>
+          )}
 
-            {canEdit && (
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 shadow-xs cursor-pointer",
-                  saveSuccess
-                    ? "bg-emerald-600 hover:bg-emerald-700"
-                    : "bg-amber-600 hover:bg-amber-700"
-                )}
-              >
-                {isSaving ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Menyimpan...</span>
-                  </>
-                ) : saveSuccess ? (
-                  <>
-                    <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-                    <span>Tersimpan!</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4" strokeWidth={2} />
-                    <span>Simpan Perubahan</span>
-                  </>
-                )}
-              </button>
-            )}
-          </div>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className={cn(
+                "px-3 py-1.5 rounded-lg font-bold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs",
+                saveSuccess
+                  ? "bg-emerald-400 hover:bg-emerald-300 text-emerald-950"
+                  : isDirty
+                    ? "bg-amber-400 hover:bg-amber-300 text-amber-950"
+                    : "bg-emerald-700 hover:bg-emerald-600 text-white"
+              )}
+              title="Simpan perubahan standar buffer stock"
+            >
+              {isSaving ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  <span>Menyimpan...</span>
+                </>
+              ) : saveSuccess ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-950" strokeWidth={2.4} />
+                  <span>Tersimpan!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  <span>Simpan Perubahan</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
       {/* 2. KPI Summary & Rules Logic Callout */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Tipe Box</span>
           <div className="text-2xl font-black text-slate-900 mt-1 font-mono">{stats.totalBox}</div>
