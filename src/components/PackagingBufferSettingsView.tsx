@@ -29,6 +29,8 @@ import { cn } from '@/lib/utils';
 
 interface PackagingBufferSettingsViewProps {
   initialConfig?: Record<string, number>;
+  masterData?: Record<string, string[]>;
+  onUpdateMasterData?: (newMaster: Record<string, string[]>) => Promise<void> | void;
   canEdit?: boolean;
   onSave?: (newConfig: Record<string, number>) => Promise<void> | void;
 }
@@ -44,15 +46,37 @@ interface BufferRowItem {
 
 export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewProps> = ({
   initialConfig,
+  masterData,
+  onUpdateMasterData,
   canEdit = true,
   onSave
 }) => {
+  // Master data customer & box types (synchronizes with prop & localStorage)
+  const [currentMasterData, setCurrentMasterData] = useState<Record<string, string[]>>(() => {
+    if (masterData && Object.keys(masterData).length > 0) {
+      return masterData;
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('spindo_packaging_master_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to parse cached master data:', e);
+      }
+    }
+    return PACKAGING_CUSTOMER_BOX_MASTER;
+  });
+
   // Local state for buffer configurations
   const [bufferConfig, setBufferConfig] = useState<Record<string, number>>(() => {
     if (initialConfig && Object.keys(initialConfig).length > 0) {
       return { ...DEFAULT_PACKAGING_BUFFER_STOCK, ...initialConfig };
     }
-    // Check localStorage fallback
     if (typeof window !== 'undefined') {
       try {
         const local = localStorage.getItem('spindo_packaging_buffer_stock');
@@ -74,10 +98,17 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
   const [showAddModal, setShowAddModal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  // Form state for adding custom customer/type
+  // Form state for adding new box & buffer standard
   const [newCustomer, setNewCustomer] = useState('');
   const [newType, setNewType] = useState('');
   const [newBufferVal, setNewBufferVal] = useState<number>(100);
+
+  // Sync when masterData prop updates
+  useEffect(() => {
+    if (masterData && Object.keys(masterData).length > 0) {
+      setCurrentMasterData(masterData);
+    }
+  }, [masterData]);
 
   // Sync when initialConfig changes
   useEffect(() => {
@@ -86,28 +117,35 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
     }
   }, [initialConfig]);
 
-  // Construct flat list of items
+  // Customer options list derived from current master data
+  const customerList = useMemo(() => {
+    return Object.keys(currentMasterData).sort();
+  }, [currentMasterData]);
+
+  // Construct flat list of items combining masterData and bufferConfig
   const allRows: BufferRowItem[] = useMemo(() => {
     const list: BufferRowItem[] = [];
     const seenKeys = new Set<string>();
 
-    // 1. Standard keys from master dictionary
-    Object.entries(PACKAGING_CUSTOMER_BOX_MASTER).forEach(([cust, types]) => {
-      types.forEach((t) => {
-        const key = getBufferStockKey(cust, t);
-        seenKeys.add(key);
-        list.push({
-          id: key,
-          customer: cust,
-          type: t,
-          key,
-          standarBuffer: bufferConfig[key] ?? DEFAULT_PACKAGING_BUFFER_STOCK[key] ?? 100,
-          isCustom: false
+    // 1. Standard and dynamically added keys from masterData
+    Object.entries(currentMasterData).forEach(([cust, types]) => {
+      if (Array.isArray(types)) {
+        types.forEach((t) => {
+          const key = getBufferStockKey(cust, t);
+          seenKeys.add(key);
+          list.push({
+            id: key,
+            customer: cust,
+            type: t,
+            key,
+            standarBuffer: bufferConfig[key] ?? DEFAULT_PACKAGING_BUFFER_STOCK[key] ?? 100,
+            isCustom: !DEFAULT_PACKAGING_BUFFER_STOCK[key]
+          });
         });
-      });
+      }
     });
 
-    // 2. Any additional custom keys present in bufferConfig
+    // 2. Any additional custom keys present in bufferConfig but missing from masterData
     Object.entries(bufferConfig).forEach(([key, val]) => {
       if (!seenKeys.has(key)) {
         const parts = key.split('___');
@@ -125,9 +163,9 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
     });
 
     return list.sort((a, b) => a.customer.localeCompare(b.customer) || a.type.localeCompare(b.type));
-  }, [bufferConfig]);
+  }, [currentMasterData, bufferConfig]);
 
-  // Filtered rows
+  // Filtered rows based on customer & search query
   const filteredRows = useMemo(() => {
     return allRows.filter((row) => {
       if (selectedCustomer !== 'ALL' && row.customer !== selectedCustomer) {
@@ -151,7 +189,7 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
     return { totalBox, uniqueCust, avgBuffer };
   }, [allRows]);
 
-  // Check if modified compared to DEFAULT
+  // Check if any standard buffer was modified from factory default
   const isDirty = useMemo(() => {
     for (const r of allRows) {
       const def = DEFAULT_PACKAGING_BUFFER_STOCK[r.key] ?? 100;
@@ -169,17 +207,15 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
     }));
   };
 
-  // Save handler
+  // Save all buffer configurations
   const handleSave = async () => {
     if (!canEdit) return;
     setIsSaving(true);
     try {
-      // 1. LocalStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('spindo_packaging_buffer_stock', JSON.stringify(bufferConfig));
       }
 
-      // 2. API settings backend persistence
       await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -189,7 +225,6 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
         })
       });
 
-      // 3. Callback to parent
       if (onSave) {
         await onSave(bufferConfig);
       }
@@ -204,27 +239,124 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
     }
   };
 
-  // Reset handler
+  // Reset handler to factory defaults
   const handleReset = () => {
     setBufferConfig({ ...DEFAULT_PACKAGING_BUFFER_STOCK });
     setShowResetConfirm(false);
   };
 
-  // Add new custom box handler
-  const handleAddNewBox = () => {
-    if (!newCustomer.trim() || !newType.trim()) {
-      alert('Customer dan Tipe Box wajib diisi.');
+  // Add new box handler: otomatis mendaftarkan ke masterData + bufferConfig
+  const handleAddNewBox = async () => {
+    const trimmedCust = newCustomer.trim().toUpperCase();
+    const trimmedType = newType.trim().toUpperCase();
+
+    if (!trimmedCust || !trimmedType) {
+      alert('Nama Customer dan Tipe Box wajib diisi.');
       return;
     }
-    const key = getBufferStockKey(newCustomer, newType);
-    setBufferConfig((prev) => ({
-      ...prev,
-      [key]: Math.max(0, newBufferVal || 0)
-    }));
+
+    const key = getBufferStockKey(trimmedCust, trimmedType);
+    const bufferVal = Math.max(0, newBufferVal || 0);
+
+    // 1. Update buffer config
+    const nextBufferConfig = {
+      ...bufferConfig,
+      [key]: bufferVal
+    };
+    setBufferConfig(nextBufferConfig);
+
+    // 2. Otomatis tambahkan ke list type box master customer!
+    const existingBoxes = currentMasterData[trimmedCust] ? [...currentMasterData[trimmedCust]] : [];
+    if (!existingBoxes.includes(trimmedType)) {
+      existingBoxes.push(trimmedType);
+    }
+    const nextMasterData = {
+      ...currentMasterData,
+      [trimmedCust]: existingBoxes
+    };
+    setCurrentMasterData(nextMasterData);
+
+    if (onUpdateMasterData) {
+      await onUpdateMasterData(nextMasterData);
+    }
+
+    // Persist immediately to localStorage and server API
+    try {
+      localStorage.setItem('spindo_packaging_buffer_stock', JSON.stringify(nextBufferConfig));
+      localStorage.setItem('spindo_packaging_master_cache', JSON.stringify(nextMasterData));
+
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'packaging_buffer_stock', value: nextBufferConfig })
+      });
+
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'packaging_master_db', value: nextMasterData })
+      });
+    } catch (e) {
+      console.warn('Failed to persist new box additions:', e);
+    }
+
+    if (onSave) {
+      await onSave(nextBufferConfig);
+    }
+
     setShowAddModal(false);
     setNewCustomer('');
     setNewType('');
     setNewBufferVal(100);
+  };
+
+  // Delete box handler: menghapus tipe box dari master data & buffer config
+  const handleDeleteBox = async (customer: string, type: string, key: string) => {
+    if (!confirm(`Hapus tipe box "${type}" untuk customer ${customer}?\nTipe ini juga akan dihapus dari pilihan audit.`)) {
+      return;
+    }
+
+    const existingBoxes = currentMasterData[customer] ? [...currentMasterData[customer]] : [];
+    const remainingBoxes = existingBoxes.filter((b) => b !== type);
+
+    const nextMasterData = { ...currentMasterData };
+    if (remainingBoxes.length === 0) {
+      delete nextMasterData[customer];
+    } else {
+      nextMasterData[customer] = remainingBoxes;
+    }
+    setCurrentMasterData(nextMasterData);
+
+    if (onUpdateMasterData) {
+      await onUpdateMasterData(nextMasterData);
+    }
+
+    const nextBufferConfig = { ...bufferConfig };
+    delete nextBufferConfig[key];
+    setBufferConfig(nextBufferConfig);
+
+    try {
+      localStorage.setItem('spindo_packaging_master_cache', JSON.stringify(nextMasterData));
+      localStorage.setItem('spindo_packaging_buffer_stock', JSON.stringify(nextBufferConfig));
+
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'packaging_master_db', value: nextMasterData })
+      });
+
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'packaging_buffer_stock', value: nextBufferConfig })
+      });
+    } catch (e) {
+      console.warn('Failed to persist box deletion:', e);
+    }
+
+    if (onSave) {
+      await onSave(nextBufferConfig);
+    }
   };
 
   return (
@@ -234,15 +366,15 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-emerald-800/80 text-emerald-200 text-xs font-semibold mb-2 border border-emerald-600/40">
-              <Boxes className="h-3.5 w-3.5" strokeWidth={2} />
+              <Boxes className="h-3.5 w-3.5 text-amber-300" strokeWidth={2} />
               <span>Unit 5 Karawang • Plant 1105</span>
             </div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">
-              Master Standar Buffer Stock Packaging (RTP)
+              Standar Buffer Stock Packaging (RTP)
             </h1>
             <p className="text-sm text-emerald-100/80 mt-1 max-w-2xl">
-              Konfigurasi kuota kebutuhan harian & standar buffer stock Returnable Transport Packaging (RTP).
-              Nilai standar ini menentukan kalkulasi status indikator warna (Hijau, Kuning, Merah) pada menu Audit Harian Packaging.
+              Konfigurasi kuota kebutuhan harian & master tipe box Returnable Transport Packaging (RTP).
+              Menambahkan tipe box di sini akan otomatis mendaftarkannya ke seluruh modul Audit Harian.
             </p>
           </div>
 
@@ -304,13 +436,13 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
         <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Customer</span>
           <div className="text-2xl font-black text-emerald-800 mt-1 font-mono">{stats.uniqueCust}</div>
-          <span className="text-xs text-slate-500 mt-0.5 block">Perusahaan penerima box</span>
+          <span className="text-xs text-slate-500 mt-0.5 block">Perusahaan pemilik/penerima box</span>
         </div>
 
         <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Rata-rata Buffer</span>
           <div className="text-2xl font-black text-amber-700 mt-1 font-mono">{stats.avgBuffer} <span className="text-xs font-normal text-slate-500">Unit/Hari</span></div>
-          <span className="text-xs text-slate-500 mt-0.5 block">Kebutuhan standar harian</span>
+          <span className="text-xs text-slate-500 mt-0.5 block">Standar kuota harian</span>
         </div>
 
         {/* Legend Box */}
@@ -333,7 +465,7 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
         </div>
       </div>
 
-      {/* 3. Toolbar: Search, Filter, Add */}
+      {/* 3. Toolbar: Search, Filter Customer, Tambah Tipe Box */}
       <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex flex-1 items-center gap-2.5">
           <div className="relative flex-1 max-w-sm">
@@ -343,7 +475,7 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari nama customer atau tipe box..."
-              className="w-full pl-9 pr-8 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600"
+              className="w-full pl-9 pr-8 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 font-sans"
             />
             {searchQuery && (
               <button
@@ -356,14 +488,14 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
             )}
           </div>
 
-          <div className="w-48 sm:w-56">
+          <div className="w-48 sm:w-60">
             <select
               value={selectedCustomer}
               onChange={(e) => setSelectedCustomer(e.target.value)}
-              className="w-full py-2 px-3 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600"
+              className="w-full py-2 px-3 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 font-sans"
             >
-              <option value="ALL">Semua Customer ({MASTER_CUSTOMERS.length})</option>
-              {MASTER_CUSTOMERS.map((c) => (
+              <option value="ALL">Semua Customer ({customerList.length})</option>
+              {customerList.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -375,10 +507,10 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/80 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+              className="px-3.5 py-2 rounded-lg text-xs font-bold bg-emerald-700 text-white hover:bg-emerald-800 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
             >
-              <Plus className="h-3.5 w-3.5" strokeWidth={2} />
-              <span>Tambah Master Box</span>
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+              <span>Tambah Tipe Box</span>
             </button>
           )}
         </div>
@@ -396,20 +528,21 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
                 <th className="py-3 px-4 text-center border-r border-slate-200/80 w-56 bg-emerald-50/40 text-emerald-950">
                   Standar Buffer Stock / Hari (Unit)
                 </th>
-                <th className="py-3 px-4 text-center border-r border-slate-200/80 w-36">Status Default</th>
-                {canEdit && <th className="py-3 px-3 text-center w-24">Aksi</th>}
+                <th className="py-3 px-4 text-center border-r border-slate-200/80 w-36">Status</th>
+                {canEdit && <th className="py-3 px-3 text-center w-28">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-800 bg-white">
               {filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan={canEdit ? 6 : 5} className="py-12 text-center text-slate-400">
-                    Tidak ada data master box yang cocok dengan filter pencarian.
+                    Tidak ada data box packaging yang cocok dengan pencarian.
                   </td>
                 </tr>
               ) : (
                 filteredRows.map((row, idx) => {
-                  const isModified = (bufferConfig[row.key] ?? DEFAULT_PACKAGING_BUFFER_STOCK[row.key] ?? 100) !== (DEFAULT_PACKAGING_BUFFER_STOCK[row.key] ?? 100);
+                  const defaultStd = DEFAULT_PACKAGING_BUFFER_STOCK[row.key];
+                  const isModified = defaultStd !== undefined && (bufferConfig[row.key] ?? defaultStd) !== defaultStd;
 
                   return (
                     <tr key={row.key} className="hover:bg-slate-50/80 transition-colors group">
@@ -435,6 +568,7 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
                                 type="button"
                                 onClick={() => handleUpdateVal(row.key, row.standarBuffer - 10)}
                                 className="w-6 h-6 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center text-xs font-bold border border-slate-200 cursor-pointer shrink-0"
+                                title="Kurangi 10 unit"
                               >
                                 -
                               </button>
@@ -455,6 +589,7 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
                                 type="button"
                                 onClick={() => handleUpdateVal(row.key, row.standarBuffer + 10)}
                                 className="w-6 h-6 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center text-xs font-bold border border-slate-200 cursor-pointer shrink-0"
+                                title="Tambah 10 unit"
                               >
                                 +
                               </button>
@@ -465,7 +600,11 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
                         </div>
                       </td>
                       <td className="py-3 px-4 text-center border-r border-slate-100">
-                        {isModified ? (
+                        {row.isCustom ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs font-mono">
+                            Kustom / Baru
+                          </span>
+                        ) : isModified ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs font-mono">
                             Disesuaikan
                           </span>
@@ -477,18 +616,26 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
                       </td>
                       {canEdit && (
                         <td className="py-3 px-3 text-center">
-                          {isModified ? (
+                          <div className="flex items-center justify-center gap-1.5">
+                            {isModified && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateVal(row.key, defaultStd ?? 100)}
+                                title="Kembalikan ke standar pabrik"
+                                className="text-xs text-amber-700 hover:text-amber-900 font-semibold p-1 rounded-md hover:bg-amber-50 transition-colors cursor-pointer"
+                              >
+                                Reset
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => handleUpdateVal(row.key, DEFAULT_PACKAGING_BUFFER_STOCK[row.key] ?? 100)}
-                              title="Kembalikan ke standar pabrik"
-                              className="text-xs text-slate-400 hover:text-amber-700 font-semibold p-1 rounded-md hover:bg-amber-50 transition-colors cursor-pointer"
+                              onClick={() => handleDeleteBox(row.customer, row.type, row.key)}
+                              title="Hapus tipe box ini dari sistem"
+                              className="text-slate-400 hover:text-rose-600 p-1 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
                             >
-                              Reset
+                              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
                             </button>
-                          ) : (
-                            <span className="text-slate-300 font-mono">-</span>
-                          )}
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -502,17 +649,17 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
         {/* Footer info bar */}
         <div className="p-3 bg-slate-50/90 border-t border-slate-200 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Menampilkan <strong>{filteredRows.length}</strong> dari total <strong>{allRows.length}</strong> tipe packaging terdaftar.</span>
-          <span className="text-[11px] text-slate-400 font-mono">Tersinkronisasi otomatis dengan Modul Audit Harian Packaging.</span>
+          <span className="text-[11px] text-slate-400 font-mono">Otomatis sinkron dengan daftar box di Modul Audit Harian.</span>
         </div>
       </div>
 
-      {/* 5. Modal Tambah Master Box Baru */}
+      {/* 5. Modal Tambah Tipe Box Baru */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl max-w-md w-full p-5 border border-slate-200 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Plus className="h-4 w-4 text-emerald-700" strokeWidth={2.2} />
+                <Plus className="h-4 w-4 text-emerald-700" strokeWidth={2.4} />
                 <span>Tambah Tipe Box Packaging Baru</span>
               </h3>
               <button
@@ -524,7 +671,7 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Nama Customer</label>
                 <input
@@ -532,14 +679,15 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
                   list="customer-suggestions"
                   value={newCustomer}
                   onChange={(e) => setNewCustomer(e.target.value)}
-                  placeholder="Misal: PT ASTEMO MANUFACTURING"
-                  className="w-full py-2 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase"
+                  placeholder="Ketik atau pilih customer (misal: PT ASTEMO MANUFACTURING)"
+                  className="w-full py-2 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase font-sans"
                 />
                 <datalist id="customer-suggestions">
-                  {MASTER_CUSTOMERS.map((c) => (
+                  {customerList.map((c) => (
                     <option key={c} value={c} />
                   ))}
                 </datalist>
+                <span className="text-[10.5px] text-slate-400 mt-1 block">Bisa pilih dari customer terdaftar atau ketik nama customer baru.</span>
               </div>
 
               <div>
@@ -548,8 +696,8 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
                   type="text"
                   value={newType}
                   onChange={(e) => setNewType(e.target.value)}
-                  placeholder="Misal: IDBM-C"
-                  className="w-full py-2 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase"
+                  placeholder="Misal: IDBM-C atau YMPG D"
+                  className="w-full py-2 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase font-mono font-bold"
                 />
               </div>
 
@@ -562,11 +710,16 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
                   onChange={(e) => setNewBufferVal(parseInt(e.target.value, 10) || 0)}
                   className="w-full py-2 px-3 rounded-lg border border-slate-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">Rata-rata kuota pemakaian per hari.</span>
+                <span className="text-[10px] text-slate-400 mt-1 block">Rata-rata kuota pemakaian per hari sebagai acuan warna indikator.</span>
+              </div>
+
+              {/* Anti-slop notice */}
+              <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-200/80 text-[11px] text-emerald-900 leading-relaxed">
+                Tipe box yang ditambahkan di sini akan <strong>otomatis terdaftar ke master box customer</strong> dan langsung muncul di pilihan dropdown audit.
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 font-sans">
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
@@ -579,7 +732,7 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
                 onClick={handleAddNewBox}
                 className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer shadow-xs"
               >
-                Tambahkan Box
+                Tambahkan Box & Standar
               </button>
             </div>
           </div>
@@ -601,14 +754,14 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
               <button
                 type="button"
                 onClick={() => setShowResetConfirm(false)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleReset}
-                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white cursor-pointer shadow-xs"
+                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
               >
                 Ya, Reset Standar
               </button>

@@ -49,6 +49,7 @@ import { UnfifoView } from '@/components/UnfifoView';
 import { DamagedPackagingView } from '@/components/DamagedPackagingView';
 import { IncomingPackagingView } from '@/components/IncomingPackagingView';
 import { PackagingBufferSettingsView } from '@/components/PackagingBufferSettingsView';
+import { PACKAGING_CUSTOMER_BOX_MASTER } from '@/lib/packagingMaster';
 import { UserManagementView } from '@/components/UserManagementView';
 import { CapacitySettingsView } from '@/components/CapacitySettingsView';
 import { UploadModal } from '@/components/UploadModal';
@@ -160,7 +161,22 @@ export default function Home() {
     return {};
   });
 
-  // Fetch packaging buffer stock settings
+  const [packagingMasterData, setPackagingMasterData] = useState<Record<string, string[]>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const local = localStorage.getItem('spindo_packaging_master_cache');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return PACKAGING_CUSTOMER_BOX_MASTER;
+  });
+
+  // Fetch packaging buffer stock settings & master box data
   useEffect(() => {
     fetch('/api/settings?key=packaging_buffer_stock')
       .then((r) => r.json())
@@ -173,7 +189,35 @@ export default function Home() {
         }
       })
       .catch(() => {});
+
+    fetch('/api/settings?key=packaging_master_db')
+      .then((r) => r.json())
+      .then((res) => {
+        if (res?.data && typeof res.data === 'object' && Object.keys(res.data).length > 0) {
+          setPackagingMasterData(res.data);
+          try {
+            localStorage.setItem('spindo_packaging_master_cache', JSON.stringify(res.data));
+          } catch {}
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const handleUpdateMasterData = async (newMaster: Record<string, string[]>) => {
+    setPackagingMasterData(newMaster);
+    try {
+      localStorage.setItem('spindo_packaging_master_cache', JSON.stringify(newMaster));
+    } catch {}
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'packaging_master_db', value: newMaster })
+      });
+    } catch (err) {
+      console.error('Failed to sync packaging master data:', err);
+    }
+  };
 
   // Fetch all system & custom roles
   useEffect(() => {
@@ -1216,7 +1260,7 @@ export default function Home() {
 
   const allOperationalMenuItems = useMemo(() => [
     { id: 'incoming_pkg', label: 'Audit Harian Packaging', icon: PackageCheck, desc: 'Audit Mutasi & Kondisi RTP', permKey: 'viewIncomingPkg' },
-    { id: 'pkg_master', label: 'Master Buffer Stock', icon: Boxes, desc: 'Standar Kebutuhan Harian RTP', permKey: 'viewIncomingPkg' },
+    { id: 'pkg_master', label: 'Standar Buffer Stock', icon: Boxes, desc: 'Standar Kebutuhan & Master Box RTP', permKey: 'viewIncomingPkg' },
   ] as const, []);
 
   // Filter operational menu items dynamically based on role permissions
@@ -2229,6 +2273,8 @@ export default function Home() {
                 isAdmin={currentUser?.role === 'admin' || canUploadSAP}
                 isCustomizing={canEditIncomingPkg ? isCustomizingLayout : false}
                 bufferConfig={packagingBufferConfig}
+                masterData={packagingMasterData}
+                onUpdateMasterData={handleUpdateMasterData}
                 onOpenBufferSettings={() => handleSelectTab('pkg_master')}
                 onDataUpdate={async (newData) => {
                   setIncomingPackagingData(newData);
@@ -2250,6 +2296,8 @@ export default function Home() {
             {activeTab === 'pkg_master' && (currentUser.role === 'admin' || userPermissions.viewIncomingPkg) && (
               <PackagingBufferSettingsView
                 initialConfig={packagingBufferConfig}
+                masterData={packagingMasterData}
+                onUpdateMasterData={handleUpdateMasterData}
                 canEdit={currentUser?.role === 'admin' || canManageCapacity || canUploadSAP}
                 onSave={(newCfg) => {
                   setPackagingBufferConfig(newCfg);
