@@ -1,16 +1,68 @@
 import { NextResponse } from 'next/server';
+import * as fs from 'fs';
+import * as path from 'path';
 import bcrypt from 'bcryptjs';
 import db from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { StoredAccount } from '@/types/auth';
+import { StoredAccount, PRESET_ACCOUNTS, PRESET_ROLES } from '@/types/auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function getUsersFilePath(): string {
+  const dataDir = path.join(process.cwd(), 'data');
+  if (!fs.existsSync(dataDir)) {
+    try {
+      fs.mkdirSync(dataDir, { recursive: true });
+    } catch {}
+  }
+  return path.join(dataDir, 'users.json');
+}
+
+function readUsersFromJson(): StoredAccount[] {
+  try {
+    const filePath = getUsersFilePath();
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to read users from JSON:', e);
+  }
+  writeUsersToJson(PRESET_ACCOUNTS);
+  return PRESET_ACCOUNTS;
+}
+
+function writeUsersToJson(users: StoredAccount[]) {
+  try {
+    const filePath = getUsersFilePath();
+    fs.writeFileSync(filePath, JSON.stringify(users, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to write users to JSON:', e);
+  }
+}
+
+function getRolePermissionsFromJson(roleKey: string): any {
+  try {
+    const rolesPath = path.join(process.cwd(), 'data', 'roles.json');
+    if (fs.existsSync(rolesPath)) {
+      const parsed = JSON.parse(fs.readFileSync(rolesPath, 'utf-8'));
+      if (Array.isArray(parsed)) {
+        const found = parsed.find(r => r.key?.toLowerCase() === roleKey.toLowerCase());
+        if (found?.permissions) return found.permissions;
+      }
+    }
+  } catch {}
+  const preset = PRESET_ROLES.find(r => r.key.toLowerCase() === roleKey.toLowerCase());
+  return preset?.permissions || null;
+}
+
 // Helper to verify and hash passwords
 function verifyPassword(plain: string, hashOrPlain: string): boolean {
   if (!hashOrPlain || !plain) return false;
-  // If stored value is already a bcrypt hash (starts with $2a$, $2b$, or $2y$)
   if (hashOrPlain.startsWith('$2a$') || hashOrPlain.startsWith('$2b$') || hashOrPlain.startsWith('$2y$')) {
     try {
       return bcrypt.compareSync(plain, hashOrPlain);
@@ -18,7 +70,6 @@ function verifyPassword(plain: string, hashOrPlain: string): boolean {
       return false;
     }
   }
-  // Legacy plain text comparison fallback
   return plain === hashOrPlain;
 }
 
@@ -42,7 +93,6 @@ export async function GET(request: Request) {
           .maybeSingle();
 
         if (user && verifyPassword(authPassword, user.password)) {
-          // Auto-upgrade plain-text password to bcrypt hash in DB
           if (!user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
             const upgradedHash = hashPassword(authPassword);
             await supabase.from('users').update({ password: upgradedHash }).eq('id', user.id);
@@ -65,47 +115,49 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: false, error: 'Username atau password tidak sesuai.' }, { status: 401 });
       }
 
-      if (!db) {
-        if (authUsername.trim().toLowerCase() === 'admin' && authPassword === '123') {
-          return NextResponse.json({
-            success: true,
-            user: {
-              id: 1,
-              username: 'admin',
-              name: 'Administrator Warehouse',
-              role: 'admin',
-              department: 'Warehouse Section Head',
-              unit: 'Unit 5 - Spindo',
-              permissions: {
-                viewCapacity: true, viewFastSlow: true, viewCoilStrip: true, viewNC: true,
-                viewUnfifo: true, viewLoo: true, viewDamagedPkg: true, viewIncomingPkg: true,
-                viewProgressNC: true, viewCapacitySettings: true, viewSTO: true,
-                viewUserManagement: true, canUploadSAP: true,
-                canUploadPipe: true, canUploadCoil: true, canUploadLoo: true, canUploadDamagedPkg: true, canUploadIncomingPkg: true,
-                canUploadProgressNC: true, canUploadSTO: true,
-                canEditIncomingPkg: true, canEditDamagedPkg: true, canEditProgressNC: true, canEditSTO: true,
-                canExportExcel: true, canCustomizeLayout: true, canManageCapacity: true,
-                canManageUsers: true, canSaveSnapshot: true
-              }
-            }
-          });
-        }
-        throw new Error('Database not available');
-      }
-      const user = db.prepare('SELECT id, username, password, name, role, department, unit FROM users WHERE LOWER(username) = LOWER(?)').get(authUsername.trim()) as any;
-      if (user && verifyPassword(authPassword, user.password)) {
-        if (!user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
-          const upgradedHash = hashPassword(authPassword);
-          db.prepare('UPDATE users SET password = ? WHERE id = ?').run(upgradedHash, user.id);
-        }
-
-        let permissions = null;
+      if (db && typeof db.prepare === 'function') {
         try {
-          const roleRow = db.prepare('SELECT permissions FROM roles WHERE LOWER(key) = LOWER(?)').get(user.role) as any;
-          if (roleRow && roleRow.permissions) {
-            permissions = typeof roleRow.permissions === 'string' ? JSON.parse(roleRow.permissions) : roleRow.permissions;
+          const user = db.prepare('SELECT id, username, password, name, role, department, unit FROM users WHERE LOWER(username) = LOWER(?)').get(authUsername.trim()) as any;
+          if (user && verifyPassword(authPassword, user.password)) {
+            if (!user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
+              const upgradedHash = hashPassword(authPassword);
+              db.prepare('UPDATE users SET password = ? WHERE id = ?').run(upgradedHash, user.id);
+            }
+
+            let permissions = null;
+            try {
+              const roleRow = db.prepare('SELECT permissions FROM roles WHERE LOWER(key) = LOWER(?)').get(user.role) as any;
+              if (roleRow && roleRow.permissions) {
+                permissions = typeof roleRow.permissions === 'string' ? JSON.parse(roleRow.permissions) : roleRow.permissions;
+              }
+            } catch {}
+            return NextResponse.json({
+              success: true,
+              user: {
+                id: user.id,
+                username: user.username,
+                name: user.name,
+                role: user.role,
+                department: user.department,
+                unit: user.unit,
+                permissions
+              }
+            });
           }
-        } catch {}
+        } catch (err) {
+          console.warn('SQLite auth check error, using JSON file fallback:', err);
+        }
+      }
+
+      // JSON file storage fallback
+      const users = readUsersFromJson();
+      const user = users.find(u => u.username.toLowerCase() === authUsername.trim().toLowerCase());
+      if (user && verifyPassword(authPassword, user.password || '')) {
+        if (user.password && !user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
+          user.password = hashPassword(authPassword);
+          writeUsersToJson(users);
+        }
+        const permissions = getRolePermissionsFromJson(user.role);
         return NextResponse.json({
           success: true,
           user: {
@@ -119,6 +171,7 @@ export async function GET(request: Request) {
           }
         });
       }
+
       return NextResponse.json({ success: false, error: 'Username atau password tidak sesuai.' }, { status: 401 });
     }
 
@@ -129,9 +182,29 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, users: safeUsers });
     }
 
-    if (!db) throw new Error('Database not available');
-    const users = db.prepare('SELECT id, username, name, role, department, unit, created_at, updated_at FROM users ORDER BY id ASC').all();
-    const safeUsers = (users || []).map((u: any) => ({ ...u, password: '••••••••' }));
+    if (db && typeof db.prepare === 'function') {
+      try {
+        const users = db.prepare('SELECT id, username, name, role, department, unit, created_at, updated_at FROM users ORDER BY id ASC').all();
+        const safeUsers = (users || []).map((u: any) => ({ ...u, password: '••••••••' }));
+        return NextResponse.json({ success: true, users: safeUsers });
+      } catch (err) {
+        console.warn('SQLite list users error, using JSON file fallback:', err);
+      }
+    }
+
+    // JSON file storage fallback
+    const users = readUsersFromJson();
+    const safeUsers = users.map(u => ({
+      id: u.id,
+      username: u.username,
+      name: u.name,
+      role: u.role,
+      department: u.department,
+      unit: u.unit,
+      created_at: u.created_at || new Date().toISOString(),
+      updated_at: u.updated_at || new Date().toISOString(),
+      password: '••••••••'
+    }));
     return NextResponse.json({ success: true, users: safeUsers });
   } catch (error) {
     return NextResponse.json({ success: false, error: `Gagal mengambil data user: ${error instanceof Error ? error.message : JSON.stringify(error)}` }, { status: 500 });
@@ -142,7 +215,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { id, username, password, name, role, department, unit, action } = body;
-    if (!username || !name || !role) return NextResponse.json({ success: false, error: 'Username, Nama, dan Role wajib diisi.' }, { status: 400 });
+    if (!username || !name || !role) {
+      return NextResponse.json({ success: false, error: 'Username, Nama, dan Role wajib diisi.' }, { status: 400 });
+    }
 
     const cleanUsername = username.trim().toLowerCase();
     const cleanRole = role.trim().toLowerCase();
@@ -182,22 +257,73 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: 'User baru berhasil ditambahkan.' });
     }
 
-    if (!db) throw new Error('Database not available');
-    if (id || action === 'update') {
-      let targetId = id || (db.prepare('SELECT id FROM users WHERE LOWER(username) = ?').get(cleanUsername) as any)?.id;
-      if (password && password.trim() !== '') {
+    if (db && typeof db.prepare === 'function') {
+      try {
+        if (id || action === 'update') {
+          let targetId = id || (db.prepare('SELECT id FROM users WHERE LOWER(username) = ?').get(cleanUsername) as any)?.id;
+          if (password && password.trim() !== '') {
+            const hashedPassword = hashPassword(password.trim());
+            db.prepare(`UPDATE users SET username=?, name=?, role=?, department=?, unit=?, password=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(cleanUsername, cleanName, cleanRole, cleanDept, cleanUnit, hashedPassword, targetId);
+          } else {
+            db.prepare(`UPDATE users SET username=?, name=?, role=?, department=?, unit=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(cleanUsername, cleanName, cleanRole, cleanDept, cleanUnit, targetId);
+          }
+          return NextResponse.json({ success: true, message: 'Data user berhasil diperbarui.' });
+        }
+        
+        if (!password || password.trim() === '') return NextResponse.json({ success: false, error: 'Password wajib diisi.' }, { status: 400 });
+        if (db.prepare('SELECT id FROM users WHERE LOWER(username) = ?').get(cleanUsername)) return NextResponse.json({ success: false, error: `Username "${cleanUsername}" sudah digunakan.` }, { status: 400 });
         const hashedPassword = hashPassword(password.trim());
-        db.prepare(`UPDATE users SET username=?, name=?, role=?, department=?, unit=?, password=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(cleanUsername, cleanName, cleanRole, cleanDept, cleanUnit, hashedPassword, targetId);
-      } else {
-        db.prepare(`UPDATE users SET username=?, name=?, role=?, department=?, unit=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(cleanUsername, cleanName, cleanRole, cleanDept, cleanUnit, targetId);
+        db.prepare(`INSERT INTO users (username, password, name, role, department, unit) VALUES (?, ?, ?, ?, ?, ?)`).run(cleanUsername, hashedPassword, cleanName, cleanRole, cleanDept, cleanUnit);
+        return NextResponse.json({ success: true, message: 'User baru berhasil ditambahkan.' });
+      } catch (err) {
+        console.warn('SQLite user save error, using JSON file fallback:', err);
       }
+    }
+
+    // JSON file storage fallback
+    const users = readUsersFromJson();
+    if (id || action === 'update') {
+      const idx = users.findIndex(u => (id && u.id === id) || u.username.toLowerCase() === cleanUsername);
+      if (idx === -1) {
+        return NextResponse.json({ success: false, error: 'User tidak ditemukan.' }, { status: 404 });
+      }
+      users[idx] = {
+        ...users[idx],
+        username: cleanUsername,
+        name: cleanName,
+        role: cleanRole,
+        department: cleanDept,
+        unit: cleanUnit,
+        updated_at: new Date().toISOString()
+      };
+      if (password && password.trim() !== '') {
+        users[idx].password = hashPassword(password.trim());
+      }
+      writeUsersToJson(users);
       return NextResponse.json({ success: true, message: 'Data user berhasil diperbarui.' });
     }
-    
-    if (!password || password.trim() === '') return NextResponse.json({ success: false, error: 'Password wajib diisi.' }, { status: 400 });
-    if (db.prepare('SELECT id FROM users WHERE LOWER(username) = ?').get(cleanUsername)) return NextResponse.json({ success: false, error: `Username "${cleanUsername}" sudah digunakan.` }, { status: 400 });
-    const hashedPassword = hashPassword(password.trim());
-    db.prepare(`INSERT INTO users (username, password, name, role, department, unit) VALUES (?, ?, ?, ?, ?, ?)`).run(cleanUsername, hashedPassword, cleanName, cleanRole, cleanDept, cleanUnit);
+
+    if (!password || password.trim() === '') {
+      return NextResponse.json({ success: false, error: 'Password wajib diisi.' }, { status: 400 });
+    }
+    if (users.some(u => u.username.toLowerCase() === cleanUsername)) {
+      return NextResponse.json({ success: false, error: `Username "${cleanUsername}" sudah digunakan.` }, { status: 400 });
+    }
+
+    const newUser: StoredAccount = {
+      id: Date.now(),
+      username: cleanUsername,
+      password: hashPassword(password.trim()),
+      name: cleanName,
+      role: cleanRole,
+      department: cleanDept,
+      unit: cleanUnit,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    users.push(newUser);
+    writeUsersToJson(users);
+
     return NextResponse.json({ success: true, message: 'User baru berhasil ditambahkan.' });
   } catch (error) {
     return NextResponse.json({ success: false, error: `Gagal memproses data user: ${error instanceof Error ? error.message : JSON.stringify(error)}` }, { status: 500 });
@@ -223,15 +349,36 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: true, message: `User "${userToDelete.username}" berhasil dihapus.` });
     }
 
-    if (!db) throw new Error('Database not available');
-    let userToDelete = id ? db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(id) as any : db.prepare('SELECT id, username, role FROM users WHERE LOWER(username) = ?').get(username!.trim().toLowerCase()) as any;
-    if (!userToDelete) return NextResponse.json({ success: false, error: 'User tidak ditemukan.' }, { status: 404 });
-    if (userToDelete.username === 'admin') return NextResponse.json({ success: false, error: 'User master "admin" tidak dapat dihapus.' }, { status: 403 });
-    if (userToDelete.role === 'admin') {
-      const adminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get() as any;
-      if (adminCount.count <= 1) return NextResponse.json({ success: false, error: 'Minimal 1 Administrator.' }, { status: 403 });
+    if (db && typeof db.prepare === 'function') {
+      try {
+        let userToDelete = id ? db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(id) as any : db.prepare('SELECT id, username, role FROM users WHERE LOWER(username) = ?').get(username!.trim().toLowerCase()) as any;
+        if (!userToDelete) return NextResponse.json({ success: false, error: 'User tidak ditemukan.' }, { status: 404 });
+        if (userToDelete.username === 'admin') return NextResponse.json({ success: false, error: 'User master "admin" tidak dapat dihapus.' }, { status: 403 });
+        if (userToDelete.role === 'admin') {
+          const adminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get() as any;
+          if (adminCount.count <= 1) return NextResponse.json({ success: false, error: 'Minimal 1 Administrator.' }, { status: 403 });
+        }
+        db.prepare('DELETE FROM users WHERE id = ?').run(userToDelete.id);
+        return NextResponse.json({ success: true, message: `User "${userToDelete.username}" berhasil dihapus.` });
+      } catch (err) {
+        console.warn('SQLite user delete error, using JSON file fallback:', err);
+      }
     }
-    db.prepare('DELETE FROM users WHERE id = ?').run(userToDelete.id);
+
+    // JSON file storage fallback
+    const users = readUsersFromJson();
+    const userToDelete = users.find(u => (id && String(u.id) === String(id)) || (username && u.username.toLowerCase() === username.trim().toLowerCase()));
+    if (!userToDelete) return NextResponse.json({ success: false, error: 'User tidak ditemukan.' }, { status: 404 });
+    if (userToDelete.username === 'admin') {
+      return NextResponse.json({ success: false, error: 'User master "admin" tidak dapat dihapus.' }, { status: 403 });
+    }
+    if (userToDelete.role === 'admin') {
+      const adminCount = users.filter(u => u.role === 'admin').length;
+      if (adminCount <= 1) return NextResponse.json({ success: false, error: 'Minimal 1 Administrator.' }, { status: 403 });
+    }
+
+    const filtered = users.filter(u => u.id !== userToDelete.id);
+    writeUsersToJson(filtered);
     return NextResponse.json({ success: true, message: `User "${userToDelete.username}" berhasil dihapus.` });
   } catch (error) {
     return NextResponse.json({ success: false, error: `Gagal menghapus user: ${error instanceof Error ? error.message : JSON.stringify(error)}` }, { status: 500 });
