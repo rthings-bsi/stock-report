@@ -93,10 +93,7 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string>('ALL');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Form state for adding new box & buffer standard
   const [newCustomer, setNewCustomer] = useState('');
@@ -189,60 +186,34 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
     return { totalBox, uniqueCust, avgBuffer };
   }, [allRows]);
 
-  // Check if any standard buffer was modified from factory default
-  const isDirty = useMemo(() => {
-    for (const r of allRows) {
-      const def = DEFAULT_PACKAGING_BUFFER_STOCK[r.key] ?? 100;
-      if (r.standarBuffer !== def) return true;
-    }
-    return false;
-  }, [allRows]);
-
-  // Update specific row buffer value
+  // Update specific row buffer value with automatic saving
   const handleUpdateVal = (key: string, newVal: number) => {
     const val = Math.max(0, isNaN(newVal) ? 0 : newVal);
-    setBufferConfig((prev) => ({
-      ...prev,
+    const updated = {
+      ...bufferConfig,
       [key]: val
-    }));
-  };
+    };
+    setBufferConfig(updated);
 
-  // Save all buffer configurations
-  const handleSave = async () => {
-    if (!canEdit) return;
-    setIsSaving(true);
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('spindo_packaging_buffer_stock', JSON.stringify(bufferConfig));
+        localStorage.setItem('spindo_packaging_buffer_stock', JSON.stringify(updated));
       }
-
-      await fetch('/api/settings', {
+      fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           key: 'packaging_buffer_stock',
-          value: bufferConfig
+          value: updated
         })
-      });
+      }).catch((e) => console.warn('Failed to auto-save buffer stock:', e));
 
       if (onSave) {
-        await onSave(bufferConfig);
+        onSave(updated);
       }
-
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error('Failed to save buffer stock config:', err);
-      alert('Gagal menyimpan konfigurasi standar buffer stock.');
-    } finally {
-      setIsSaving(false);
+    } catch (e) {
+      console.warn('Auto-save error:', e);
     }
-  };
-
-  // Reset handler to factory defaults
-  const handleReset = () => {
-    setBufferConfig({ ...DEFAULT_PACKAGING_BUFFER_STOCK });
-    setShowResetConfirm(false);
   };
 
   // Add new box handler: otomatis mendaftarkan ke masterData + bufferConfig
@@ -361,8 +332,8 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
 
   return (
     <div className="space-y-3 sm:space-y-5 font-sans pb-16 sm:pb-0">
-      {/* 1. Top Banner & Header (Minimalist & Consistent with other views) */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+      {/* 1. Top Banner & Header (Ultra Minimalist) */}
+      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
             <Boxes className="h-4.5 w-4.5 text-amber-300" strokeWidth={2.4} />
@@ -375,57 +346,6 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
               Unit 5 Karawang • Plant 1105 &bull; Standar Kuota Kebutuhan Harian & Master Tipe Box
             </div>
           </div>
-        </div>
-
-        {/* Action Toolbar */}
-        <div className="flex items-center gap-2 ml-auto font-mono text-xs">
-          {isDirty && (
-            <button
-              type="button"
-              onClick={() => setShowResetConfirm(true)}
-              disabled={isSaving}
-              className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-800 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
-              title="Reset ke standar pabrik"
-            >
-              <RotateCcw className="h-3.5 w-3.5 text-amber-300" strokeWidth={2} />
-              <span className="hidden sm:inline">Reset Default</span>
-              <span className="sm:hidden">Reset</span>
-            </button>
-          )}
-
-          {canEdit && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className={cn(
-                "px-3 py-1.5 rounded-lg font-bold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs",
-                saveSuccess
-                  ? "bg-emerald-400 hover:bg-emerald-300 text-emerald-950"
-                  : isDirty
-                    ? "bg-amber-400 hover:bg-amber-300 text-amber-950"
-                    : "bg-emerald-700 hover:bg-emerald-600 text-white"
-              )}
-              title="Simpan perubahan standar buffer stock"
-            >
-              {isSaving ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  <span>Menyimpan...</span>
-                </>
-              ) : saveSuccess ? (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-950" strokeWidth={2.4} />
-                  <span>Tersimpan!</span>
-                </>
-              ) : (
-                <>
-                  <Save className="h-3.5 w-3.5" strokeWidth={2.4} />
-                  <span>Simpan Perubahan</span>
-                </>
-              )}
-            </button>
-          )}
         </div>
       </div>
 
@@ -737,37 +657,6 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
                 className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer shadow-xs"
               >
                 Tambahkan Box & Standar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 6. Modal Konfirmasi Reset Default */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 border border-slate-200 shadow-xl space-y-3 text-center">
-            <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
-              <RotateCcw className="h-5 w-5" strokeWidth={2} />
-            </div>
-            <h4 className="text-sm font-bold text-slate-900">Reset Semua Standar Buffer?</h4>
-            <p className="text-xs text-slate-500">
-              Semua pengaturan kuota harian akan dikembalikan ke nilai standar pabrik (Spindo Unit 5).
-            </p>
-            <div className="flex items-center justify-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm(false)}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleReset}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
-              >
-                Ya, Reset Standar
               </button>
             </div>
           </div>
