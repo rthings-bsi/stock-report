@@ -35,7 +35,7 @@ export async function exportPackagingCheckSheet(
     { key: 'outQty', width: 10 },               // Col G: OUT
     { key: 'inQty', width: 10 },                // Col H: IN
     { key: 'stockSaatIni', width: 16 },         // Col I: Stock Saat Ini
-    { key: 'statusSurplus', width: 16 },        // Col J: ≥200% Dari Kebutuhan / Hari
+    { key: 'statusSurplus', width: 16 },        // Col J: ≥30% Dari Kebutuhan / Hari
     { key: 'statusSesuai', width: 16 },         // Col K: Qty Sesuai Kebutuhan / Hari
     { key: 'statusKurang', width: 16 },         // Col L: < Qty Kebutuhan / Hari
     { key: 'ngSlot', width: 9 },                // Col M: NG Slot
@@ -136,7 +136,7 @@ export async function exportPackagingCheckSheet(
 
   // Status Group & Sub-headers matching user spreadsheet
   worksheet.getCell('J5').value = 'Status';
-  worksheet.getCell('J6').value = '≥200% Dari\nKebutuhan / Hari';
+  worksheet.getCell('J6').value = '≥30% Dari\nKebutuhan / Hari';
   worksheet.getCell('K6').value = 'Qty Sesuai\nKebutuhan / Hari';
   worksheet.getCell('L6').value = '< Qty Kebutuhan /\nHari';
 
@@ -158,7 +158,7 @@ export async function exportPackagingCheckSheet(
   const GREEN_BG = 'FF059669';      // Emerald Green for Stock Saat Ini
 
   // Status Colors from user spreadsheet
-  const STATUS_GREEN = 'FF00A859';  // Kelly Green (≥200% / Surplus)
+  const STATUS_GREEN = 'FF00A859';  // Kelly Green (≥30% / Surplus)
   const STATUS_YELLOW = 'FFFACC15'; // Bright Lemon Yellow (Sesuai)
   const STATUS_RED = 'FFDC2626';    // Bright Red (< Qty)
 
@@ -298,7 +298,7 @@ export async function exportPackagingCheckSheet(
       row.getCell(c).alignment = { vertical: 'middle', horizontal: 'center' };
     }
 
-    // Col J (10): ≥200% / Surplus (Solid Kelly Green)
+    // Col J (10): ≥30% / Surplus (Solid Kelly Green)
     if (status === 'SURPLUS') {
       countSurplus++;
       const cell = row.getCell(10);

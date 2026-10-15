@@ -106,14 +106,14 @@ export type PackagingBufferStatus = 'SURPLUS' | 'SESUAI' | 'DEFISIT';
 
 /**
  * Logika Penentuan Status Buffer Stock Packaging:
- * - SURPLUS (Hijau) : Stock saat ini ≥ 200% dari kebutuhan per hari
- * - SESUAI  (Kuning): Stock saat ini sesuai kebutuhan per hari (100% - 199%)
+ * - SURPLUS (Hijau) : Stock saat ini ≥ 30% dari kebutuhan per hari (≥ 130%)
+ * - SESUAI  (Kuning): Stock saat ini sesuai kebutuhan per hari (100% - 129%)
  * - DEFISIT (Merah) : Stock saat ini kurang dari kebutuhan per hari (< 100%)
  */
 export function getPackagingBufferStatus(stock: number, standar: number): PackagingBufferStatus {
   if (standar <= 0) return 'SESUAI';
   const ratio = stock / standar;
-  if (ratio >= 2) return 'SURPLUS';
+  if (ratio >= 1.3) return 'SURPLUS';
   if (ratio >= 1) return 'SESUAI';
   return 'DEFISIT';
 }
