@@ -184,10 +184,12 @@ export interface IncomingPackagingItem {
   tglIncoming?: string;
   customer: string;
   type: string;
+  qtyBoxKirimHari?: number;
   stockAktualInternal: number;
   outQty: number;
   inQty: number;
   stockSaatIni: number;
+  statusKategori?: 'SURPLUS' | 'SESUAI' | 'DEFISIT';
   detailNG: {
     slot: number | string;
     kaki: number | string;

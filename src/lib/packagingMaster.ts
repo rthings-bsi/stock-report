@@ -12,6 +12,8 @@ export const PACKAGING_CUSTOMER_BOX_MASTER: Record<string, string[]> = {
   'PT DHARMA POLIMETAL TBK': ['1-DPM0-B', '1-DPM0-H', '1-DPM0-I', '1-DPM0-K', '1-DPM0-L'],
   'PT INDOMAS WAHANA NUSANTARA': ['IDMS A'],
   'PT INTI POLYMETAL': ['IPM A'],
+  'PT SAKURA HEI': ['SKR0 A'],
+  'PT TRIMITRA CHITRA MUSTIKA': ['TCM 0 A (PALLET)'],
   'PT YAMAHA INDONESIA MFG': [
     'YMPG A',
     'YMPG B',
@@ -66,7 +68,10 @@ export function getBufferStockKey(customer: string, type: string): string {
 export const DEFAULT_PACKAGING_BUFFER_STOCK: Record<string, number> = {
   'PT ASTEMO MANUFACTURING___IDBM A': 120,
   'PT ASTEMO MANUFACTURING___IDBM-B': 80,
-  'PT BERDIKARI METAL ENGINERING___BDK0 A': 100,
+  'PT BERDIKARI METAL ENGINERING___BDK0 A': 10,
+  'PT SAKURA HEI___SKR0 A': 1,
+  'PT INTI POLYMETAL___IPM A': 1,
+  'PT TRIMITRA CHITRA MUSTIKA___TCM 0 A (PALLET)': 2,
   'PT CHANDRA NUGERAH CEMERLANG___CNC HC': 90,
   'PT CHANDRA NUGERAH CEMERLANG___CNC0 C': 60,
   'PT CHANDRA NUGERAH CIPTA___CNCT A': 150,
@@ -79,7 +84,6 @@ export const DEFAULT_PACKAGING_BUFFER_STOCK: Record<string, number> = {
   'PT DHARMA POLIMETAL TBK___1-DPM0-K': 120,
   'PT DHARMA POLIMETAL TBK___1-DPM0-L': 90,
   'PT INDOMAS WAHANA NUSANTARA___IDMS A': 100,
-  'PT INTI POLYMETAL___IPM A': 110,
   'PT YAMAHA INDONESIA MFG___YMPG A': 200,
   'PT YAMAHA INDONESIA MFG___YMPG B': 180,
   'PT YAMAHA INDONESIA MFG___YMPG C': 150,
@@ -102,26 +106,31 @@ export type PackagingBufferStatus = 'SURPLUS' | 'SESUAI' | 'DEFISIT';
 
 /**
  * Logika Penentuan Status Buffer Stock Packaging:
- * - SURPLUS (Hijau) : Stock saat ini di atas standar (≥30% atau lebih dari kebutuhan per hari)
- * - SESUAI  (Kuning): Stock saat ini pas dengan standar kebutuhan per hari
- * - DEFISIT (Merah) : Stock saat ini kurang dari standar kebutuhan per hari
+ * - SURPLUS (Hijau) : Stock saat ini ≥ 200% dari kebutuhan per hari
+ * - SESUAI  (Kuning): Stock saat ini sesuai kebutuhan per hari (100% - 199%)
+ * - DEFISIT (Merah) : Stock saat ini kurang dari kebutuhan per hari (< 100%)
  */
 export function getPackagingBufferStatus(stock: number, standar: number): PackagingBufferStatus {
   if (standar <= 0) return 'SESUAI';
-  if (stock > standar) return 'SURPLUS';
-  if (stock === standar) return 'SESUAI';
+  const ratio = stock / standar;
+  if (ratio >= 2) return 'SURPLUS';
+  if (ratio >= 1) return 'SESUAI';
   return 'DEFISIT';
 }
 
 /**
  * Mengambil nilai standar buffer stock dari konfigurasi user,
- * dengan fallback ke default master data atau angka 100 jika belum terdaftar.
+ * dengan fallback ke default master data atau angka 10 jika belum terdaftar.
  */
 export function getStandarBuffer(
   config: Record<string, number> | undefined,
   customer: string,
-  type: string
+  type: string,
+  overrideQty?: number
 ): number {
+  if (overrideQty !== undefined && overrideQty !== null && overrideQty > 0) {
+    return overrideQty;
+  }
   const key = getBufferStockKey(customer, type);
   if (config && config[key] !== undefined && config[key] !== null) {
     return Number(config[key]);
@@ -129,5 +138,5 @@ export function getStandarBuffer(
   if (DEFAULT_PACKAGING_BUFFER_STOCK[key] !== undefined) {
     return DEFAULT_PACKAGING_BUFFER_STOCK[key];
   }
-  return 100;
+  return 10;
 }

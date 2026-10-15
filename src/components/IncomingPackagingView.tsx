@@ -111,6 +111,7 @@ const EMPTY_FORM: Omit<IncomingPackagingItem, 'id'> = {
   tglIncoming: getTodayIsoString(),
   customer: MASTER_CUSTOMERS[0] || '',
   type: (PACKAGING_CUSTOMER_BOX_MASTER[MASTER_CUSTOMERS[0]] || [])[0] || '',
+  qtyBoxKirimHari: 10,
   stockAktualInternal: 0,
   outQty: 0,
   inQty: 0,
@@ -335,12 +336,14 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     const defaultCust = masterCustomerList[0] || '';
     const availableBoxes = getDynamicBoxTypes(defaultCust);
     const defaultBox = availableBoxes[0] || '';
+    const std = getStandarBuffer(activeBufferConfig, defaultCust, defaultBox);
 
     setFormData({
       ...EMPTY_FORM,
       tglIncoming: getTodayIsoString(),
       customer: defaultCust,
-      type: defaultBox
+      type: defaultBox,
+      qtyBoxKirimHari: std
     });
     setIsCustomCustomer(false);
     setIsCustomType(false);
@@ -358,6 +361,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     const isMasterCust = masterCustomerList.includes(item.customer);
     const availableBoxes = getDynamicBoxTypes(item.customer);
     const isMasterBox = availableBoxes.includes(item.type);
+    const std = getStandarBuffer(activeBufferConfig, item.customer, item.type, item.qtyBoxKirimHari);
 
     setIsCustomCustomer(!isMasterCust);
     setIsCustomType(!isMasterBox);
@@ -366,6 +370,7 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
       tglIncoming: normalizeDateToIso(item.tglIncoming) || getTodayIsoString(),
       customer: item.customer,
       type: item.type,
+      qtyBoxKirimHari: item.qtyBoxKirimHari || std,
       stockAktualInternal: item.stockAktualInternal,
       outQty: item.outQty,
       inQty: item.inQty,
@@ -393,18 +398,20 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
     if (newCust === '__CUSTOM__') {
       setIsCustomCustomer(true);
       setIsCustomType(true);
-      setFormData((prev) => ({ ...prev, customer: '', type: '' }));
+      setFormData((prev) => ({ ...prev, customer: '', type: '', qtyBoxKirimHari: 10 }));
       return;
     }
 
     setIsCustomCustomer(false);
     const boxes = getDynamicBoxTypes(newCust);
     const nextBox = boxes.includes(formData.type) ? formData.type : (boxes[0] || '');
+    const std = getStandarBuffer(activeBufferConfig, newCust, nextBox);
     setIsCustomType(false);
     setFormData((prev) => ({
       ...prev,
       customer: newCust,
-      type: nextBox
+      type: nextBox,
+      qtyBoxKirimHari: std
     }));
   };
 
@@ -416,7 +423,8 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
       return;
     }
     setIsCustomType(false);
-    setFormData((prev) => ({ ...prev, type: newType }));
+    const std = getStandarBuffer(activeBufferConfig, formData.customer, newType);
+    setFormData((prev) => ({ ...prev, type: newType, qtyBoxKirimHari: std }));
   };
 
   // Save Form (Create or Edit)
@@ -448,14 +456,22 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
       setSelectedDate(targetDate);
     }
 
+    const stdKebutuhan = Number(formData.qtyBoxKirimHari || 0) > 0
+      ? Number(formData.qtyBoxKirimHari)
+      : getStandarBuffer(activeBufferConfig, formData.customer, formData.type);
+
+    const statusAuto = getPackagingBufferStatus(calculatedStock, stdKebutuhan);
+
     if (editingId) {
       const updated = items.map((item) => {
         if (item.id === editingId) {
           return {
             ...item,
             ...formData,
+            qtyBoxKirimHari: stdKebutuhan,
             tglIncoming: targetDate,
             stockSaatIni: calculatedStock,
+            statusKategori: statusAuto,
             detailNG: formattedNG
           };
         }
@@ -466,8 +482,10 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
       const newItem: IncomingPackagingItem = {
         id: `audit_pkg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         ...formData,
+        qtyBoxKirimHari: stdKebutuhan,
         tglIncoming: targetDate,
         stockSaatIni: calculatedStock,
+        statusKategori: statusAuto,
         detailNG: formattedNG
       };
       notifyChange([newItem, ...items]);
@@ -594,10 +612,28 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   };
 
   // Aggregates for active filtered view
+  const totalQtyKirim = useMemo(() => filteredData.reduce((acc, c) => {
+    const std = getStandarBuffer(activeBufferConfig, c.customer, c.type, c.qtyBoxKirimHari);
+    return acc + std;
+  }, 0), [filteredData, activeBufferConfig]);
   const totalStockAwal = useMemo(() => filteredData.reduce((acc, c) => acc + (c.stockAktualInternal || 0), 0), [filteredData]);
   const totalOut = useMemo(() => filteredData.reduce((acc, c) => acc + (c.outQty || 0), 0), [filteredData]);
   const totalIn = useMemo(() => filteredData.reduce((acc, c) => acc + (c.inQty || 0), 0), [filteredData]);
   const totalStockSaatIni = useMemo(() => filteredData.reduce((acc, c) => acc + (c.stockSaatIni || 0), 0), [filteredData]);
+
+  const { countSurplus, countSesuai, countDefisit } = useMemo(() => {
+    let surplus = 0;
+    let sesuai = 0;
+    let defisit = 0;
+    filteredData.forEach((item) => {
+      const std = getStandarBuffer(activeBufferConfig, item.customer, item.type, item.qtyBoxKirimHari);
+      const st = item.statusKategori || getPackagingBufferStatus(item.stockSaatIni, std);
+      if (st === 'SURPLUS') surplus++;
+      else if (st === 'SESUAI') sesuai++;
+      else defisit++;
+    });
+    return { countSurplus: surplus, countSesuai: sesuai, countDefisit: defisit };
+  }, [filteredData, activeBufferConfig]);
 
   const countNG = useMemo(() => {
     let count = 0;
@@ -1289,235 +1325,226 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-sm text-[11px] uppercase tracking-wider text-slate-500 font-semibold select-none">
-                  <tr className="border-b border-slate-200/80">
-                    <th rowSpan={2} className="py-3 px-3.5 text-center font-bold text-slate-400 w-10 border-r border-slate-200/80">
-                      #
-                    </th>
-                    {renderSortHeader('Tgl Audit', 'tglIncoming', 'center', 'border-r border-slate-200/80 min-w-[90px]', 2)}
-                    {renderSortHeader('Customer', 'customer', 'left', 'border-r border-slate-200/80 min-w-[180px]', 2)}
-                    {renderSortHeader('Type Box', 'type', 'left', 'border-r border-slate-200/80 min-w-[110px]', 2)}
-                    {renderSortHeader('Stock Awal', 'stockAktualInternal', 'right', 'border-r border-slate-200/80 text-slate-700', 2)}
-                    {renderSortHeader('OUT', 'outQty', 'right', 'border-r border-slate-200/80 text-rose-700', 2)}
-                    {renderSortHeader('IN', 'inQty', 'right', 'border-r border-slate-200/80 text-sky-800', 2)}
-                    {renderSortHeader('Stock Akhir', 'stockSaatIni', 'right', 'border-r border-slate-200/80 text-emerald-950 font-black', 2)}
+          <div className="bg-white rounded-xl border border-slate-300 shadow-xs overflow-hidden">
+            {/* Check Sheet Official Header Bar */}
+            <div className="bg-slate-50 border-b border-slate-300 p-3 sm:px-4 sm:py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+              <div>
+                <div className="font-bold text-emerald-950 text-xs tracking-tight">PT STEEL PIPE INDUSTRY OF INDONESIA, Tbk</div>
+                <div className="text-[10px] text-slate-500 font-sans">PLANT 1105 - UNIT 5 KARAWANG | WAREHOUSE SECTION</div>
+              </div>
+              <div className="text-center font-bold text-slate-900 text-xs sm:text-sm uppercase tracking-wide">
+                CHECK SHEET STOCK PACKAGING INTERNAL (RTP)
+              </div>
+              <div className="text-right text-[10.5px] text-emerald-800 font-bold">
+                Periode Audit: {selectedDate ? formatDisplayDate(selectedDate) : 'Semua Tanggal'}
+              </div>
+            </div>
 
-                    {/* Group Header: Status Buffer Stock (3 Columns) */}
-                    <th colSpan={3} className="py-2.5 px-2 text-center font-bold border-r border-slate-200/80 bg-slate-900 text-white text-[10px]">
+            <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
+              <table className="w-full text-left text-xs border-collapse font-sans">
+                <thead className="sticky top-0 z-10 border-b border-slate-300 text-[10.5px] uppercase tracking-wider select-none">
+                  <tr>
+                    <th rowSpan={2} className="py-2.5 px-3 text-center font-bold bg-[#0f2b48] text-white w-10 border-r border-slate-300">
+                      No
+                    </th>
+                    {renderSortHeader('Tgl Incoming', 'tglIncoming', 'center', 'bg-[#0f2b48] text-white min-w-[95px]')}
+                    {renderSortHeader('Customer', 'customer', 'left', 'bg-[#0f2b48] text-white min-w-[190px]')}
+                    {renderSortHeader('Type', 'type', 'left', 'bg-[#0f2b48] text-white min-w-[110px]')}
+                    {renderSortHeader('Qty Box Kirim / Hari', 'qtyBoxKirimHari', 'right', 'bg-[#0f2b48] text-white min-w-[125px]')}
+                    {renderSortHeader('Stock Aktual Internal', 'stockAktualInternal', 'right', 'bg-[#fde047] text-slate-950 font-bold min-w-[125px]')}
+                    {renderSortHeader('OUT', 'outQty', 'right', 'bg-[#dc2626] text-white font-bold min-w-[70px]')}
+                    {renderSortHeader('IN', 'inQty', 'right', 'bg-[#0284c7] text-white font-bold min-w-[70px]')}
+                    {renderSortHeader('Stock Saat ini', 'stockSaatIni', 'right', 'bg-[#059669] text-white font-bold min-w-[110px]')}
+
+                    {/* Group Header: Status (3 Columns) */}
+                    <th colSpan={3} className="py-2 px-2 text-center font-bold border-r border-slate-300 bg-[#0f2b48] text-white text-[10px]">
                       Status
                     </th>
 
-                    {/* Group Header: Temuan NG */}
-                    <th colSpan={4} className="py-2.5 px-3 text-center font-bold border-r border-slate-200/80 border-b border-amber-200/80 bg-amber-50/80 text-amber-950 text-[10px]">
-                      Detail Temuan NG (Unit)
+                    {/* Group Header: Detail NG (4 Columns) */}
+                    <th colSpan={4} className="py-2 px-2 text-center font-bold border-r border-slate-300 bg-[#0f2b48] text-white text-[10px]">
+                      Detail NG
                     </th>
 
-                    <th rowSpan={2} className="py-3 px-3.5 text-left font-bold text-slate-600 border-r border-slate-200/80 min-w-[140px]">
+                    <th rowSpan={2} className="py-2.5 px-3 text-left font-bold bg-[#0f2b48] text-white border-r border-slate-300 min-w-[120px]">
                       Keterangan
                     </th>
-                    <th rowSpan={2} className="py-3 px-3.5 text-center font-bold text-slate-400 w-20">
+                    <th rowSpan={2} className="py-2.5 px-2 text-center font-bold bg-[#0f2b48] text-white w-16">
                       Aksi
                     </th>
                   </tr>
 
                   {/* Sub-header row for Status and Detail NG */}
-                  <tr className="text-slate-600 text-[10px] font-semibold uppercase">
-                    {/* Status Sub-headers matching user spreadsheet */}
-                    <th className="py-2 px-1 text-center border-r border-slate-200/80 bg-[#00a859] text-white font-bold text-[9px] leading-tight min-w-[76px]">
-                      ≥30% Dari<br />Kebutuhan / Hari
+                  <tr className="text-white text-[9.5px] font-bold uppercase">
+                    {/* Status Sub-headers */}
+                    <th className="py-2 px-1 text-center border-r border-slate-300 bg-[#00a859] text-white leading-tight min-w-[85px]">
+                      ≥200% Dari<br />Kebutuhan / Hari
                     </th>
-                    <th className="py-2 px-1 text-center border-r border-slate-200/80 bg-[#facc15] text-slate-950 font-bold text-[9px] leading-tight min-w-[76px]">
+                    <th className="py-2 px-1 text-center border-r border-slate-300 bg-[#facc15] text-slate-950 leading-tight min-w-[85px]">
                       Qty Sesuai<br />Kebutuhan / Hari
                     </th>
-                    <th className="py-2 px-1 text-center border-r border-slate-200/80 bg-[#ef4444] text-white font-bold text-[9px] leading-tight min-w-[76px]">
+                    <th className="py-2 px-1 text-center border-r border-slate-300 bg-[#dc2626] text-white leading-tight min-w-[85px]">
                       &lt; Qty Kebutuhan /<br />Hari
                     </th>
 
-                    <th className="py-2 px-2.5 text-center border-r border-slate-200/80 bg-amber-50/40 text-rose-800">
+                    {/* Detail NG Sub-headers */}
+                    <th className="py-1.5 px-2 text-center border-r border-slate-300 bg-[#1e3a8a] text-white min-w-[45px]">
                       Slot
                     </th>
-                    <th className="py-2 px-2.5 text-center border-r border-slate-200/80 bg-amber-50/40 text-rose-800">
+                    <th className="py-1.5 px-2 text-center border-r border-slate-300 bg-[#1e3a8a] text-white min-w-[45px]">
                       Kaki
                     </th>
-                    <th className="py-2 px-2.5 text-center border-r border-slate-200/80 bg-amber-50/40 text-rose-800">
+                    <th className="py-1.5 px-2 text-center border-r border-slate-300 bg-[#1e3a8a] text-white min-w-[45px]">
                       Dinding
                     </th>
-                    <th className="py-2 px-2.5 text-center border-r border-slate-200/80 bg-amber-50/40 text-rose-800">
+                    <th className="py-1.5 px-2 text-center border-r border-slate-300 bg-[#1e3a8a] text-white min-w-[45px]">
                       Rangka
                     </th>
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white text-xs">
-                  {sortedData.map((row, idx) => (
-                    <tr key={row.id || idx} className="hover:bg-emerald-50/30 transition-all duration-150 group">
-                      <td className="py-3 px-3.5 text-center text-slate-400 font-bold border-r border-slate-100/90 font-mono">
-                        {idx + 1}
-                      </td>
-                      <td className="py-3 px-3.5 text-center border-r border-slate-100/90 whitespace-nowrap text-slate-600 font-mono">
-                        {formatDisplayDate(row.tglIncoming)}
-                      </td>
-                      <td className="py-3 px-3.5 font-bold text-slate-900 border-r border-slate-100/90">
-                        <span>{row.customer}</span>
-                      </td>
-                      <td className="py-3 px-3.5 border-r border-slate-100/90 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-950 font-bold border border-emerald-200/80 shadow-2xs font-mono">
-                          {row.type}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3.5 text-right font-medium text-slate-700 border-r border-slate-100/90 font-mono">
-                        {formatQty(row.stockAktualInternal)}
-                      </td>
-                      <td className="py-3 px-3.5 text-right font-bold text-rose-700 border-r border-slate-100/90 font-mono">
-                        {row.outQty > 0 ? formatQty(row.outQty) : <span className="text-slate-300 font-normal">-</span>}
-                      </td>
-                      <td className="py-3 px-3.5 text-right font-bold text-sky-800 border-r border-slate-100/90 font-mono">
-                        {row.inQty > 0 ? formatQty(row.inQty) : <span className="text-slate-300 font-normal">-</span>}
-                      </td>
-                      <td className="py-3 px-3.5 text-right border-r border-slate-100/90 font-mono">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-950 font-black border border-emerald-300/80 shadow-2xs">
+                <tbody className="divide-y divide-slate-200 text-slate-800 bg-white text-xs">
+                  {sortedData.map((row, idx) => {
+                    const std = getStandarBuffer(activeBufferConfig, row.customer, row.type, row.qtyBoxKirimHari);
+                    const status = row.statusKategori || getPackagingBufferStatus(row.stockSaatIni, std);
+
+                    return (
+                      <tr key={row.id || idx} className="hover:bg-slate-50 transition-colors group">
+                        <td className="py-2.5 px-3 text-center text-slate-700 font-medium border-r border-slate-200 font-mono">
+                          {idx + 1}
+                        </td>
+                        <td className="py-2.5 px-3 text-center border-r border-slate-200 whitespace-nowrap text-slate-700 font-mono">
+                          {row.tglIncoming || '-'}
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-slate-900 border-r border-slate-200">
+                          {row.customer}
+                        </td>
+                        <td className="py-2.5 px-3 border-r border-slate-200 whitespace-nowrap">
+                          <span className="font-bold text-emerald-700 font-mono">
+                            {row.type}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-sky-700 border-r border-slate-200 font-mono">
+                          {formatQty(std)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-medium text-slate-900 border-r border-slate-200 font-mono">
+                          {formatQty(row.stockAktualInternal)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-rose-600 border-r border-slate-200 font-mono">
+                          {row.outQty > 0 ? formatQty(row.outQty) : <span className="text-slate-400 font-normal">-</span>}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-sky-700 border-r border-slate-200 font-mono">
+                          {row.inQty > 0 ? formatQty(row.inQty) : <span className="text-slate-400 font-normal">-</span>}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-slate-900 border-r border-slate-200 font-mono">
                           {formatQty(row.stockSaatIni)}
-                        </span>
-                      </td>
+                        </td>
 
-                      {/* 3 Status Columns matching user image */}
-                      {(() => {
-                        const std = getStandarBuffer(activeBufferConfig, row.customer, row.type);
-                        const status = getPackagingBufferStatus(row.stockSaatIni, std);
+                        {/* Status 1: >= 200% Green */}
+                        <td
+                          className={cn(
+                            "py-2 px-1 text-center border-r border-slate-200 font-mono transition-colors",
+                            status === 'SURPLUS'
+                              ? "bg-[#00a859] text-white font-black"
+                              : "bg-white text-slate-300"
+                          )}
+                          title={`Kebutuhan: ${std} | Stock: ${row.stockSaatIni} (≥200% Kebutuhan / Hari)`}
+                        >
+                          {status === 'SURPLUS' ? '✓' : '-'}
+                        </td>
 
-                        return (
-                          <>
-                            {/* 1. Green: >= 30% / Surplus */}
-                            <td
-                              className={cn(
-                                "py-2 px-1 text-center border-r border-slate-100/90 font-mono transition-colors",
-                                status === 'SURPLUS'
-                                  ? "bg-[#00a859] text-white font-black"
-                                  : "bg-white text-slate-200"
-                              )}
-                              title={`Standar: ${std} Unit | Stock: ${row.stockSaatIni} (Surplus)`}
+                        {/* Status 2: Qty Sesuai Yellow */}
+                        <td
+                          className={cn(
+                            "py-2 px-1 text-center border-r border-slate-200 font-mono transition-colors",
+                            status === 'SESUAI'
+                              ? "bg-[#facc15] text-slate-950 font-black"
+                              : "bg-white text-slate-300"
+                          )}
+                          title={`Kebutuhan: ${std} | Stock: ${row.stockSaatIni} (Sesuai Kebutuhan / Hari)`}
+                        >
+                          {status === 'SESUAI' ? '=' : '-'}
+                        </td>
+
+                        {/* Status 3: < Qty Red */}
+                        <td
+                          className={cn(
+                            "py-2 px-1 text-center border-r border-slate-200 font-mono transition-colors",
+                            status === 'DEFISIT'
+                              ? "bg-[#dc2626] text-white font-black"
+                              : "bg-white text-slate-300"
+                          )}
+                          title={`Kebutuhan: ${std} | Stock: ${row.stockSaatIni} (< Qty Kebutuhan / Hari)`}
+                        >
+                          {status === 'DEFISIT' ? '✕' : '-'}
+                        </td>
+
+                        {/* Detail NG: Slot */}
+                        <td className="py-2 px-2 text-center border-r border-slate-200 font-mono">
+                          {parseDefectQty(row.detailNG?.slot) > 0 ? (
+                            <span className="font-bold text-rose-700">{row.detailNG.slot}</span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">-</span>
+                          )}
+                        </td>
+                        {/* Detail NG: Kaki */}
+                        <td className="py-2 px-2 text-center border-r border-slate-200 font-mono">
+                          {parseDefectQty(row.detailNG?.kaki) > 0 ? (
+                            <span className="font-bold text-rose-700">{row.detailNG.kaki}</span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">-</span>
+                          )}
+                        </td>
+                        {/* Detail NG: Dinding */}
+                        <td className="py-2 px-2 text-center border-r border-slate-200 font-mono">
+                          {parseDefectQty(row.detailNG?.dinding) > 0 ? (
+                            <span className="font-bold text-rose-700">{row.detailNG.dinding}</span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">-</span>
+                          )}
+                        </td>
+                        {/* Detail NG: Rangka */}
+                        <td className="py-2 px-2 text-center border-r border-slate-200 font-mono">
+                          {parseDefectQty(row.detailNG?.rangka) > 0 ? (
+                            <span className="font-bold text-rose-700">{row.detailNG.rangka}</span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">-</span>
+                          )}
+                        </td>
+
+                        {/* Keterangan */}
+                        <td className="py-2.5 px-3 border-r border-slate-200 text-slate-600 truncate max-w-[150px]">
+                          {row.keterangan || '-'}
+                        </td>
+
+                        {/* Aksi */}
+                        <td className="py-2 px-2 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(row)}
+                              className="p-1 rounded hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer"
+                              title="Edit Baris"
                             >
-                              {status === 'SURPLUS' ? (
-                                <span className="inline-block w-full text-center text-xs font-black">
-                                  ✓
-                                </span>
-                              ) : (
-                                <span className="text-transparent">-</span>
-                              )}
-                            </td>
-
-                            {/* 2. Yellow: Sesuai / Pas */}
-                            <td
-                              className={cn(
-                                "py-2 px-1 text-center border-r border-slate-100/90 font-mono transition-colors",
-                                status === 'SESUAI'
-                                  ? "bg-[#facc15] text-slate-950 font-black"
-                                  : "bg-white text-slate-200"
-                              )}
-                              title={`Standar: ${std} Unit | Stock: ${row.stockSaatIni} (Pas Sesuai Kebutuhan)`}
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTargetId(row.id)}
+                              className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors cursor-pointer"
+                              title="Hapus Baris"
                             >
-                              {status === 'SESUAI' ? (
-                                <span className="inline-block w-full text-center text-xs font-black text-slate-950">
-                                  =
-                                </span>
-                              ) : (
-                                <span className="text-transparent">-</span>
-                              )}
-                            </td>
-
-                            {/* 3. Red: < Qty / Kurang */}
-                            <td
-                              className={cn(
-                                "py-2 px-1 text-center border-r border-slate-100/90 font-mono transition-colors",
-                                status === 'DEFISIT'
-                                  ? "bg-[#ef4444] text-white font-black"
-                                  : "bg-white text-slate-200"
-                              )}
-                              title={`Standar: ${std} Unit | Stock: ${row.stockSaatIni} (Kurang ${std - row.stockSaatIni} Unit)`}
-                            >
-                              {status === 'DEFISIT' ? (
-                                <span className="inline-block w-full text-center text-xs font-black">
-                                  ✕
-                                </span>
-                              ) : (
-                                <span className="text-transparent">-</span>
-                              )}
-                            </td>
-                          </>
-                        );
-                      })()}
-
-                      {/* NG Details */}
-                      <td className="py-3 px-2 text-center border-r border-slate-100/90 font-medium">
-                        {row.detailNG?.slot && row.detailNG.slot !== '-' && row.detailNG.slot !== '0' ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs font-mono">
-                            {row.detailNG.slot}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300 font-mono">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-2 text-center border-r border-slate-100/90 font-medium">
-                        {row.detailNG?.kaki && row.detailNG.kaki !== '-' && row.detailNG.kaki !== '0' ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs font-mono">
-                            {row.detailNG.kaki}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300 font-mono">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-2 text-center border-r border-slate-100/90 font-medium">
-                        {row.detailNG?.dinding && row.detailNG.dinding !== '-' && row.detailNG.dinding !== '0' ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs font-mono">
-                            {row.detailNG.dinding}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300 font-mono">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-2 text-center border-r border-slate-100/90 font-medium">
-                        {row.detailNG?.rangka && row.detailNG.rangka !== '-' && row.detailNG.rangka !== '0' ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs font-mono">
-                            {row.detailNG.rangka}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300 font-mono">-</span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3.5 border-r border-slate-100/90 text-slate-500 font-sans truncate max-w-[200px]" title={row.keterangan}>
-                        {row.keterangan || '-'}
-                      </td>
-
-                      <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(row)}
-                            className="p-1.5 rounded-md hover:bg-emerald-50 text-slate-500 hover:text-emerald-800 transition-colors cursor-pointer shadow-2xs"
-                            title="Edit Baris"
-                          >
-                            <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTargetId(row.id)}
-                            className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-700 transition-colors cursor-pointer shadow-2xs"
-                            title="Hapus Baris"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
 
                   {sortedData.length === 0 && (
                     <tr>
-                      <td colSpan={14} className="py-12 text-center text-slate-500 text-xs font-sans">
+                      <td colSpan={15} className="py-12 text-center text-slate-500 text-xs font-sans">
                         <div className="space-y-2.5 max-w-sm mx-auto">
                           <Box className="h-8 w-8 text-slate-400 mx-auto" />
                           <div className="font-bold text-slate-800 text-sm">
@@ -1555,24 +1582,36 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                   )}
                 </tbody>
 
-                <tfoot className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-slate-50/95 font-bold text-xs text-slate-900 backdrop-blur-xs shadow-xs">
+                <tfoot className="sticky bottom-0 z-20 border-t-2 border-slate-300 bg-slate-100 font-bold text-xs text-slate-900 select-none font-mono">
                   <tr>
-                    <td colSpan={4} className="py-3 px-3.5 uppercase tracking-wider text-slate-700 text-[10px] font-mono">
+                    <td colSpan={4} className="py-2.5 px-3 text-center uppercase tracking-wider text-slate-800 text-[10.5px]">
                       TOTAL AUDIT ({sortedData.length} Baris)
                     </td>
-                    <td className="py-3 px-3.5 text-right text-slate-900 font-bold font-mono">
+                    <td className="py-2.5 px-3 text-right text-sky-700 font-bold">
+                      {formatQty(totalQtyKirim)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right text-slate-900 font-bold">
                       {formatQty(totalStockAwal)}
                     </td>
-                    <td className="py-3 px-3.5 text-right text-rose-700 font-bold font-mono">
+                    <td className="py-2.5 px-3 text-right text-rose-700 font-bold">
                       {formatQty(totalOut)}
                     </td>
-                    <td className="py-3 px-3.5 text-right text-sky-800 font-bold font-mono">
+                    <td className="py-2.5 px-3 text-right text-sky-800 font-bold">
                       {formatQty(totalIn)}
                     </td>
-                    <td className="py-3 px-3.5 text-right text-emerald-950 font-black font-mono">
+                    <td className="py-2.5 px-3 text-right text-slate-900 font-black">
                       {formatQty(totalStockSaatIni)}
                     </td>
-                    <td colSpan={6} className="py-3 px-3.5 text-center text-slate-600 text-[10px] font-mono">
+                    <td className="py-2 px-1 text-center text-[#00a859] font-bold text-[10px]">
+                      {countSurplus} Box
+                    </td>
+                    <td className="py-2 px-1 text-center text-amber-600 font-bold text-[10px]">
+                      {countSesuai} Box
+                    </td>
+                    <td className="py-2 px-1 text-center text-rose-600 font-bold text-[10px]">
+                      {countDefisit} Box
+                    </td>
+                    <td colSpan={5} className="py-2.5 px-3 text-center text-slate-700 text-[10.5px]">
                       Total Temuan NG: {countNG} Box
                     </td>
                   </tr>
@@ -1735,17 +1774,33 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
                 )}
               </div>
 
-              {/* Row 4: Mutasi Saldo (Stock Awal, OUT, IN) */}
+              {/* Row: Qty Box Kirim / Hari */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-slate-600 uppercase flex items-center justify-between font-sans">
+                  <span>Qty Box Kirim / Hari (Kebutuhan Harian) *</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={formData.qtyBoxKirimHari ?? 0}
+                  onChange={(e) => setFormData({ ...formData, qtyBoxKirimHari: parseInt(e.target.value, 10) || 0 })}
+                  placeholder="Target kebutuhan kirim per hari"
+                  className="w-full px-3 py-2 rounded-md border border-slate-300 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-700 text-xs font-mono font-bold text-sky-800"
+                />
+              </div>
+
+              {/* Row 4: Mutasi Saldo (Stock Aktual Internal, OUT, IN) */}
               <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2.5">
                 <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider font-sans flex items-center justify-between">
                   <span>Mutasi Saldo Packaging (Unit)</span>
                   <span className="text-emerald-800 font-bold">
-                    Stock Akhir: {Number(formData.stockAktualInternal || 0) - Number(formData.outQty || 0) + Number(formData.inQty || 0)} Unit
+                    Stock Saat ini: {Number(formData.stockAktualInternal || 0) - Number(formData.outQty || 0) + Number(formData.inQty || 0)} Unit
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-700 font-sans">Stock Awal</label>
+                    <label className="text-[10px] font-bold text-slate-700 font-sans">Stock Aktual</label>
                     <input
                       type="number"
                       min={0}
