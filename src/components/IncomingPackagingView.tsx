@@ -247,11 +247,13 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
   // Load from local cache immediately on mount, then sync with database API
   useEffect(() => {
+    let localCache: IncomingPackagingItem[] = [];
     try {
       const cached = localStorage.getItem('spindo_audit_pkg_cache');
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          localCache = parsed;
           setItems(parsed);
         }
       }
@@ -262,10 +264,24 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
         const res = await fetch('/api/incoming-packaging', { cache: 'no-store' });
         const json = await res.json();
         if (json?.success && Array.isArray(json.items)) {
-          setItems(json.items);
-          localStorage.setItem('spindo_audit_pkg_cache', JSON.stringify(json.items));
-          if (onDataUpdate) {
-            onDataUpdate(json.items);
+          if (json.items.length > 0) {
+            setItems(json.items);
+            localStorage.setItem('spindo_audit_pkg_cache', JSON.stringify(json.items));
+            if (onDataUpdate) {
+              onDataUpdate(json.items);
+            }
+          } else if (localCache.length > 0) {
+            // Local cache contains unsaved items; rescue them to server persistence
+            await fetch('/api/incoming-packaging', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(localCache),
+            });
+            if (onDataUpdate) {
+              onDataUpdate(localCache);
+            }
+          } else {
+            setItems([]);
           }
         }
       } catch (err) {

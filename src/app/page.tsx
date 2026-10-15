@@ -2276,19 +2276,9 @@ export default function Home() {
                 masterData={packagingMasterData}
                 onUpdateMasterData={handleUpdateMasterData}
                 onOpenBufferSettings={() => handleSelectTab('pkg_master')}
-                onDataUpdate={async (newData) => {
+                onDataUpdate={(newData) => {
                   setIncomingPackagingData(newData);
                   setIsCustomData(true);
-                  try {
-                    // Sync langsung ke tabel database terpisah incoming_packaging
-                    await fetch('/api/incoming-packaging', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(newData),
-                    });
-                  } catch (err) {
-                    console.error('Failed to sync incoming packaging data:', err);
-                  }
                 }}
               />
             )}
