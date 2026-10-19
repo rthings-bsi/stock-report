@@ -441,10 +441,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                       <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block">Kapasitas</span>
                       <p className="text-xs font-bold text-slate-900 mt-1 font-mono">{formatTon(totalKapasitas)}</p>
                     </div>
-                    <div
-                      className="rounded-xl border border-emerald-200/80 bg-gradient-to-b from-emerald-50/80 to-emerald-100/30 p-2.5 text-center shadow-2xs hover:border-emerald-300 transition-colors cursor-help"
-                      title={`Total Stock Pipa: ${formatTon(totalStock, { decimals: 3 })} Ton (Sesuai kolom TTL STOCK EOm)`}
-                    >
+                    <div className="rounded-xl border border-emerald-200/80 bg-gradient-to-b from-emerald-50/80 to-emerald-100/30 p-2.5 text-center shadow-2xs hover:border-emerald-300 transition-colors">
                       <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 block">Stock</span>
                       <p className="text-xs font-bold text-emerald-950 mt-1 font-mono">{formatTon(totalStock)}</p>
                     </div>
