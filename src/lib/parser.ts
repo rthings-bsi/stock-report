@@ -721,6 +721,59 @@ function resolveStockWeightAndQty(
   row: Record<string, unknown>,
   itemType: 'pipe' | 'coil' = 'coil'
 ): { weightKg: number; qty: number } {
+  // ==========================================
+  // LOGIKA DEFINITIF PIPA (FINISHED GOODS)
+  // Sesuai instruksi mutlak: Jumlah stock mengikuti total kolom TTL STOCK EOm (KG)
+  // BOm = Batang / Pcs (Kuantitas)
+  // EOm = Kilogram (KG) (Bobot Stock)
+  // ==========================================
+  if (itemType === 'pipe') {
+    const rawTtlStockEom = getRowValue(row, [
+      'TTL STOCK EOm',
+      'TTL STOCK EOM',
+      'TTL STOK EOm',
+      'TTL STOK EOM',
+      'Total Stok EOm',
+      'Total Stock EOm',
+      'STOK EOm',
+      'STOCK EOm',
+      'STOK EOM',
+      'STOCK EOM'
+    ]);
+
+    if (rawTtlStockEom !== undefined && rawTtlStockEom !== null && String(rawTtlStockEom).trim() !== '') {
+      const weightKg = parseNumber(rawTtlStockEom);
+
+      const rawBom = getRowValue(row, [
+        'TTL STOK BOm',
+        'TTL STOK BOM',
+        'TTL STOCK BOm',
+        'TTL STOCK BOM',
+        'Total Stok BOm',
+        'Total Stock BOm',
+        'STOK BOm',
+        'STOCK BOm',
+        'STOK BOM',
+        'STOCK BOM',
+        'Unrestricted',
+        'UNRESTRICTED',
+        'Qty (Btg)',
+        'Qty Btg',
+        'Qty(Btg)',
+        'Batang',
+        'Btg',
+        'Pcs',
+        'Pieces',
+        'Qty',
+        'Kuantitas'
+      ]);
+      const parsedBom = parseNumber(rawBom);
+      const qty = parsedBom > 0 ? parsedBom : (weightKg !== 0 ? 1 : 0);
+
+      return { weightKg, qty };
+    }
+  }
+
   const explicitWeight = parseNumber(
     getRowValue(row, [
       'Berat',
@@ -928,7 +981,7 @@ export function parseExcelFiles(
 
   const seenStockSignatures = new Set<string>();
 
-  const processStockRow = (row: Record<string, unknown>) => {
+  const processStockRow = (row: Record<string, unknown>, sourceSlot: 'pipe' | 'coil') => {
     if (!row || typeof row !== 'object') return;
 
     // Buat signature unik baris stock (kombinasi SLoc + Material + Batch + BOm + EOm + HeatNo + Desc)
@@ -948,6 +1001,22 @@ export function parseExcelFiles(
       seenStockSignatures.add(sig);
     }
 
+    if (sourceSlot === 'coil' && pipeRows.length > 0) {
+      // Jika user mengunggah file khusus di slot Coil, data ini sepenuhnya untuk Coil
+      effectiveCoilRows.push(row);
+      return;
+    }
+
+    if (sourceSlot === 'pipe' && coilRows.length > 0) {
+      // Jika user mengunggah file khusus di slot Pipa, data ini untuk Pipa kecuali secara eksplisit coil/strip
+      if (isCoilOrStripRow(row)) {
+        effectiveCoilRows.push(row);
+      } else {
+        effectivePipeRows.push(row);
+      }
+      return;
+    }
+
     if (isCoilOrStripRow(row)) {
       effectiveCoilRows.push(row);
     } else {
@@ -955,8 +1024,8 @@ export function parseExcelFiles(
     }
   };
 
-  pipeRows.forEach(processStockRow);
-  coilRows.forEach(processStockRow);
+  pipeRows.forEach((r) => processStockRow(r, 'pipe'));
+  coilRows.forEach((r) => processStockRow(r, 'coil'));
 
   const gudangMap: Record<string, {
     kapasitas: number;
@@ -1074,7 +1143,7 @@ export function parseExcelFiles(
 
     const { weightKg, qty: resolvedPipeQty } = resolveStockWeightAndQty(row, 'pipe');
     const tonase = weightKg / 1000;
-    if (tonase <= 0) return;
+    if (tonase === 0 || isNaN(tonase)) return;
 
     const rawPanjang = String(getRowValue(row, ['PANJANG', 'Panjang', 'Length', 'Length(mm)']) || '');
     const matNum = String(getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Material', 'Kode Material', 'Material No']) || '');
