@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import bcrypt from 'bcryptjs';
@@ -28,10 +28,28 @@ export interface AuthContext {
 }
 
 let devSessionSecret: string | null = null;
+let fallbackSessionSecret: string | null = null;
 
 function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
   if (secret && secret.length >= 32) return secret;
+
+  // Fallback darurat: tetap bisa login di production yang belum mengisi
+  // SESSION_SECRET, dengan menurunkan secret dari service role key Supabase.
+  // Tetap disarankan mengisi SESSION_SECRET terpisah agar key separation benar.
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (serviceKey && serviceKey.length >= 32) {
+    if (!fallbackSessionSecret) {
+      fallbackSessionSecret = createHash('sha256')
+        .update(`spindo-session-v1:${serviceKey}`)
+        .digest('hex');
+      console.warn(
+        '[SECURITY] SESSION_SECRET belum diset. Memakai derived secret dari SUPABASE_SERVICE_ROLE_KEY. ' +
+          'Segera set SESSION_SECRET (minimal 32 karakter) di production.'
+      );
+    }
+    return fallbackSessionSecret;
+  }
 
   if (process.env.NODE_ENV === 'production') {
     throw new Error('SESSION_SECRET wajib diisi (minimal 32 karakter) di production.');

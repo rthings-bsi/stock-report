@@ -100,7 +100,18 @@ export async function POST(request: Request) {
   clearFailures(key);
 
   const permissions = await getRolePermissions(user.role);
-  const { token, maxAge } = createSessionToken(user, rememberMe);
+
+  let token: string;
+  let maxAge: number | undefined;
+  try {
+    ({ token, maxAge } = createSessionToken(user, rememberMe));
+  } catch (error) {
+    console.error('Gagal membuat sesi login:', error);
+    return NextResponse.json(
+      { success: false, error: 'Konfigurasi server login belum lengkap. Hubungi administrator.' },
+      { status: 500 }
+    );
+  }
 
   const response = NextResponse.json({
     success: true,
