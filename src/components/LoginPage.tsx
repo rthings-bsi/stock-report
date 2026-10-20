@@ -70,13 +70,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       {/* =========================================================================
           LEFT PANE: DESKTOP BRAND SHOWCASE (Clean Mint/Sky Tint with Spindo Assets)
           ========================================================================= */}
-      <div className="relative hidden lg:flex lg:w-[56%] xl:w-[58%] p-8 xl:p-14 flex-col justify-between bg-[#f3f9fe] overflow-hidden text-slate-800 min-h-screen border-r border-slate-200/70">
+      <div
+        className="relative hidden lg:flex lg:w-[56%] xl:w-[58%] p-8 xl:p-14 flex-col justify-between overflow-hidden text-slate-800 min-h-screen border-r border-slate-200/70"
+        style={{
+          background:
+            'linear-gradient(135deg, #ffffff 0%, #f7fbff 38%, #edf7ff 72%, #e3f2ff 100%)'
+        }}
+      >
 
         {/* Subtle background gradient overlay for soft depth */}
         <div
-          className="absolute inset-0 pointer-events-none opacity-40"
+          className="absolute inset-0 pointer-events-none opacity-50"
           style={{
-            background: 'radial-gradient(circle at 15% 20%, rgba(209, 250, 229, 0.45) 0%, transparent 50%), radial-gradient(circle at 85% 75%, rgba(224, 242, 254, 0.45) 0%, transparent 60%)'
+            background:
+              'radial-gradient(circle at 12% 20%, rgba(209, 250, 229, 0.42) 0%, transparent 46%), radial-gradient(circle at 88% 66%, rgba(186, 230, 253, 0.45) 0%, transparent 55%)'
           }}
         />
 
@@ -88,7 +95,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             <img
               src="/spindo-logo.png"
               alt="SPINDO Logo"
-              className="h-9 w-auto object-contain"
+              className="h-10 w-auto object-contain"
             />
             <div className="h-7 w-[1.5px] bg-slate-300 mx-3.5" />
             <div className="text-xs font-semibold text-slate-700 leading-tight">
@@ -111,7 +118,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
           {/* Main Title */}
           <div className="space-y-1">
-            <h1 className="text-5xl xl:text-[56px] font-black tracking-tight leading-[1.08] select-none">
+            <h1 className="text-5xl xl:text-[60px] font-black tracking-tight leading-[1.08] select-none">
               <span className="block text-[#022854]">Pergerakan</span>
               <span className="block text-[#16805c]">Barang</span>
             </h1>
@@ -160,13 +167,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         </div>
 
         {/* BOTTOM FACTORY & PIPES ILLUSTRATION */}
-        <div className="relative w-full -mb-8 -mx-8 xl:-mb-14 xl:-mx-14 pointer-events-none select-none overflow-hidden">
+        <div
+          className="relative w-full -mb-8 -mx-8 xl:-mb-14 xl:-mx-14 pointer-events-none select-none overflow-hidden"
+          style={{
+            maskImage: 'linear-gradient(to right, #000 90%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to right, #000 90%, transparent 100%)'
+          }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/warehouse-illustration.webp"
             alt="Spindo Warehouse and Pipes Illustration"
-            className="w-full h-auto object-cover object-bottom max-h-[290px] xl:max-h-[320px] pointer-events-none"
+            className="w-full h-[260px] xl:h-[300px] object-cover object-bottom origin-left scale-x-110 pointer-events-none saturate-125 contrast-105"
           />
+          {/* Fade the cropped caption area at the top into the pane */}
+          <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#f4faff] via-[#f4faff]/85 to-transparent" />
         </div>
 
         {/* BOTTOM FOOTER */}
@@ -181,10 +196,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       {/* =========================================================================
           RIGHT PANE / MOBILE VIEW: FORM LOGIN
           ========================================================================= */}
-      <div className="w-full lg:w-[44%] xl:w-[42%] min-h-screen flex flex-col justify-center items-center p-6 sm:p-10 lg:p-12 xl:p-16 bg-white">
+      <div className="relative w-full lg:w-[44%] xl:w-[42%] min-h-screen flex flex-col justify-center items-center p-6 sm:p-10 lg:p-12 xl:p-16 overflow-hidden bg-[linear-gradient(155deg,#f3f9ff_0%,#ffffff_48%,#e8f4ff_100%)]">
+
+        {/* Decorative background accents */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+          <div className="absolute -right-28 -top-28 h-[420px] w-[420px] rounded-full bg-sky-200/25 blur-3xl" />
+          <div className="absolute -bottom-32 -left-24 h-[380px] w-[380px] rounded-full bg-emerald-200/20 blur-3xl" />
+          <div className="absolute bottom-0 right-0 h-72 w-72 translate-x-1/3 translate-y-1/3 rotate-12 bg-white/35" />
+        </div>
 
         {/* Mobile-Only Top Brand Bar */}
-        <div className="lg:hidden flex items-center justify-between w-full max-w-md mb-8 pb-4 border-b border-slate-100">
+        <div className="relative z-10 lg:hidden flex items-center justify-between w-full max-w-md mb-8 pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -203,11 +225,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           </div>
         </div>
 
-        <div className="w-full max-w-md space-y-6">
+        <div className="relative z-10 w-full max-w-[480px] xl:max-w-[520px] space-y-7">
 
-          {/* Greeting Header (Logo di atas Halo ditiadakan sesuai instruksi) */}
-          <div className="space-y-1.5 text-center">
-            <h2 className="text-3xl sm:text-4xl font-black text-[#022854] tracking-tight">
+          {/* Brand mark above the greeting (desktop only; mobile has the top bar) */}
+          <div className="hidden lg:flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/spindo-logo.png"
+              alt="SPINDO Logo"
+              className="h-14 xl:h-16 w-auto object-contain"
+            />
+          </div>
+
+          {/* Greeting Header */}
+          <div className="space-y-2 text-center">
+            <h2 className="text-3xl sm:text-[40px] font-black text-[#022854] tracking-tight">
               Halo
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 font-normal">
@@ -216,7 +248,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <form onSubmit={handleSubmit} className="space-y-5 pt-1">
 
             {/* Error Notification */}
             {errorMsg && (
@@ -228,7 +260,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
             {/* Field: Username */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 block text-left">
+              <label className="text-[13px] font-bold text-slate-700 block text-left">
                 Username
               </label>
               <div className="relative">
@@ -243,14 +275,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     setErrorMsg('');
                   }}
                   placeholder="admin"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 shadow-2xs focus:border-[#16805c] focus:outline-hidden focus:ring-4 focus:ring-[#16805c]/10 transition-all placeholder:text-slate-400 font-mono"
+                  className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 shadow-2xs focus:border-[#16805c] focus:outline-hidden focus:ring-4 focus:ring-[#16805c]/10 transition-all placeholder:text-slate-400 font-mono"
                 />
               </div>
             </div>
 
             {/* Field: Password */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 block text-left">
+              <label className="text-[13px] font-bold text-slate-700 block text-left">
                 Password
               </label>
               <div className="relative">
@@ -264,7 +296,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     setErrorMsg('');
                   }}
                   placeholder="••••••••••"
-                  className="w-full pl-10 pr-11 py-3 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 shadow-2xs focus:border-[#16805c] focus:outline-hidden focus:ring-4 focus:ring-[#16805c]/10 transition-all placeholder:text-slate-400 font-mono"
+                  className="w-full pl-10 pr-11 py-3.5 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 shadow-2xs focus:border-[#16805c] focus:outline-hidden focus:ring-4 focus:ring-[#16805c]/10 transition-all placeholder:text-slate-400 font-mono"
                 />
                 <button
                   type="button"
@@ -308,7 +340,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 py-3.5 px-4 rounded-xl bg-[#16805c] hover:bg-[#126c4d] active:bg-[#0e563e] text-white font-bold text-sm shadow-md shadow-[#16805c]/20 hover:shadow-lg hover:shadow-[#16805c]/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 group"
+              className="w-full mt-2 py-4 px-4 rounded-xl bg-[#16805c] hover:bg-[#126c4d] active:bg-[#0e563e] text-white font-bold text-[15px] shadow-[0_12px_30px_-12px_rgba(22,128,92,0.55)] hover:shadow-lg hover:shadow-[#16805c]/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 group"
             >
               {isLoading ? (
                 <span className="animate-pulse">Memproses Masuk...</span>
