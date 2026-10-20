@@ -49,6 +49,8 @@ import {
   History
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import { tooltipStyleStrong, tooltipStyle } from '@/lib/chartTheme';
+import { moveCard, resizeCard } from '@/lib/cardLayout';
 
 ChartJS.register(...registerables);
 
@@ -115,20 +117,12 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
     } catch {}
   }, [cards, isMounted]);
 
-  const handleWidthChange = (id: string, width: CardWidth) => {
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, width } : c)));
+  const handleWidthChange = (id: string, newWidth: CardWidth) => {
+    setCards((prev) => resizeCard(prev, id, newWidth));
   };
 
   const handleMove = (index: number, direction: 'left' | 'right') => {
-    const targetIndex = direction === 'left' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= cards.length) return;
-    setCards((prev) => {
-      const next = [...prev];
-      const temp = next[index];
-      next[index] = next[targetIndex];
-      next[targetIndex] = temp;
-      return next;
-    });
+    setCards((prev) => moveCard(prev, index, direction));
   };
 
   // Filter & Search States
@@ -493,17 +487,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(15, 23, 42, 0.96)',
-          titleColor: '#f8fafc',
-          bodyColor: '#f1f5f9',
-          titleFont: { size: 12, weight: 'bold' as const },
-          bodyFont: { size: 11 },
-          padding: { top: 10, bottom: 10, left: 14, right: 14 },
-          cornerRadius: 8,
-          boxPadding: 4,
-          usePointStyle: true,
-          borderColor: 'rgba(255, 255, 255, 0.12)',
-          borderWidth: 1,
+          ...tooltipStyleStrong,
           callbacks: {
             title: (items: any[]) => {
               if (!items.length) return '';
@@ -755,17 +739,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           display: false,
         },
         tooltip: {
-          backgroundColor: 'rgba(15, 23, 42, 0.94)',
-          titleColor: '#f8fafc',
-          bodyColor: '#f1f5f9',
-          titleFont: { size: 12, weight: 'bold' as const },
-          bodyFont: { size: 11 },
-          padding: { top: 8, bottom: 8, left: 12, right: 12 },
-          cornerRadius: 8,
-          boxPadding: 4,
-          usePointStyle: true,
-          borderColor: 'rgba(255, 255, 255, 0.1)',
-          borderWidth: 1,
+          ...tooltipStyle,
           callbacks: {
             title: (items: any[]) => {
               if (!items.length) return '';
@@ -1159,17 +1133,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(15, 23, 42, 0.96)',
-          titleColor: '#f8fafc',
-          bodyColor: '#f1f5f9',
-          titleFont: { size: 12, weight: 'bold' as const },
-          bodyFont: { size: 11 },
-          padding: { top: 10, bottom: 10, left: 14, right: 14 },
-          cornerRadius: 8,
-          boxPadding: 4,
-          usePointStyle: true,
-          borderColor: 'rgba(255, 255, 255, 0.12)',
-          borderWidth: 1,
+          ...tooltipStyleStrong,
           callbacks: {
             title: (items: any[]) => {
               if (!items.length) return '';
@@ -1289,17 +1253,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           display: false,
         },
         tooltip: {
-          backgroundColor: 'rgba(15, 23, 42, 0.94)',
-          titleColor: '#f8fafc',
-          bodyColor: '#f1f5f9',
-          titleFont: { size: 12, weight: 'bold' as const },
-          bodyFont: { size: 11 },
-          padding: { top: 8, bottom: 8, left: 12, right: 12 },
-          cornerRadius: 8,
-          boxPadding: 4,
-          usePointStyle: true,
-          borderColor: 'rgba(255, 255, 255, 0.1)',
-          borderWidth: 1,
+          ...tooltipStyle,
           callbacks: {
             label: (context: any) => {
               const label = context.label || '';

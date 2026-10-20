@@ -4,6 +4,12 @@ import * as path from 'path';
 import db from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { CustomRole, PRESET_ROLES } from '@/types/auth';
+import {
+  isAuthContext,
+  rejectCrossOrigin,
+  requireAuth,
+  requirePermission,
+} from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -44,7 +50,10 @@ function writeRolesToJson(roles: CustomRole[]) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (!isAuthContext(auth)) return auth;
+
   try {
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase.from('roles').select('*').order('id', { ascending: true });
@@ -91,6 +100,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const crossOrigin = rejectCrossOrigin(request);
+  if (crossOrigin) return crossOrigin;
+
+  const auth = await requirePermission(request, 'canManageUsers');
+  if (!isAuthContext(auth)) return auth;
+
   try {
     const body = await request.json();
     const { id, key, name, description, color, permissions, action } = body;
@@ -194,6 +209,12 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const crossOrigin = rejectCrossOrigin(request);
+  if (crossOrigin) return crossOrigin;
+
+  const auth = await requirePermission(request, 'canManageUsers');
+  if (!isAuthContext(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');

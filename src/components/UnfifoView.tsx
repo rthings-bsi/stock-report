@@ -33,6 +33,8 @@ import {
 } from 'lucide-react';
 import { formatTon, formatQty, cn } from '@/lib/utils';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import { tooltipStyle } from '@/lib/chartTheme';
+import { moveCard, resizeCard } from '@/lib/cardLayout';
 
 ChartJS.register(...registerables);
 
@@ -218,33 +220,19 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
   }, [pipeCards, coilCards, isMounted]);
 
   const handleMovePipe = (index: number, direction: 'left' | 'right') => {
-    const targetIdx = direction === 'left' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= pipeCards.length) return;
-    const newCards = [...pipeCards];
-    const [moved] = newCards.splice(index, 1);
-    newCards.splice(targetIdx, 0, moved);
-    setPipeCards(newCards);
+    setPipeCards((prev) => moveCard(prev, index, direction));
   };
 
   const handleMoveCoil = (index: number, direction: 'left' | 'right') => {
-    const targetIdx = direction === 'left' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= coilCards.length) return;
-    const newCards = [...coilCards];
-    const [moved] = newCards.splice(index, 1);
-    newCards.splice(targetIdx, 0, moved);
-    setCoilCards(newCards);
+    setCoilCards((prev) => moveCard(prev, index, direction));
   };
 
   const handleWidthChangePipe = (id: string, newWidth: CardWidth) => {
-    setPipeCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, width: newWidth } : c))
-    );
+    setPipeCards((prev) => resizeCard(prev, id, newWidth));
   };
 
   const handleWidthChangeCoil = (id: string, newWidth: CardWidth) => {
-    setCoilCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, width: newWidth } : c))
-    );
+    setCoilCards((prev) => resizeCard(prev, id, newWidth));
   };
 
   // Helper date parser
@@ -619,17 +607,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
         display: false,
       },
       tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.94)',
-        titleColor: '#f8fafc',
-        bodyColor: '#f1f5f9',
-        titleFont: { size: 12, weight: 'bold' as const },
-        bodyFont: { size: 11 },
-        padding: { top: 8, bottom: 8, left: 12, right: 12 },
-        cornerRadius: 8,
-        boxPadding: 4,
-        usePointStyle: true,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
+        ...tooltipStyle,
         callbacks: {
           label: function (context: any) {
             const val = context.raw || 0;
@@ -684,17 +662,7 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
         display: false,
       },
       tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.94)',
-        titleColor: '#f8fafc',
-        bodyColor: '#f1f5f9',
-        titleFont: { size: 12, weight: 'bold' as const },
-        bodyFont: { size: 11 },
-        padding: { top: 8, bottom: 8, left: 12, right: 12 },
-        cornerRadius: 8,
-        boxPadding: 4,
-        usePointStyle: true,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
+        ...tooltipStyle,
         callbacks: {
           label: function (context: any) {
             const val = context.raw || 0;

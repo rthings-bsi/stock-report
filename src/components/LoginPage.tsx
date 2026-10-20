@@ -12,7 +12,7 @@ import {
   Users,
   FileSpreadsheet
 } from 'lucide-react';
-import { UserSession, StoredAccount, PRESET_ACCOUNTS } from '@/types/auth';
+import { UserSession } from '@/types/auth';
 
 interface LoginPageProps {
   onLogin: (session: UserSession, rememberMe?: boolean) => void;
@@ -32,68 +32,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      // 1. Validasi ke Backend API (Supabase / SQLite)
-      const res = await fetch(
-        `/api/users?username=${encodeURIComponent(username.trim())}&password=${encodeURIComponent(password)}`
-      );
-      const data = await res.json();
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+          rememberMe
+        })
+      });
+      const data = await res.json().catch(() => null);
 
-      if (res.ok && data.success && data.user) {
-        onLogin({
-          username: data.user.username,
-          name: data.user.name,
-          role: data.user.role,
-          department: data.user.department || 'Warehouse Staff',
-          unit: data.user.unit || 'Unit 5 - Spindo'
-        }, rememberMe);
-        return;
-      }
-
-      // 2. Fallback jika offline / preset local
-      const localUsersStr = localStorage.getItem('spindo_users_list');
-      const customUsers: StoredAccount[] = localUsersStr ? JSON.parse(localUsersStr) : [];
-      const allAccounts = [...PRESET_ACCOUNTS, ...customUsers];
-
-      const match = allAccounts.find(
-        (acc) =>
-          acc.username.trim().toLowerCase() === username.trim().toLowerCase() &&
-          acc.password === password
-      );
-
-      if (match) {
-        onLogin({
-          username: match.username,
-          name: match.name,
-          role: match.role,
-          department: match.department,
-          unit: match.unit
-        }, rememberMe);
+      if (res.ok && data?.success && data.user) {
+        onLogin(
+          {
+            username: data.user.username,
+            name: data.user.name,
+            role: data.user.role,
+            department: data.user.department || 'Warehouse Staff',
+            unit: data.user.unit || 'Unit 5 - Spindo'
+          },
+          rememberMe
+        );
       } else {
         setErrorMsg(data?.error || 'Username atau password tidak sesuai.');
       }
     } catch {
-      // Offline fallback
-      const localUsersStr = localStorage.getItem('spindo_users_list');
-      const customUsers: StoredAccount[] = localUsersStr ? JSON.parse(localUsersStr) : [];
-      const allAccounts = [...PRESET_ACCOUNTS, ...customUsers];
-
-      const match = allAccounts.find(
-        (acc) =>
-          acc.username.trim().toLowerCase() === username.trim().toLowerCase() &&
-          acc.password === password
-      );
-
-      if (match) {
-        onLogin({
-          username: match.username,
-          name: match.name,
-          role: match.role,
-          department: match.department,
-          unit: match.unit
-        }, rememberMe);
-      } else {
-        setErrorMsg('Username atau password tidak sesuai.');
-      }
+      setErrorMsg('Tidak dapat terhubung ke server. Periksa koneksi Anda lalu coba lagi.');
     } finally {
       setIsLoading(false);
     }

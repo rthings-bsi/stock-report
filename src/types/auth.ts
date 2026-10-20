@@ -203,24 +203,3 @@ export const PRESET_ROLES: CustomRole[] = [
     permissions: DEFAULT_VIEWER_PERMISSIONS
   }
 ];
-
-export const PRESET_ACCOUNTS: StoredAccount[] = [
-  {
-    id: 1,
-    username: 'admin',
-    password: '123',
-    name: 'Administrator Warehouse',
-    role: 'admin',
-    department: 'Warehouse Section Head',
-    unit: 'Unit 5 - Spindo'
-  },
-  {
-    id: 2,
-    username: 'staff',
-    password: '123',
-    name: 'Staff Operasional Warehouse',
-    role: 'staff',
-    department: 'Warehouse Monitoring Staff',
-    unit: 'Unit 5 - Spindo'
-  }
-];

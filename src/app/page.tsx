@@ -178,6 +178,8 @@ export default function Home() {
 
   // Fetch packaging buffer stock settings & master box data
   useEffect(() => {
+    if (!currentUser) return;
+
     fetch('/api/settings?key=packaging_buffer_stock')
       .then((r) => r.json())
       .then((res) => {
@@ -201,7 +203,7 @@ export default function Home() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [currentUser]);
 
   const handleUpdateMasterData = async (newMaster: Record<string, string[]>) => {
     setPackagingMasterData(newMaster);
@@ -221,6 +223,8 @@ export default function Home() {
 
   // Fetch all system & custom roles
   useEffect(() => {
+    if (!currentUser) return;
+
     const fetchRoles = async () => {
       try {
         const res = await fetch('/api/roles');
@@ -235,7 +239,7 @@ export default function Home() {
       }
     };
     fetchRoles();
-  }, []);
+  }, [currentUser]);
 
   // Sync active tab from query param ?tab= or localStorage so tab persists across refresh without hash (#)
   useEffect(() => {
@@ -268,61 +272,49 @@ export default function Home() {
     } catch {}
   };
 
-  // Load saved auth session (sessionStorage takes precedence; fallback to valid rememberMe in localStorage)
+  // Sesi diverifikasi ke server (cookie HttpOnly), bukan dipercaya dari localStorage.
   useEffect(() => {
-    try {
-      // 1. Cek active session dari sessionStorage (hilang saat tab/browser ditutup)
-      const sessionAuth = sessionStorage.getItem('spindo_auth_session');
-      if (sessionAuth) {
-        setCurrentUser(JSON.parse(sessionAuth));
-        setIsAuthChecking(false);
-        return;
-      }
+    let cancelled = false;
 
-      // 2. Cek apakah ada opsi "Ingat Saya" (dengan masa berlaku 7 hari)
-      const rememberAuthStr = localStorage.getItem('spindo_auth_remember');
-      if (rememberAuthStr) {
-        const rememberData = JSON.parse(rememberAuthStr);
-        if (rememberData.expiresAt && Date.now() < rememberData.expiresAt && rememberData.user) {
-          setCurrentUser(rememberData.user);
-          sessionStorage.setItem('spindo_auth_session', JSON.stringify(rememberData.user));
-          setIsAuthChecking(false);
-          return;
-        } else {
-          // Token expired, hapus
-          localStorage.removeItem('spindo_auth_remember');
+    const checkSession = async () => {
+      try {
+        const res = await fetch('/api/auth', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          if (!cancelled && data?.success && data.user) {
+            setCurrentUser(data.user);
+          }
         }
+      } catch {
+        // Offline / server tidak tersedia: tetap tampilkan halaman login.
+      } finally {
+        // Bersihkan sisa sesi lama yang dulu disimpan di browser.
+        try {
+          sessionStorage.removeItem('spindo_auth_session');
+          localStorage.removeItem('spindo_auth_remember');
+          localStorage.removeItem('spindo_auth_user');
+        } catch {}
+        if (!cancelled) setIsAuthChecking(false);
       }
+    };
 
-      // Bersihkan legacy permanent login jika ada
-      localStorage.removeItem('spindo_auth_user');
-    } catch {}
-    setIsAuthChecking(false);
+    checkSession();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const handleLogin = (session: UserSession, rememberMe: boolean = false) => {
+  const handleLogin = (session: UserSession, _rememberMe: boolean = false) => {
+    // Cookie sesi sudah dipasang oleh /api/auth (HttpOnly).
     setCurrentUser(session);
-    try {
-      // Selalu simpan di sessionStorage agar aktif selama tab/window terbuka
-      sessionStorage.setItem('spindo_auth_session', JSON.stringify(session));
-
-      if (rememberMe) {
-        // Simpan di localStorage dengan masa berlaku 7 hari
-        const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
-        localStorage.setItem(
-          'spindo_auth_remember',
-          JSON.stringify({ user: session, expiresAt })
-        );
-      } else {
-        localStorage.removeItem('spindo_auth_remember');
-      }
-
-      // Hapus legacy permanent auth key
-      localStorage.removeItem('spindo_auth_user');
-    } catch {}
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Hapus cookie sesi di server terlebih dahulu agar refresh tidak login ulang.
+    try {
+      await fetch('/api/auth', { method: 'DELETE' });
+    } catch {}
+
     setCurrentUser(null);
     setIsCustomizingLayout(false);
     try {
@@ -474,8 +466,10 @@ export default function Home() {
     }
   };
 
-  // Load latest state from SQLite DB & localStorage on mount
+  // Load latest state from SQLite DB & localStorage setelah login
   useEffect(() => {
+    if (!currentUser) return;
+
     async function loadSavedData() {
       // 1. Coba load dari localStorage terlebih dahulu untuk respon instan offline
       try {
@@ -634,10 +628,11 @@ export default function Home() {
       }
     }
     loadSavedData();
-  }, []);
+  }, [currentUser]);
 
   // Load STO data on-demand saat tab STO aktif agar initial page load cepat & aman dari limit payload Vercel
   useEffect(() => {
+    if (!currentUser) return;
     if (activeTab === 'sto' && stoData.length === 0) {
       const fetchStoOnDemand = async () => {
         try {
@@ -680,10 +675,11 @@ export default function Home() {
       };
       fetchStoOnDemand();
     }
-  }, [activeTab, selectedSnapshotKey, stoData.length]);
+  }, [currentUser, activeTab, selectedSnapshotKey, stoData.length]);
 
   // Load Audit SLoc data on-demand saat tab audit_sloc aktif agar initial page load cepat & aman dari limit payload Vercel
   useEffect(() => {
+    if (!currentUser) return;
     if (activeTab === 'audit_sloc' && auditSLocData.length === 0) {
       const fetchAuditSLocOnDemand = async () => {
         try {
@@ -726,7 +722,7 @@ export default function Home() {
       };
       fetchAuditSLocOnDemand();
     }
-  }, [activeTab, selectedSnapshotKey, auditSLocData.length]);
+  }, [currentUser, activeTab, selectedSnapshotKey, auditSLocData.length]);
 
   // Simpan manual / Simpan Otomatis state aktif ke Database & LocalStorage
   const handleSaveData = async () => {

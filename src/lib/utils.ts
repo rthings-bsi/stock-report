@@ -77,3 +77,17 @@ export function formatPercent(
     maximumFractionDigits: decimals,
   })}%`;
 }
+
+/** Urutkan array berdasarkan field (angka atau teks), tanpa mengubah array asli. */
+export function sortBy<T>(items: T[], field: keyof T, dir: 'asc' | 'desc'): T[] {
+  return [...items].sort((a, b) => {
+    const vA = a[field] ?? '';
+    const vB = b[field] ?? '';
+    if (typeof vA === 'number' && typeof vB === 'number') {
+      return dir === 'asc' ? vA - vB : vB - vA;
+    }
+    return dir === 'asc'
+      ? String(vA).localeCompare(String(vB))
+      : String(vB).localeCompare(String(vA));
+  });
+}

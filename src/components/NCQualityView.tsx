@@ -7,7 +7,7 @@ import {
 } from 'chart.js';
 import { Chart, Doughnut } from 'react-chartjs-2';
 import { PipeNCWarehouse, PipeNCItem, WarehousePipeCapacity } from '../types/warehouse';
-import { formatTon, formatPercent, cn } from '@/lib/utils';
+import { formatTon, formatPercent, cn, sortBy } from '@/lib/utils';
 import { getPipeType, extractPipeDimension } from '@/lib/parser';
 import {
   ShieldAlert,
@@ -29,6 +29,8 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import { tooltipStyle } from '@/lib/chartTheme';
+import { moveCard, resizeCard } from '@/lib/cardLayout';
 
 ChartJS.register(...registerables);
 
@@ -112,18 +114,11 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
   }, [cards, isMounted]);
 
   const handleWidthChange = (id: string, newWidth: CardWidth) => {
-    setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, width: newWidth } : c))
-    );
+    setCards((prev) => resizeCard(prev, id, newWidth));
   };
 
   const handleMove = (index: number, direction: 'left' | 'right') => {
-    const targetIdx = direction === 'left' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= cards.length) return;
-    const newCards = [...cards];
-    const [moved] = newCards.splice(index, 1);
-    newCards.splice(targetIdx, 0, moved);
-    setCards(newCards);
+    setCards((prev) => moveCard(prev, index, direction));
   };
 
   // Normalisasi data item NC (memastikan type LT/ST dan ukuran akurat sesuai rumus panjang terkini)
@@ -185,13 +180,13 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               matchingItems
                 .filter((i) => i.grade === 'Grade E')
                 .reduce((sum, i) => sum + (i.totalTon || 0), 0)
-                .toFixed(1)
+                .toFixed(3)
             );
             const gradeC = Number(
               matchingItems
                 .filter((i) => i.grade === 'Grade C')
                 .reduce((sum, i) => sum + (i.totalTon || 0), 0)
-                .toFixed(1)
+                .toFixed(3)
             );
 
             // 2. Ambil prime sesuai tipe pipa (LT / ST) dari data gudang riil
@@ -205,10 +200,10 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   const totalStockType = (cap.fgLt || 0) + (cap.wipLt || 0);
                   prime = Math.max(0, totalStockType - (gradeE + gradeC));
                 } else {
-                  prime = Number((w.prime * 0.8).toFixed(1));
+                  prime = Number((w.prime * 0.8).toFixed(3));
                 }
               } else {
-                prime = Number((w.prime * 0.8).toFixed(1));
+                prime = Number((w.prime * 0.8).toFixed(3));
               }
             } else {
               if (typeof w.primeSt === 'number') {
@@ -219,14 +214,14 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   const totalStockType = (cap.fgSt || 0) + (cap.wipSt || 0);
                   prime = Math.max(0, totalStockType - (gradeE + gradeC));
                 } else {
-                  prime = Number((w.prime * 0.2).toFixed(1));
+                  prime = Number((w.prime * 0.2).toFixed(3));
                 }
               } else {
-                prime = Number((w.prime * 0.2).toFixed(1));
+                prime = Number((w.prime * 0.2).toFixed(3));
               }
             }
 
-            prime = Number(prime.toFixed(1));
+            prime = Number(prime.toFixed(3));
             const totalWh = prime + gradeE + gradeC;
             const persenGradeE = totalWh > 0 ? (gradeE / totalWh) * 100 : 0;
             const persenGradeC = totalWh > 0 ? (gradeC / totalWh) * 100 : 0;
@@ -585,7 +580,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                 const idx = items[0].dataIndex;
                 const w = effectiveWarehouseData[idx];
                 const totalW = w ? w.prime + w.gradeC + w.gradeE : 0;
-                return `${w?.gudang} (Total Stock: ${formatTon(totalW)})`;
+                return `${w?.gudang} (Total Stock: ${formatTon(totalW, { decimals: 2 })})`;
               }
               return '';
             },
@@ -597,15 +592,15 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
 
               if (context.dataset.label?.includes('PRIME')) {
                 const pct = totalW > 0 ? (w.prime / totalW) * 100 : 0;
-                return ` PRIME: ${formatTon(w.prime)} (${formatPercent(pct)})`;
+                return ` PRIME: ${formatTon(w.prime, { decimals: 2 })} (${formatPercent(pct)})`;
               }
               if (context.dataset.label?.includes('Grade C') || context.dataset.label?.includes('Grd C')) {
                 const pct = w.persenGradeC ?? (totalW > 0 ? (w.gradeC / totalW) * 100 : 0);
-                return ` Grade C: ${formatTon(w.gradeC)} (${formatPercent(pct)})`;
+                return ` Grade C: ${formatTon(w.gradeC, { decimals: 2 })} (${formatPercent(pct)})`;
               }
               if (context.dataset.label?.includes('Grade E') || context.dataset.label?.includes('Grd E')) {
                 const pct = w.persenGradeE;
-                return ` Grade E: ${formatTon(w.gradeE)} (${formatPercent(pct)})`;
+                return ` Grade E: ${formatTon(w.gradeE, { decimals: 2 })} (${formatPercent(pct)})`;
               }
               return ` ${context.dataset.label}: ${context.formattedValue}`;
             },
@@ -716,17 +711,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
         display: false,
       },
       tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.94)',
-        titleColor: '#f8fafc',
-        bodyColor: '#f1f5f9',
-        titleFont: { size: 12, weight: 'bold' as const },
-        bodyFont: { size: 11 },
-        padding: { top: 8, bottom: 8, left: 12, right: 12 },
-        cornerRadius: 8,
-        boxPadding: 4,
-        usePointStyle: true,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
+        ...tooltipStyle,
         callbacks: {
           label: (ctx: any) => ` ${ctx.label}: ${(ctx.parsed || 0).toFixed(2)} Ton`,
         },
@@ -734,22 +719,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     },
   };
 
-  const sortItems = <T,>(
-    items: T[],
-    field: keyof T,
-    dir: 'asc' | 'desc'
-  ) => {
-    return [...items].sort((a, b) => {
-      const vA = a[field] ?? '';
-      const vB = b[field] ?? '';
-      if (typeof vA === 'number' && typeof vB === 'number') {
-        return dir === 'asc' ? vA - vB : vB - vA;
-      }
-      return dir === 'asc'
-        ? String(vA).localeCompare(String(vB))
-        : String(vB).localeCompare(String(vA));
-    });
-  };
+  const sortItems = sortBy;
 
   const renderSortHeader = <T,>(
     label: string,
@@ -883,13 +853,13 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   </span>
                 </td>
                 <td className="py-3 px-3.5 text-right text-emerald-900 font-semibold font-mono">
-                  {item.fgTon ? formatTon(item.fgTon) : '-'}
+                  {item.fgTon ? formatTon(item.fgTon, { decimals: 2 }) : '-'}
                 </td>
                 <td className="py-3 px-3.5 text-right text-slate-500 font-mono">
-                  {item.wipTon ? formatTon(item.wipTon) : '-'}
+                  {item.wipTon ? formatTon(item.wipTon, { decimals: 2 }) : '-'}
                 </td>
                 <td className={`py-3 px-3.5 text-right font-bold text-xs font-mono ${isGradeE ? 'text-rose-800 font-black' : 'text-amber-900 font-bold'}`}>
-                  {formatTon(item.totalTon)}
+                  {formatTon(item.totalTon, { decimals: 2 })}
                 </td>
                 <td className="py-3 px-3.5 min-w-[200px] max-w-[300px]">
                   <div className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-mono leading-tight break-words border shadow-2xs ${
@@ -916,10 +886,10 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               <td colSpan={4} className="py-3 px-3.5 text-left uppercase tracking-wider text-slate-700 text-[10px] font-mono">
                 Total 10 Terbesar ({sorted.length} Item)
               </td>
-              <td className="py-3 px-3.5 text-right text-emerald-900 font-mono">{formatTon(sumFg)}</td>
-              <td className="py-3 px-3.5 text-right text-slate-500 font-mono">{formatTon(sumWip)}</td>
+              <td className="py-3 px-3.5 text-right text-emerald-900 font-mono">{formatTon(sumFg, { decimals: 2 })}</td>
+              <td className="py-3 px-3.5 text-right text-slate-500 font-mono">{formatTon(sumWip, { decimals: 2 })}</td>
               <td className={`py-3 px-3.5 text-right text-xs font-mono ${isGradeE ? 'text-rose-800 font-black' : 'text-amber-900 font-bold'}`}>
-                {formatTon(sumTotal)}
+                {formatTon(sumTotal, { decimals: 2 })}
               </td>
               <td className="py-3 px-3.5 text-right">
                 <button
@@ -1014,7 +984,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                     </div>
                   </td>
                   <td className="py-3 px-3.5 text-right font-medium text-emerald-900 font-mono">
-                    {formatTon(item.prime)}
+                    {formatTon(item.prime, { decimals: 2 })}
                   </td>
                   <td className="py-3 px-3.5 text-right relative font-mono">
                     <div
@@ -1024,7 +994,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                       style={{ width: `${barWidthE * 0.7}%` }}
                     />
                     <span className={`relative z-1 font-bold ${isTop3 ? 'text-rose-800 font-black' : 'text-rose-700'}`}>
-                      {formatTon(item.gradeE)}
+                      {formatTon(item.gradeE, { decimals: 2 })}
                     </span>
                   </td>
                   <td className="py-3 px-3.5 text-right whitespace-nowrap font-mono">
@@ -1046,7 +1016,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                       style={{ width: `${barWidthC * 0.7}%` }}
                     />
                     <span className={`relative z-1 font-bold ${isTop3C ? 'text-amber-800 font-black' : 'text-amber-900'}`}>
-                      {formatTon(item.gradeC)}
+                      {formatTon(item.gradeC, { decimals: 2 })}
                     </span>
                   </td>
                   <td className="py-3 px-3.5 text-right whitespace-nowrap font-mono">
@@ -1070,16 +1040,16 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                 Total
               </td>
               <td className="py-3 px-3.5 text-right text-emerald-900 font-bold font-mono">
-                {formatTon(totalPrime)}
+                {formatTon(totalPrime, { decimals: 2 })}
               </td>
               <td className="py-3 px-3.5 text-right text-rose-800 font-black font-mono">
-                {formatTon(totalGradeE)}
+                {formatTon(totalGradeE, { decimals: 2 })}
               </td>
               <td className="py-3 px-3.5 text-right font-black text-rose-800 font-mono">
                 {formatPercent(persenGradeETotal)}
               </td>
               <td className="py-3 px-3.5 text-right text-amber-900 font-bold font-mono">
-                {formatTon(totalGradeC)}
+                {formatTon(totalGradeC, { decimals: 2 })}
               </td>
               <td className="py-3 px-3.5 text-right font-black text-amber-900 font-mono">
                 {formatPercent(persenGradeCTotal)}
@@ -1383,13 +1353,13 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                         </span>
                       </td>
                       <td className="py-3 px-3.5 text-right text-emerald-900 font-semibold font-mono">
-                        {item.fgTon ? formatTon(item.fgTon) : '-'}
+                        {item.fgTon ? formatTon(item.fgTon, { decimals: 2 }) : '-'}
                       </td>
                       <td className="py-3 px-3.5 text-right text-slate-500 font-mono">
-                        {item.wipTon ? formatTon(item.wipTon) : '-'}
+                        {item.wipTon ? formatTon(item.wipTon, { decimals: 2 }) : '-'}
                       </td>
                       <td className="py-3 px-3.5 text-right font-bold text-slate-950 text-xs font-mono bg-slate-50/40">
-                        {formatTon(item.totalTon)}
+                        {formatTon(item.totalTon, { decimals: 2 })}
                       </td>
                       <td className="py-3 px-3.5 min-w-[240px] max-w-[340px]">
                         <div className="inline-block bg-amber-50/80 border border-amber-200/80 text-amber-950 px-2.5 py-1 rounded-md text-[11px] font-mono leading-tight break-words shadow-2xs" title={item.remarks}>
@@ -1413,13 +1383,13 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                     Total ({sortedModalNCItems.length} Item NC)
                   </td>
                   <td className="py-3 px-3.5 text-right text-emerald-900 font-bold font-mono">
-                    {formatTon(modalTotalFg)}
+                    {formatTon(modalTotalFg, { decimals: 2 })}
                   </td>
                   <td className="py-3 px-3.5 text-right text-slate-600 font-bold font-mono">
-                    {formatTon(modalTotalWip)}
+                    {formatTon(modalTotalWip, { decimals: 2 })}
                   </td>
                   <td className="py-3 px-3.5 text-right text-slate-950 font-black text-xs font-mono bg-slate-200/60">
-                    {formatTon(modalTotalTon)}
+                    {formatTon(modalTotalTon, { decimals: 2 })}
                   </td>
                   <td className="py-3 px-3.5 text-left text-slate-500 text-[10px] font-normal font-mono">
                     Tonase Terdaftar

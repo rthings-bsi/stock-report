@@ -9,6 +9,14 @@ import {
 } from '../../../lib/supabaseNormalized';
 import { calculateSTOPeriodSummary } from '../../../lib/parseStockOpname';
 import { calculateAuditSLocPeriodSummary } from '../../../lib/parseAuditSLoc';
+import {
+  hasPermission,
+  isAuthContext,
+  rejectCrossOrigin,
+  requireAuth,
+  requirePermission,
+} from '@/lib/auth-server';
+import { RolePermissions } from '@/types/auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -99,6 +107,9 @@ function getLatestNonEmptySqliteCol(db: any, colName: string, minLength = 5): an
 }
 
 export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (!isAuthContext(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key') || 'latest';
@@ -789,6 +800,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const crossOrigin = rejectCrossOrigin(request);
+  if (crossOrigin) return crossOrigin;
+
+  const auth = await requireAuth(request);
+  if (!isAuthContext(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const body = await request.json();
@@ -796,6 +813,13 @@ export async function POST(request: Request) {
     // Handler simpan modul STO secara terpisah agar tidak kena limit payload 4.5 MB Vercel
     const isStoModulePost = searchParams.get('module') === 'sto' || body.module === 'sto';
     if (isStoModulePost) {
+      if (!hasPermission(auth, 'canUploadSTO') && !hasPermission(auth, 'canEditSTO')) {
+        return NextResponse.json(
+          { success: false, error: 'Akses ditolak untuk menyimpan data STO.' },
+          { status: 403 }
+        );
+      }
+
       const dateKey = body.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
       const nowStr = body.lastUpdated || new Date().toLocaleString('id-ID');
       const stoList = Array.isArray(body.stoData) ? body.stoData : [];
@@ -837,6 +861,16 @@ export async function POST(request: Request) {
     // Handler simpan modul Audit SLoc secara terpisah agar tidak kena limit payload Vercel
     const isAuditSLocModulePost = searchParams.get('module') === 'audit_sloc' || body.module === 'audit_sloc';
     if (isAuditSLocModulePost) {
+      if (
+        !hasPermission(auth, 'canUploadAuditSLoc') &&
+        !hasPermission(auth, 'canEditAuditSLoc')
+      ) {
+        return NextResponse.json(
+          { success: false, error: 'Akses ditolak untuk menyimpan data Audit SLoc.' },
+          { status: 403 }
+        );
+      }
+
       const dateKey = body.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
       const nowStr = body.lastUpdated || new Date().toLocaleString('id-ID');
       const auditList = Array.isArray(body.auditSLocData) ? body.auditSLocData : (Array.isArray(body.data) ? body.data : []);
@@ -871,6 +905,39 @@ export async function POST(request: Request) {
         }
       }
       return NextResponse.json({ success: true, message: 'Audit SLoc data saved successfully' });
+    }
+
+    const categories: string[] = Array.isArray(body.uploadedCategories)
+      ? body.uploadedCategories.filter((c: unknown): c is string => typeof c === 'string')
+      : [];
+    const categoryPermissions: Record<string, keyof RolePermissions> = {
+      pipe: 'canUploadPipe',
+      coil: 'canUploadCoil',
+      loo: 'canUploadLoo',
+      damaged_pkg: 'canUploadDamagedPkg',
+      incoming_pkg: 'canUploadIncomingPkg',
+      progress_nc: 'canUploadProgressNC',
+      sto: 'canUploadSTO',
+      audit_sloc: 'canUploadAuditSLoc',
+    };
+
+    if (categories.length > 0) {
+      const denied = categories.some(
+        (category) =>
+          categoryPermissions[category] &&
+          !hasPermission(auth, categoryPermissions[category])
+      );
+      if (denied) {
+        return NextResponse.json(
+          { success: false, error: 'Akses ditolak untuk salah satu kategori upload.' },
+          { status: 403 }
+        );
+      }
+    } else if (!hasPermission(auth, 'canSaveSnapshot')) {
+      return NextResponse.json(
+        { success: false, error: 'Akses ditolak untuk menyimpan snapshot.' },
+        { status: 403 }
+      );
     }
 
     const {
@@ -1489,6 +1556,12 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const crossOrigin = rejectCrossOrigin(request);
+  if (crossOrigin) return crossOrigin;
+
+  const auth = await requirePermission(request, 'canManageUsers');
+  if (!isAuthContext(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');

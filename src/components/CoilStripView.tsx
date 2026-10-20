@@ -25,6 +25,8 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import { tooltipStyle } from '@/lib/chartTheme';
+import { moveCard, resizeCard } from '@/lib/cardLayout';
 
 ChartJS.register(...registerables);
 
@@ -84,18 +86,11 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
   }, [cards, isMounted]);
 
   const handleWidthChange = (id: string, newWidth: CardWidth) => {
-    setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, width: newWidth } : c))
-    );
+    setCards((prev) => resizeCard(prev, id, newWidth));
   };
 
   const handleMove = (index: number, direction: 'left' | 'right') => {
-    const targetIdx = direction === 'left' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= cards.length) return;
-    const newCards = [...cards];
-    const [moved] = newCards.splice(index, 1);
-    newCards.splice(targetIdx, 0, moved);
-    setCards(newCards);
+    setCards((prev) => moveCard(prev, index, direction));
   };
 
   // Aggregated KPIs
@@ -262,17 +257,7 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
         display: false,
       },
       tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.94)',
-        titleColor: '#f8fafc',
-        bodyColor: '#f1f5f9',
-        titleFont: { size: 12, weight: 'bold' as const },
-        bodyFont: { size: 11 },
-        padding: { top: 8, bottom: 8, left: 12, right: 12 },
-        cornerRadius: 8,
-        boxPadding: 4,
-        usePointStyle: true,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
+        ...tooltipStyle,
         callbacks: {
           label: function (context: any) {
             const val = context.raw || 0;

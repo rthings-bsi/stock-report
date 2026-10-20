@@ -25,6 +25,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import { moveCard, resizeCard } from '@/lib/cardLayout';
 
 ChartJS.register(...registerables);
 
@@ -105,18 +106,11 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   const handleWidthChange = (id: string, newWidth: CardWidth) => {
-    setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, width: newWidth } : c))
-    );
+    setCards((prev) => resizeCard(prev, id, newWidth));
   };
 
   const handleMove = (index: number, direction: 'left' | 'right') => {
-    const targetIdx = direction === 'left' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= cards.length) return;
-    const newCards = [...cards];
-    const [moved] = newCards.splice(index, 1);
-    newCards.splice(targetIdx, 0, moved);
-    setCards(newCards);
+    setCards((prev) => moveCard(prev, index, direction));
   };
 
   // Customer List

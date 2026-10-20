@@ -280,8 +280,12 @@ CREATE TABLE IF NOT EXISTS customer_breakdown (
 CREATE INDEX IF NOT EXISTS idx_cust_breakdown_snap ON customer_breakdown(snapshot_key);
 
 -- ==============================================================================
--- ENABLE ROW LEVEL SECURITY (RLS) & PUBLIC POLICIES
+-- ENABLE ROW LEVEL SECURITY (RLS)
 -- ==============================================================================
+-- Aplikasi hanya mengakses Supabase dari server memakai SUPABASE_SERVICE_ROLE_KEY.
+-- Service role otomatis melewati RLS. Karena itu tidak ada policy untuk anon /
+-- authenticated: seluruh akses langsung dari browser/anon key akan ditolak.
+-- Jalankan juga supabase_security_lockdown.sql pada database yang sudah ada.
 DO $$
 DECLARE
   tbl text;
@@ -294,10 +298,17 @@ BEGIN
   FOREACH tbl IN ARRAY tbls LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', tbl);
     EXECUTE format('DROP POLICY IF EXISTS "Allow read %I" ON %I;', tbl, tbl);
-    EXECUTE format('CREATE POLICY "Allow read %I" ON %I FOR SELECT TO anon, authenticated USING (true);', tbl, tbl);
     EXECUTE format('DROP POLICY IF EXISTS "Allow write %I" ON %I;', tbl, tbl);
-    EXECUTE format('CREATE POLICY "Allow write %I" ON %I FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);', tbl, tbl);
   END LOOP;
+END $$;
+
+-- Cabut hak akses tabel dari role anon (defense in depth).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    EXECUTE 'REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon';
+    EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon';
+  END IF;
 END $$;
 
 -- ==============================================================================

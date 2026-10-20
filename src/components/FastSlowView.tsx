@@ -7,7 +7,7 @@ import {
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { FastSlowPipe, UnfifoPipeItem, WarehousePipeCapacity } from '../types/warehouse';
-import { formatTon, formatQty, formatPercent, cn } from '@/lib/utils';
+import { formatTon, formatQty, formatPercent, cn, sortBy } from '@/lib/utils';
 import {
   Clock,
   PieChart,
@@ -23,6 +23,8 @@ import {
   Search
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import { tooltipStyle } from '@/lib/chartTheme';
+import { moveCard, resizeCard } from '@/lib/cardLayout';
 
 ChartJS.register(...registerables);
 
@@ -128,18 +130,11 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
   }, [cards, isMounted]);
 
   const handleWidthChange = (id: string, newWidth: CardWidth) => {
-    setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, width: newWidth } : c))
-    );
+    setCards((prev) => resizeCard(prev, id, newWidth));
   };
 
   const handleMove = (index: number, direction: 'left' | 'right') => {
-    const targetIdx = direction === 'left' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= cards.length) return;
-    const newCards = [...cards];
-    const [moved] = newCards.splice(index, 1);
-    newCards.splice(targetIdx, 0, moved);
-    setCards(newCards);
+    setCards((prev) => moveCard(prev, index, direction));
   };
 
   // Available gudang list from data
@@ -887,17 +882,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.94)',
-        titleColor: '#f8fafc',
-        bodyColor: '#f1f5f9',
-        titleFont: { size: 12, weight: 'bold' as const },
-        bodyFont: { size: 11 },
-        padding: { top: 8, bottom: 8, left: 12, right: 12 },
-        cornerRadius: 8,
-        boxPadding: 4,
-        usePointStyle: true,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
+        ...tooltipStyle,
         callbacks: {
           label: (ctx: any) => ` ${ctx.label}: ${(ctx.parsed || 0).toFixed(2)} Ton`,
         },
@@ -905,22 +890,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     },
   };
 
-  const sortItems = <T,>(
-    items: T[],
-    field: keyof T,
-    dir: 'asc' | 'desc'
-  ) => {
-    return [...items].sort((a, b) => {
-      const vA = a[field] ?? '';
-      const vB = b[field] ?? '';
-      if (typeof vA === 'number' && typeof vB === 'number') {
-        return dir === 'asc' ? vA - vB : vB - vA;
-      }
-      return dir === 'asc'
-        ? String(vA).localeCompare(String(vB))
-        : String(vB).localeCompare(String(vA));
-    });
-  };
+  const sortItems = sortBy;
 
   const renderSortHeader = <T,>(
     label: string,

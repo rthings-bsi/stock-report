@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import * as path from 'path';
 import * as fs from 'fs';
+import { randomBytes } from 'crypto';
+import bcrypt from 'bcryptjs';
 
 let db: any = null;
 
@@ -191,15 +193,110 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
           insertRole.run('viewer', 'Viewer / Auditor', 'Akses pemantauan visual (view-only) tanpa izin modifikasi data atau upload file.', 'slate', 0, viewerPerms);
         }
 
-        // Seed default accounts if empty
+        // Seed akun awal hanya jika password diberikan lewat environment.
+        const adminInitialPassword = process.env.ADMIN_INITIAL_PASSWORD;
+        const staffInitialPassword = process.env.STAFF_INITIAL_PASSWORD;
         const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
         if (userCount.count === 0) {
-          const insertUser = db.prepare(`
-            INSERT INTO users (username, password, name, role, department, unit)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `);
-          insertUser.run('admin', '123', 'Administrator Warehouse', 'admin', 'Warehouse Section Head', 'Unit 5 - Spindo');
-          insertUser.run('staff', '123', 'Staff Operasional Warehouse', 'staff', 'Warehouse Monitoring Staff', 'Unit 5 - Spindo');
+          if (!adminInitialPassword || adminInitialPassword.length < 8) {
+            console.warn(
+              '[SECURITY] Tidak ada user. Set ADMIN_INITIAL_PASSWORD (minimal 8 karakter) untuk membuat admin pertama.'
+            );
+          } else {
+            const insertUser = db.prepare(`
+              INSERT INTO users (username, password, name, role, department, unit)
+              VALUES (?, ?, ?, ?, ?, ?)
+            `);
+            insertUser.run(
+              'admin',
+              bcrypt.hashSync(adminInitialPassword, 12),
+              'Administrator Warehouse',
+              'admin',
+              'Warehouse Section Head',
+              'Unit 5 - Spindo'
+            );
+
+            if (staffInitialPassword && staffInitialPassword.length >= 8) {
+              insertUser.run(
+                'staff',
+                bcrypt.hashSync(staffInitialPassword, 12),
+                'Staff Operasional Warehouse',
+                'staff',
+                'Warehouse Monitoring Staff',
+                'Unit 5 - Spindo'
+              );
+            }
+          }
+        }
+
+        // Migrasi password default/plaintext lama agar tidak ada kredensial lemah tersisa.
+        try {
+          const existingUsers = db
+            .prepare('SELECT id, username, password FROM users')
+            .all() as Array<{ id: number; username: string; password: string }>;
+          const knownWeak = ['123', 'admin', 'password', '123456', '12345678', 'spindo', 'spindo123', 'qwerty'];
+          // Hanya kandidat umum yang dicek terhadap hash (mahal). Untuk password
+          // plaintext, seluruh daftar di atas tetap dipakai.
+          const hashedWeakCandidates = ['123'];
+
+          for (const user of existingUsers) {
+            const stored = String(user.password || '');
+            const isBcrypt =
+              stored.startsWith('$2a$') ||
+              stored.startsWith('$2b$') ||
+              stored.startsWith('$2y$');
+
+            let isWeak = false;
+            if (isBcrypt) {
+              for (const candidate of hashedWeakCandidates) {
+                try {
+                  if (bcrypt.compareSync(candidate, stored)) {
+                    isWeak = true;
+                    break;
+                  }
+                } catch {}
+              }
+            } else {
+              isWeak =
+                knownWeak.includes(stored.trim().toLowerCase()) || stored.trim().length < 8;
+            }
+
+            if (!isWeak) {
+              // Password plaintext non-lemah tetap di-hash agar tidak tersimpan terbuka.
+              if (!isBcrypt) {
+                db.prepare(
+                  'UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+                ).run(bcrypt.hashSync(stored, 12), user.id);
+              }
+              continue;
+            }
+
+            let replacement: string | null = null;
+            if (
+              user.username === 'admin' &&
+              adminInitialPassword &&
+              adminInitialPassword.length >= 8
+            ) {
+              replacement = adminInitialPassword;
+            } else if (
+              user.username === 'staff' &&
+              staffInitialPassword &&
+              staffInitialPassword.length >= 8
+            ) {
+              replacement = staffInitialPassword;
+            } else {
+              replacement = randomBytes(18).toString('base64url');
+              console.warn(
+                `[SECURITY] Password default terdeteksi untuk user "${user.username}". Password acak baru: ${replacement}`
+              );
+            }
+
+            db.prepare(
+              'UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+            ).run(bcrypt.hashSync(replacement, 12), user.id);
+          }
+        } catch (migErr) {
+          console.warn('Migrasi password user gagal:', migErr);
         }
       } catch (e) {
         console.warn('Could not initialize SQLite instance:', e);

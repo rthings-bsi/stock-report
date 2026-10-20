@@ -29,7 +29,7 @@ import {
   X,
   Trash2
 } from 'lucide-react';
-import { UserSession, StoredAccount, PRESET_ACCOUNTS } from '@/types/auth';
+import { UserSession } from '@/types/auth';
 
 export interface SnapshotMeta {
   snapshot_key: string;
@@ -143,55 +143,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
     setIsVerifyingReset(true);
     setResetError('');
-    const targetUsername = currentUser?.username || 'admin';
 
     try {
-      // 1. Verifikasi ke Backend API
-      const res = await fetch(
-        `/api/users?username=${encodeURIComponent(targetUsername)}&password=${encodeURIComponent(trimmedPassword)}`
-      );
-      const data = await res.json();
+      const res = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: trimmedPassword })
+      });
+      const data = await res.json().catch(() => null);
 
-      if (res.ok && data.success && data.user) {
-        await executeResetAction();
-        return;
-      }
-
-      // 2. Fallback offline check (localStorage / PRESET_ACCOUNTS)
-      const localUsersStr = typeof window !== 'undefined' ? localStorage.getItem('spindo_users_list') : null;
-      const customUsers: StoredAccount[] = localUsersStr ? JSON.parse(localUsersStr) : [];
-      const allAccounts = [...PRESET_ACCOUNTS, ...customUsers];
-
-      const match = allAccounts.find(
-        (acc) =>
-          acc.username.trim().toLowerCase() === targetUsername.trim().toLowerCase() &&
-          acc.password === trimmedPassword
-      );
-
-      // Fallback password default admin '123'
-      if (match || (currentUser?.role === 'admin' && trimmedPassword === '123')) {
+      if (res.ok && data?.success) {
         await executeResetAction();
         return;
       }
 
       setResetError(data?.error || 'Password salah. Pastikan password akun yang Anda masukkan benar.');
     } catch {
-      // Offline fallback
-      const localUsersStr = typeof window !== 'undefined' ? localStorage.getItem('spindo_users_list') : null;
-      const customUsers: StoredAccount[] = localUsersStr ? JSON.parse(localUsersStr) : [];
-      const allAccounts = [...PRESET_ACCOUNTS, ...customUsers];
-
-      const match = allAccounts.find(
-        (acc) =>
-          acc.username.trim().toLowerCase() === targetUsername.trim().toLowerCase() &&
-          acc.password === trimmedPassword
-      );
-
-      if (match || (currentUser?.role === 'admin' && trimmedPassword === '123')) {
-        await executeResetAction();
-      } else {
-        setResetError('Password salah. Pastikan password akun yang Anda masukkan benar.');
-      }
+      setResetError('Tidak dapat memverifikasi password. Periksa koneksi ke server.');
     } finally {
       setIsVerifyingReset(false);
     }

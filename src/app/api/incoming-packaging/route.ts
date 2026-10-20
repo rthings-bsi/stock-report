@@ -3,6 +3,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { supabase, isSupabaseConfigured } from '../../../lib/supabase';
 import { IncomingPackagingItem } from '../../../types/warehouse';
+import {
+  hasPermission,
+  isAuthContext,
+  rejectCrossOrigin,
+  requireAuth,
+  requirePermission,
+} from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -67,6 +74,9 @@ function getLocalDb() {
 }
 
 export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (!isAuthContext(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
@@ -198,6 +208,21 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const crossOrigin = rejectCrossOrigin(request);
+  if (crossOrigin) return crossOrigin;
+
+  const auth = await requireAuth(request);
+  if (!isAuthContext(auth)) return auth;
+  if (
+    !hasPermission(auth, 'canEditIncomingPkg') &&
+    !hasPermission(auth, 'canUploadIncomingPkg')
+  ) {
+    return NextResponse.json(
+      { success: false, error: 'Akses ditolak untuk mengubah data incoming packaging.' },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await request.json();
     const items: IncomingPackagingItem[] = Array.isArray(body) ? body : (body.items || []);
@@ -304,6 +329,12 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const crossOrigin = rejectCrossOrigin(request);
+  if (crossOrigin) return crossOrigin;
+
+  const auth = await requirePermission(request, 'canEditIncomingPkg');
+  if (!isAuthContext(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

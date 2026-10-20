@@ -1219,8 +1219,9 @@ export function parseExcelFiles(
     const endsWithC = !endsWithPrime && (upperBatch.endsWith('C') || upperBatch.endsWith('0C') || upperBatch.endsWith('L0C'));
     const endsWithE = !endsWithPrime && (upperBatch.endsWith('E') || upperBatch.endsWith('0E') || upperBatch.endsWith('L0E'));
 
-    const isGradeC = endsWithC || upperCust.includes('GRADE C') || pasg.includes('GRADE C') || pasg.includes('MUTU C') || pasg.includes('GRD C') || upperCust.includes('REPAIR');
-    const isGradeE = endsWithE || upperCust.includes('GRADE E') || pasg.includes('GRADE E') || pasg.includes('MUTU E') || pasg.includes('GRD E') || upperCust.includes('HOLD');
+    // Grade hanya dari akhiran batch C/E. Baris tanpa suffix C/E tidak masuk grade mana pun.
+    const isGradeC = endsWithC;
+    const isGradeE = endsWithE;
 
     const isNC = !endsWithPrime && (
       isGradeC ||
@@ -1291,21 +1292,20 @@ export function parseExcelFiles(
       target.yearlySlowTon[extractedYear] += tonase;
     }
 
-    if (isNC) {
-      const assignedGrade: 'Grade C' | 'Grade E' = isGradeC ? 'Grade C' : isGradeE ? 'Grade E' : (endsWithPrime ? 'Grade C' : 'Grade E');
-      if (isGradeC) {
+    // Hanya baris NC dengan suffix batch C/E yang masuk bucket grade.
+    // Baris NC tanpa suffix C/E (mis. batch B) diabaikan dari Grade C/E dan tidak dianggap Prime.
+    const assignedGrade: 'Grade C' | 'Grade E' = isGradeC ? 'Grade C' : 'Grade E';
+    const isGradedNC = isNC && (isGradeC || isGradeE);
+
+    if (isGradedNC) {
+      if (assignedGrade === 'Grade C') {
         target.gradeCTon += tonase;
         if (isLT) target.gradeCLtTon += tonase;
         else target.gradeCStTon += tonase;
-      } else if (isGradeE) {
+      } else {
         target.gradeETon += tonase;
         if (isLT) target.gradeELtTon += tonase;
         else target.gradeEStTon += tonase;
-      } else {
-        // NC tanpa grade eksplisit (dari cust remark catch-all) — default Grade C (less severe)
-        target.gradeCTon += tonase;
-        if (isLT) target.gradeCLtTon += tonase;
-        else target.gradeCStTon += tonase;
       }
 
       const custName = customer || 'General Stock';
@@ -1337,7 +1337,7 @@ export function parseExcelFiles(
       if (isFG) ncItemAggMap[aggKey].fgTon += tonase;
       if (isWIP) ncItemAggMap[aggKey].wipTon += tonase;
       ncItemAggMap[aggKey].totalTon += tonase;
-    } else {
+    } else if (!isNC) {
       target.primeTon += tonase;
       if (isLT) target.primeLtTon += tonase;
       else target.primeStTon += tonase;
@@ -1345,7 +1345,7 @@ export function parseExcelFiles(
 
     const rawKodeMat = matNum || `MAT-${idx}`;
     const baseKodeMat = getMaterialBaseKey(rawKodeMat);
-    const pipeGrade: 'PRIME' | 'Grade C' | 'Grade E' = isGradeE ? 'Grade E' : (isGradeC ? 'Grade C' : 'PRIME');
+    const pipeGrade: 'PRIME' | 'Grade C' | 'Grade E' | null = !isNC ? 'PRIME' : isGradeC ? 'Grade C' : isGradeE ? 'Grade E' : null;
 
     if (!stockByMaterial[baseKodeMat]) {
       stockByMaterial[baseKodeMat] = {
@@ -1386,7 +1386,7 @@ export function parseExcelFiles(
     } else if (pipeGrade === 'Grade C') {
       stockByMaterial[baseKodeMat].gradeCTon += tonase;
       stockByMaterial[baseKodeMat].gudangBreakdown[g].gradeCTon += tonase;
-    } else {
+    } else if (pipeGrade === 'Grade E') {
       stockByMaterial[baseKodeMat].gradeETon += tonase;
       stockByMaterial[baseKodeMat].gudangBreakdown[g].gradeETon += tonase;
     }
@@ -1496,16 +1496,16 @@ export function parseExcelFiles(
     const persenGradeE = total > 0 ? (d.gradeETon / total) * 100 : 0;
     return {
       gudang: g,
-      prime: Number(d.primeTon.toFixed(1)),
-      gradeE: Number(d.gradeETon.toFixed(1)),
-      gradeC: Number(d.gradeCTon.toFixed(1)),
+      prime: Number(d.primeTon.toFixed(3)),
+      gradeE: Number(d.gradeETon.toFixed(3)),
+      gradeC: Number(d.gradeCTon.toFixed(3)),
       persenGradeE: Number(persenGradeE.toFixed(1)),
-      primeLt: Number(d.primeLtTon.toFixed(1)),
-      primeSt: Number(d.primeStTon.toFixed(1)),
-      gradeELt: Number(d.gradeELtTon.toFixed(1)),
-      gradeESt: Number(d.gradeEStTon.toFixed(1)),
-      gradeCLt: Number(d.gradeCLtTon.toFixed(1)),
-      gradeCSt: Number(d.gradeCStTon.toFixed(1)),
+      primeLt: Number(d.primeLtTon.toFixed(3)),
+      primeSt: Number(d.primeStTon.toFixed(3)),
+      gradeELt: Number(d.gradeELtTon.toFixed(3)),
+      gradeESt: Number(d.gradeEStTon.toFixed(3)),
+      gradeCLt: Number(d.gradeCLtTon.toFixed(3)),
+      gradeCSt: Number(d.gradeCStTon.toFixed(3)),
     };
   });
 

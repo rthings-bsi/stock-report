@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabase, isSupabaseConfigured } from '../../../lib/supabase';
+import {
+  hasPermission,
+  isAuthContext,
+  rejectCrossOrigin,
+  requireAuth,
+} from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -25,6 +31,9 @@ function getLocalDb() {
 }
 
 export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (!isAuthContext(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
@@ -123,12 +132,51 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const crossOrigin = rejectCrossOrigin(request);
+  if (crossOrigin) return crossOrigin;
+
+  const auth = await requireAuth(request);
+  if (!isAuthContext(auth)) return auth;
+
   try {
     const body = await request.json();
     const { key, value } = body;
 
     if (!key) {
       return NextResponse.json({ success: false, error: 'Key is required' }, { status: 400 });
+    }
+
+    // Least privilege per jenis setting:
+    // - Kapasitas gudang: hanya canManageCapacity
+    // - Master/buffer packaging: canManageCapacity atau canUploadSAP
+    // - Catatan issue UNFIFO: minimal bisa melihat UNFIFO
+    // - Key lain: hanya pengelola user (admin)
+    if (key === 'warehouse_capacity_config') {
+      if (!hasPermission(auth, 'canManageCapacity')) {
+        return NextResponse.json(
+          { success: false, error: 'Akses ditolak untuk mengubah konfigurasi kapasitas.' },
+          { status: 403 }
+        );
+      }
+    } else if (key === 'packaging_buffer_stock' || key === 'packaging_master_db') {
+      if (!hasPermission(auth, 'canManageCapacity') && !hasPermission(auth, 'canUploadSAP')) {
+        return NextResponse.json(
+          { success: false, error: 'Akses ditolak untuk mengubah master packaging.' },
+          { status: 403 }
+        );
+      }
+    } else if (key === 'unfifo_pipe_issues' || key === 'unfifo_coil_issues') {
+      if (!hasPermission(auth, 'viewUnfifo')) {
+        return NextResponse.json(
+          { success: false, error: 'Akses ditolak untuk mengubah catatan UNFIFO.' },
+          { status: 403 }
+        );
+      }
+    } else if (!hasPermission(auth, 'canManageUsers')) {
+      return NextResponse.json(
+        { success: false, error: 'Akses ditolak untuk mengubah setting ini.' },
+        { status: 403 }
+      );
     }
 
     const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
