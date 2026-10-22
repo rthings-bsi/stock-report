@@ -46,6 +46,23 @@ const DEFAULT_CARDS: CardState[] = [
   { id: 'recap-table', width: 'col-span-12' },
 ];
 
+/**
+ * Kompatibilitas snapshot lama: mapping generik sempat menaruh 5G di Gd.07
+ * dan 5H di Gd.08. Mapping yang benar adalah 5G -> Gd.08 dan 5H -> Gd.09.
+ */
+function normalizeLegacyCoilGudang(data: CoilStripArea[]): CoilStripArea[] {
+  if (!data.some((row) => row.gudang === 'Gd.07')) return data;
+  return data.map((row) => {
+    if (row.gudang === 'Gd.07') {
+      return { ...row, gudang: 'Gd.08', area: row.area.replace('Gd.07', 'Gd.08') };
+    }
+    if (row.gudang === 'Gd.08') {
+      return { ...row, gudang: 'Gd.09', area: row.area.replace('Gd.08', 'Gd.09') };
+    }
+    return row;
+  });
+}
+
 export const CoilStripView: React.FC<CoilStripViewProps> = ({
   data,
   isCustomizing = false
@@ -56,7 +73,7 @@ export const CoilStripView: React.FC<CoilStripViewProps> = ({
 
   // Hanya tampilkan area gudang yang memiliki stok aktual (gudang kosong disembunyikan)
   const rows = useMemo(() => {
-    return data.filter(
+    return normalizeLegacyCoilGudang(data).filter(
       (d) =>
         (d.totalTon || 0) > 0 ||
         (d.totalQty || 0) > 0 ||
