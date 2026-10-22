@@ -7,7 +7,7 @@ import {
 } from 'chart.js';
 import { Chart, Doughnut } from 'react-chartjs-2';
 import { PipeNCWarehouse, PipeNCItem, WarehousePipeCapacity } from '../types/warehouse';
-import { formatTon, formatPercent, cn, sortBy } from '@/lib/utils';
+import { formatTon, formatPercent, formatQty, cn, sortBy } from '@/lib/utils';
 import { getPipeType, extractPipeDimension } from '@/lib/parser';
 import {
   ShieldAlert,
@@ -239,6 +239,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               gradeESt: w.gradeESt,
               gradeCLt: w.gradeCLt,
               gradeCSt: w.gradeCSt,
+              qty: isLT ? w.qtyLt : w.qtySt,
+              qtyLt: w.qtyLt,
+              qtySt: w.qtySt,
             };
           });
 
@@ -775,6 +778,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     const sumFg = items.reduce((a, b) => a + (b.fgTon || 0), 0);
     const sumWip = items.reduce((a, b) => a + (b.wipTon || 0), 0);
     const sumTotal = items.reduce((a, b) => a + (b.totalTon || 0), 0);
+    const sumQty = items.reduce((a, b) => a + (b.qty || 0), 0);
 
     const isGradeE = targetGrade === 'Grade E';
 
@@ -796,6 +800,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               {renderSortHeader('FG (T)', 'fgTon', sortField, sortDir, handleSort, 'right', 'text-emerald-900 font-bold')}
               {renderSortHeader('WIP (T)', 'wipTon', sortField, sortDir, handleSort, 'right', 'text-slate-600 font-bold')}
               {renderSortHeader('Total Ton', 'totalTon', sortField, sortDir, handleSort, 'right', isGradeE ? 'text-rose-900 font-black' : 'text-amber-900 font-bold')}
+              {renderSortHeader('Qty (Btg)', 'qty', sortField, sortDir, handleSort, 'right', 'text-slate-700 font-bold')}
               {renderSortHeader('Remark / No NC', 'remarks', sortField, sortDir, handleSort, 'left', isGradeE ? 'text-rose-900 font-bold' : 'text-amber-900 font-bold')}
             </tr>
           </thead>
@@ -861,6 +866,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                 <td className={`py-3 px-3.5 text-right font-bold text-xs font-mono ${isGradeE ? 'text-rose-800 font-black' : 'text-amber-900 font-bold'}`}>
                   {formatTon(item.totalTon, { decimals: 2 })}
                 </td>
+                <td className="py-3 px-3.5 text-right font-semibold font-mono text-slate-700 whitespace-nowrap">
+                  {item.qty ? formatQty(item.qty) : '-'}
+                </td>
                 <td className="py-3 px-3.5 min-w-[200px] max-w-[300px]">
                   <div className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-mono leading-tight break-words border shadow-2xs ${
                     isGradeE
@@ -875,7 +883,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-slate-400 text-xs font-sans">
+                <td colSpan={9} className="py-8 text-center text-slate-400 text-xs font-sans">
                   Tidak ada item {targetGrade} untuk filter gudang ini
                 </td>
               </tr>
@@ -890,6 +898,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               <td className="py-3 px-3.5 text-right text-slate-500 font-mono">{formatTon(sumWip, { decimals: 2 })}</td>
               <td className={`py-3 px-3.5 text-right text-xs font-mono ${isGradeE ? 'text-rose-800 font-black' : 'text-amber-900 font-bold'}`}>
                 {formatTon(sumTotal, { decimals: 2 })}
+              </td>
+              <td className="py-3 px-3.5 text-right text-slate-700 font-mono">
+                {formatQty(sumQty, { zeroAsDash: true })}
               </td>
               <td className="py-3 px-3.5 text-right">
                 <button
@@ -926,6 +937,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     const sorted = sortItems(effectiveWarehouseData, recapSortField, recapSortDir);
     const maxGradeE = Math.max(...effectiveWarehouseData.map((d) => d.gradeE), 1);
     const maxGradeC = Math.max(...effectiveWarehouseData.map((d) => d.gradeC), 1);
+    const recapTotalQty = effectiveWarehouseData.reduce((acc, d) => acc + (d.qty || 0), 0);
 
     return (
       <div className={cn("overflow-x-auto rounded-xl border border-slate-200/80 shadow-xs bg-white", isExpanded ? "flex-1 overflow-auto max-h-none" : "max-h-[520px] overflow-y-auto")}>
@@ -938,6 +950,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               {renderSortHeader('% Grd E', 'persenGradeE', recapSortField, recapSortDir, handleSort, 'right', 'text-rose-900')}
               {renderSortHeader('Grade C', 'gradeC', recapSortField, recapSortDir, handleSort, 'right', 'text-amber-900')}
               {renderSortHeader('% Grd C', 'persenGradeC', recapSortField, recapSortDir, handleSort, 'right', 'text-amber-900')}
+              {renderSortHeader('Qty (Btg)', 'qty', recapSortField, recapSortDir, handleSort, 'right', 'text-slate-700')}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
@@ -1030,6 +1043,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                       </span>
                     )}
                   </td>
+                  <td className="py-3 px-3.5 text-right whitespace-nowrap font-mono font-semibold text-slate-700">
+                    {item.qty ? formatQty(item.qty) : '-'}
+                  </td>
                 </tr>
               );
             })}
@@ -1053,6 +1069,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               </td>
               <td className="py-3 px-3.5 text-right font-black text-amber-900 font-mono">
                 {formatPercent(persenGradeCTotal)}
+              </td>
+              <td className="py-3 px-3.5 text-right text-slate-700 font-bold font-mono">
+                {formatQty(recapTotalQty, { zeroAsDash: true })}
               </td>
             </tr>
           </tfoot>
@@ -1094,6 +1113,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
   const modalTotalFg = useMemo(() => modalNCItems.reduce((sum, d) => sum + (d.fgTon || 0), 0), [modalNCItems]);
   const modalTotalWip = useMemo(() => modalNCItems.reduce((sum, d) => sum + (d.wipTon || 0), 0), [modalNCItems]);
   const modalTotalTon = useMemo(() => modalNCItems.reduce((sum, d) => sum + (d.totalTon || 0), 0), [modalNCItems]);
+  const modalTotalQty = useMemo(() => modalNCItems.reduce((sum, d) => sum + (d.qty || 0), 0), [modalNCItems]);
 
   const renderNCModal = () => {
     if (!selectedNCModalGrade) return null;
@@ -1123,9 +1143,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
     ).length;
 
     const handleCopyTable = () => {
-      const header = 'No\tGudang\tUkuran\tCustomer\tKode Material\tTipe\tGrade\tFG (Ton)\tWIP (Ton)\tTotal (Ton)\tRemark / No NC';
+      const header = 'No\tGudang\tUkuran\tCustomer\tKode Material\tTipe\tGrade\tFG (Ton)\tWIP (Ton)\tTotal (Ton)\tQty (Btg)\tRemark / No NC';
       const rows = sortedModalNCItems.map((item, idx) =>
-        `${idx + 1}\t${item.gudang}\t${item.ukuran}\t${item.customer}\t${item.kodeMaterial || '-'}\t${item.type}\t${item.grade}\t${item.fgTon}\t${item.wipTon}\t${item.totalTon}\t${item.remarks || item.noNC || '-'}`
+        `${idx + 1}\t${item.gudang}\t${item.ukuran}\t${item.customer}\t${item.kodeMaterial || '-'}\t${item.type}\t${item.grade}\t${item.fgTon}\t${item.wipTon}\t${item.totalTon}\t${item.qty ?? ''}\t${item.remarks || item.noNC || '-'}`
       );
       navigator.clipboard.writeText([header, ...rows].join('\n'));
       alert('Data stock NC berhasil disalin ke clipboard.');
@@ -1310,6 +1330,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   {renderSortHeader('FG (T)', 'fgTon', modalSortField, modalSortDir, handleModalSort, 'right', 'text-emerald-900 font-bold')}
                   {renderSortHeader('WIP (T)', 'wipTon', modalSortField, modalSortDir, handleModalSort, 'right', 'text-slate-600 font-bold')}
                   {renderSortHeader('Total Ton', 'totalTon', modalSortField, modalSortDir, handleModalSort, 'right', 'text-slate-900 font-black')}
+                  {renderSortHeader('Qty (Btg)', 'qty', modalSortField, modalSortDir, handleModalSort, 'right', 'text-slate-700 font-bold')}
                   {renderSortHeader('Remark / No NC', 'remarks', modalSortField, modalSortDir, handleModalSort, 'left', 'text-amber-950 font-bold')}
                 </tr>
               </thead>
@@ -1361,6 +1382,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                       <td className="py-3 px-3.5 text-right font-bold text-slate-950 text-xs font-mono bg-slate-50/40">
                         {formatTon(item.totalTon, { decimals: 2 })}
                       </td>
+                      <td className="py-3 px-3.5 text-right font-semibold text-slate-700 text-xs font-mono">
+                        {item.qty ? formatQty(item.qty) : '-'}
+                      </td>
                       <td className="py-3 px-3.5 min-w-[240px] max-w-[340px]">
                         <div className="inline-block bg-amber-50/80 border border-amber-200/80 text-amber-950 px-2.5 py-1 rounded-md text-[11px] font-mono leading-tight break-words shadow-2xs" title={item.remarks}>
                           {item.remarks || item.noNC || '-'}
@@ -1371,7 +1395,7 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                 })}
                 {sortedModalNCItems.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="py-12 text-center text-slate-400 text-xs font-sans">
+                    <td colSpan={12} className="py-12 text-center text-slate-400 text-xs font-sans">
                       Tidak ditemukan data NC yang sesuai dengan filter pencarian
                     </td>
                   </tr>
@@ -1390,6 +1414,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   </td>
                   <td className="py-3 px-3.5 text-right text-slate-950 font-black text-xs font-mono bg-slate-200/60">
                     {formatTon(modalTotalTon, { decimals: 2 })}
+                  </td>
+                  <td className="py-3 px-3.5 text-right text-slate-800 font-black text-xs font-mono">
+                    {formatQty(modalTotalQty, { zeroAsDash: true })}
                   </td>
                   <td className="py-3 px-3.5 text-left text-slate-500 text-[10px] font-normal font-mono">
                     Tonase Terdaftar
