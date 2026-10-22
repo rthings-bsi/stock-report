@@ -156,6 +156,21 @@ function normalizeGudang(sloc: string | undefined): string {
   return 'Gd.01';
 }
 
+/**
+ * Mapping khusus Coil & Strip.
+ * Di area coil/strip, SLOC 5G adalah Gd.08 dan 5H adalah Gd.09
+ * (Gd.07 tidak dipakai untuk coil/strip).
+ */
+function normalizeCoilGudang(sloc: string | undefined): string {
+  const s = String(sloc || '').toUpperCase().trim();
+  const match = s.match(/(?:^|[\s/_\-])5([A-N])/);
+  if (match) {
+    if (match[1] === 'G') return 'Gd.08';
+    if (match[1] === 'H') return 'Gd.09';
+  }
+  return normalizeGudang(sloc);
+}
+
 function parseNumber(val: unknown): number {
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
   if (!val) return 0;
@@ -1040,6 +1055,8 @@ export function parseExcelFiles(
     gradeCTon: number;
     gradeCLtTon: number;
     gradeCStTon: number;
+    qtyLt: number;
+    qtySt: number;
     yearlySlowTon: Record<string, number>;
   }> = {};
 
@@ -1072,6 +1089,8 @@ export function parseExcelFiles(
       gradeCTon: 0,
       gradeCLtTon: 0,
       gradeCStTon: 0,
+      qtyLt: 0,
+      qtySt: 0,
       yearlySlowTon: {},
     };
   });
@@ -1086,6 +1105,7 @@ export function parseExcelFiles(
     fgTon: number;
     wipTon: number;
     totalTon: number;
+    qty: number;
     noNCList: Set<string>;
     remarksList: Set<string>;
     noNC?: string;
@@ -1253,6 +1273,10 @@ export function parseExcelFiles(
       ? resolvedPipeQty
       : parseNumber(getRowValue(row, ['Unrestricted', 'UNRESTRICTED', 'TTL STOK BOm', 'TTL STOK BOM', 'TTL STOCK BOm', 'Qty', 'Qty (Btg)']) || 0);
 
+    // Qty (batang) per gudang & tipe pipa — dipakai kolom Qty di menu Pipa NC
+    if (isLT) target.qtyLt += rowQty;
+    else target.qtySt += rowQty;
+
     if (hasCustomer) {
       target.customerStock += tonase;
       if (!customerBreakdownMap[g]) customerBreakdownMap[g] = {};
@@ -1323,6 +1347,7 @@ export function parseExcelFiles(
           fgTon: 0,
           wipTon: 0,
           totalTon: 0,
+          qty: 0,
           noNCList: new Set<string>(),
           remarksList: new Set<string>(),
           remarks: rawCustRemark || '-'
@@ -1337,6 +1362,7 @@ export function parseExcelFiles(
       if (isFG) ncItemAggMap[aggKey].fgTon += tonase;
       if (isWIP) ncItemAggMap[aggKey].wipTon += tonase;
       ncItemAggMap[aggKey].totalTon += tonase;
+      ncItemAggMap[aggKey].qty += rowQty;
     } else if (!isNC) {
       target.primeTon += tonase;
       if (isLT) target.primeLtTon += tonase;
@@ -1506,6 +1532,9 @@ export function parseExcelFiles(
       gradeESt: Number(d.gradeEStTon.toFixed(3)),
       gradeCLt: Number(d.gradeCLtTon.toFixed(3)),
       gradeCSt: Number(d.gradeCStTon.toFixed(3)),
+      qty: Math.round(d.qtyLt + d.qtySt),
+      qtyLt: Math.round(d.qtyLt),
+      qtySt: Math.round(d.qtySt),
     };
   });
 
@@ -1526,6 +1555,7 @@ export function parseExcelFiles(
         fgTon: Number(item.fgTon.toFixed(3)),
         wipTon: Number(item.wipTon.toFixed(3)),
         totalTon: Number(item.totalTon.toFixed(3)),
+        qty: item.qty > 0 ? Math.round(item.qty) : undefined,
         noNC: noNCJoined || undefined,
         remarks: remarksJoined || (item.remarks !== '-' ? item.remarks : (item.grade === 'Grade C' ? 'Grade C Repair' : 'Hold Mutu Grade E')),
       };
@@ -1541,7 +1571,7 @@ export function parseExcelFiles(
 
   effectiveCoilRows.forEach(row => {
     const sloc = String(getRowValue(row, ['SLOC', 'Gudang', 'Storage Location', 'SLoc', 'Sloc']) || '');
-    const g = normalizeGudang(sloc);
+    const g = normalizeCoilGudang(sloc);
     const rawMatNum = String(getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Kode Material', 'Material', 'Material No']) || '').trim();
     const rawSpec = String(getRowValue(row, ['Coil Specification', 'COIL SPECIFICATION', 'Coil Spec', 'Specification', 'Spec', 'DESCRIPTION', 'Description']) || '').trim();
     const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi', 'Coil Specification']) || rawSpec).toUpperCase();

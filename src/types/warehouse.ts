@@ -59,6 +59,9 @@ export interface PipeNCWarehouse {
   gradeESt?: number;
   gradeCLt?: number;
   gradeCSt?: number;
+  qty?: number;   // total batang seluruh grade di gudang
+  qtyLt?: number; // total batang tipe LT (panjang)
+  qtySt?: number; // total batang tipe ST (pendek)
 }
 
 export interface PipeNCItem {
@@ -72,6 +75,7 @@ export interface PipeNCItem {
   fgTon: number;
   wipTon: number;
   totalTon: number;
+  qty?: number; // jumlah batang untuk baris item ini
   remarks: string;
   noNC?: string;
 }
