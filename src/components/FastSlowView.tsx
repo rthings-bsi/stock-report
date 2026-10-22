@@ -202,22 +202,37 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     };
   };
 
-  // Global metrics
-  const totalFast = data.reduce((acc, curr) => acc + curr.fastTon, 0);
-  const totalSlow = data.reduce(
-    (acc, curr) => acc + getWarehouseSlowTon(curr, selectedProcessType),
-    0
-  );
-  const grandTotal = totalFast + totalSlow;
+  // Fast/Slow (Ton) mengikuti filter proses, dipakai tabel & donut
+  const pickFastTon = (
+    m: ReturnType<typeof getWarehouseMetrics>,
+    procType: ProcessTypeFilter
+  ): number => (procType === 'FG' ? m.fgFast : procType === 'WIP' ? m.wipFast : m.totalFast);
 
-  const overallFastPct = grandTotal > 0 ? (totalFast / grandTotal) * 100 : 0;
-  const overallSlowPct = grandTotal > 0 ? (totalSlow / grandTotal) * 100 : 0;
+  const pickSlowTon = (
+    m: ReturnType<typeof getWarehouseMetrics>,
+    procType: ProcessTypeFilter
+  ): number => (procType === 'FG' ? m.fgSlow : procType === 'WIP' ? m.wipSlow : m.totalSlow);
 
-  // Active gudang metrics
-  const activeGudangData = useMemo(() => {
-    if (selectedGudang === 'ALL') return null;
-    return data.find((d) => d.gudang === selectedGudang) || null;
-  }, [data, selectedGudang]);
+  // Total seluruh gudang (tanpa filter gudang) yang sudah difilter proses FG/WIP
+  const allGudangTotals = useMemo(() => {
+    const raw = data.reduce(
+      (acc, w) => {
+        const m = getWarehouseMetrics(w);
+        acc.fast += pickFastTon(m, selectedProcessType);
+        acc.slow += pickSlowTon(m, selectedProcessType);
+        return acc;
+      },
+      { fast: 0, slow: 0 }
+    );
+    const total = raw.fast + raw.slow;
+    return {
+      fast: Number(raw.fast.toFixed(2)),
+      slow: Number(raw.slow.toFixed(2)),
+      total: Number(total.toFixed(2)),
+      fastPct: total > 0 ? (raw.fast / total) * 100 : 0,
+      slowPct: total > 0 ? (raw.slow / total) * 100 : 0,
+    };
+  }, [data, pipeCapacities, selectedProcessType]);
 
   // Helper to extract aggregated top slow moving items
   const getTopSlowItems = (
@@ -827,18 +842,42 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
     };
   }, [chartMode, filteredBarData, selectedProcessType, pipeCapacities]);
 
+  // Agregat terfilter proses (FG/WIP) untuk donut & ringkasan.
+  // Sumbernya barChartTotals (sudah mengikuti filter gudang + proses) supaya
+  // angka donut SELALU sama dengan bar chart, bukan memakai fastTon mentah
+  // yang masih mencampur FG + WIP.
+  const processTotals = useMemo(() => {
+    const fast =
+      selectedProcessType === 'FG'
+        ? barChartTotals.fgFast
+        : selectedProcessType === 'WIP'
+        ? barChartTotals.wipFast
+        : barChartTotals.totalFast;
+    const slow =
+      selectedProcessType === 'FG'
+        ? barChartTotals.fgSlow
+        : selectedProcessType === 'WIP'
+        ? barChartTotals.wipSlow
+        : barChartTotals.totalSlow;
+    return {
+      fast: Number(fast.toFixed(2)),
+      slow: Number(slow.toFixed(2)),
+      total: Number((fast + slow).toFixed(2)),
+    };
+  }, [barChartTotals, selectedProcessType]);
+
   // Doughnut Chart Configuration (Reflects Active Gudang or Global)
-  const activeFastTon = activeGudangData ? activeGudangData.fastTon : totalFast;
-  const activeSlowTon = activeGudangData
-    ? getWarehouseSlowTon(activeGudangData, selectedProcessType)
-    : totalSlow;
-  const activeGrandTotal = activeFastTon + activeSlowTon;
+  const activeFastTon = processTotals.fast;
+  const activeSlowTon = processTotals.slow;
+  const activeGrandTotal = processTotals.total;
   const activeFastPct = activeGrandTotal > 0 ? (activeFastTon / activeGrandTotal) * 100 : 0;
   const activeSlowPct = activeGrandTotal > 0 ? (activeSlowTon / activeGrandTotal) * 100 : 0;
 
   const doughnutData = {
     labels: [
-      'Fast Moving',
+      selectedProcessType === 'ALL'
+        ? 'Fast Moving'
+        : `Fast Moving (${selectedProcessType})`,
       selectedProcessType === 'ALL'
         ? 'Slow Moving'
         : `Slow Moving (${selectedProcessType})`
@@ -1878,7 +1917,9 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                       <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50/80 border border-slate-100">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" />
-                          <span className="text-xs font-medium text-slate-600 truncate">Fast Moving ({formatPercent(activeFastPct)})</span>
+                          <span className="text-xs font-medium text-slate-600 truncate">
+                            Fast Moving {selectedProcessType !== 'ALL' ? `(${selectedProcessType}) ` : ''}({formatPercent(activeFastPct)})
+                          </span>
                         </div>
                         <span className="text-xs font-mono font-bold text-slate-800 ml-1 shrink-0">
                           {formatTon(activeFastTon, { decimals: 2 })}
@@ -2013,9 +2054,11 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                       </thead>
                       <tbody className="divide-y divide-slate-100/90 text-slate-800 bg-white">
                         {data.map((item) => {
-                          const currentSlowTon = getWarehouseSlowTon(item, selectedProcessType);
-                          const currentTotalTon = item.fastTon + currentSlowTon;
-                          const currentFastPct = currentTotalTon > 0 ? (item.fastTon / currentTotalTon) * 100 : 0;
+                          const rowMetrics = getWarehouseMetrics(item);
+                          const currentFastTon = pickFastTon(rowMetrics, selectedProcessType);
+                          const currentSlowTon = pickSlowTon(rowMetrics, selectedProcessType);
+                          const currentTotalTon = currentFastTon + currentSlowTon;
+                          const currentFastPct = currentTotalTon > 0 ? (currentFastTon / currentTotalTon) * 100 : 0;
                           const currentSlowPct = currentTotalTon > 0 ? (currentSlowTon / currentTotalTon) * 100 : 0;
                           const isHighSlow = currentSlowPct > 15;
                           const isSelected = selectedGudang === item.gudang;
@@ -2043,7 +2086,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                                 )}
                               </td>
                               <td className="py-3 px-3 text-right font-mono font-semibold text-emerald-800 border-l border-slate-100/90">
-                                {formatTon(item.fastTon)}
+                                {formatTon(currentFastTon)}
                               </td>
                               <td className="py-3 px-3 text-right font-mono text-emerald-900 font-bold border-r border-slate-100/90">
                                 {formatPercent(currentFastPct)}
@@ -2064,11 +2107,11 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                       <tfoot className="border-t border-slate-200/80 bg-slate-50/90 font-bold text-xs text-slate-900">
                         <tr>
                           <td className="py-3 px-3.5 uppercase font-mono text-slate-900">TOTAL</td>
-                          <td className="py-3 px-3 text-right font-mono text-emerald-900 border-l border-slate-200/80">{formatTon(totalFast)}</td>
-                          <td className="py-3 px-3 text-right font-mono text-emerald-900 border-r border-slate-200/80">{formatPercent(overallFastPct)}</td>
-                          <td className="py-3 px-3 text-right font-mono text-amber-900">{formatTon(totalSlow)}</td>
-                          <td className="py-3 px-3 text-right font-mono text-amber-900">{formatPercent(overallSlowPct)}</td>
-                          <td className="py-3 px-3.5 text-right font-mono border-l border-slate-200/80 text-slate-950">{formatTon(grandTotal)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-emerald-900 border-l border-slate-200/80">{formatTon(allGudangTotals.fast)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-emerald-900 border-r border-slate-200/80">{formatPercent(allGudangTotals.fastPct)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-amber-900">{formatTon(allGudangTotals.slow)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-amber-900">{formatPercent(allGudangTotals.slowPct)}</td>
+                          <td className="py-3 px-3.5 text-right font-mono border-l border-slate-200/80 text-slate-950">{formatTon(allGudangTotals.total)}</td>
                         </tr>
                       </tfoot>
                     </table>
@@ -2190,7 +2233,7 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
                             {data.reduce((acc, c) => acc + (c.wipStSlow || 0), 0).toFixed(2)}
                           </td>
                           <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-950">
-                            {totalSlow.toFixed(2)}
+                            {allGudangTotals.slow.toFixed(2)}
                           </td>
                         </tr>
                       </tfoot>
