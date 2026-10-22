@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS nc_warehouse (
   grade_e NUMERIC(12, 2) DEFAULT 0,
   grade_c NUMERIC(12, 2) DEFAULT 0,
   persen_grade_e NUMERIC(6, 2) DEFAULT 0,
+  qty INT,
+  qty_lt INT,
+  qty_st INT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_nc_warehouse_snap ON nc_warehouse(snapshot_key);
@@ -98,6 +101,7 @@ CREATE TABLE IF NOT EXISTS nc_items (
   fg_ton NUMERIC(12, 3) DEFAULT 0,
   wip_ton NUMERIC(12, 3) DEFAULT 0,
   total_ton NUMERIC(12, 3) DEFAULT 0,
+  qty INT,
   remarks TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -403,7 +407,8 @@ BEGIN
       IF r.nc_warehouse_data IS NOT NULL AND jsonb_typeof(r.nc_warehouse_data) = 'array' THEN
         DELETE FROM nc_warehouse WHERE snapshot_key = r.snapshot_key;
         INSERT INTO nc_warehouse (
-          snapshot_key, gudang, prime, grade_e, grade_c, persen_grade_e
+          snapshot_key, gudang, prime, grade_e, grade_c, persen_grade_e,
+          qty, qty_lt, qty_st
         )
         SELECT
           r.snapshot_key,
@@ -411,7 +416,10 @@ BEGIN
           COALESCE((elem->>'prime')::numeric, 0),
           COALESCE((elem->>'gradeE')::numeric, 0),
           COALESCE((elem->>'gradeC')::numeric, 0),
-          COALESCE((elem->>'persenGradeE')::numeric, 0)
+          COALESCE((elem->>'persenGradeE')::numeric, 0),
+          (elem->>'qty')::int,
+          (elem->>'qtyLt')::int,
+          (elem->>'qtySt')::int
         FROM jsonb_array_elements(r.nc_warehouse_data) AS elem;
       END IF;
 
@@ -420,7 +428,7 @@ BEGIN
         DELETE FROM nc_items WHERE snapshot_key = r.snapshot_key;
         INSERT INTO nc_items (
           snapshot_key, item_id, no_nc, gudang, ukuran, customer,
-          kode_material, type, grade, fg_ton, wip_ton, total_ton, remarks
+          kode_material, type, grade, fg_ton, wip_ton, total_ton, qty, remarks
         )
         SELECT
           r.snapshot_key,
@@ -435,6 +443,7 @@ BEGIN
           COALESCE((elem->>'fgTon')::numeric, 0),
           COALESCE((elem->>'wipTon')::numeric, 0),
           COALESCE((elem->>'totalTon')::numeric, 0),
+          (elem->>'qty')::int,
           (elem->>'remarks')::text
         FROM jsonb_array_elements(r.nc_items) AS elem;
       END IF;

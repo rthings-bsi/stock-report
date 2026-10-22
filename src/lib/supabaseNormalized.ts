@@ -20,6 +20,40 @@ async function chunkInsert(supabase: SupabaseClient, table: string, rows: any[])
   );
 }
 
+function isMissingColumnError(err: unknown, column: string): boolean {
+  const msg = String((err as any)?.message || err || '').toLowerCase();
+  return (
+    msg.includes(column.toLowerCase()) &&
+    (msg.includes('does not exist') || msg.includes('could not find') || msg.includes('schema cache'))
+  );
+}
+
+// Kolom qty (nc_items.qty, nc_warehouse.qty/qty_lt/qty_st) baru ada setelah
+// supabase_migration_nc_qty.sql dijalankan. Jika database belum dimigrasi,
+// insert diulang tanpa kolom tersebut supaya upload stock tidak gagal.
+async function chunkInsertWithOptionalColumns(
+  supabase: SupabaseClient,
+  table: string,
+  rows: any[],
+  optionalColumns: string[]
+) {
+  try {
+    await chunkInsert(supabase, table, rows);
+  } catch (err) {
+    if (optionalColumns.length === 0 || !isMissingColumnError(err, optionalColumns[0])) throw err;
+    console.warn(
+      `[Supabase Normalized] Kolom ${optionalColumns.join(', ')} belum ada di tabel ${table}; ` +
+        'insert diulang tanpa kolom tersebut. Jalankan supabase_migration_nc_qty.sql.'
+    );
+    const strippedRows = rows.map((row) => {
+      const clone = { ...row };
+      optionalColumns.forEach((col) => delete clone[col]);
+      return clone;
+    });
+    await chunkInsert(supabase, table, strippedRows);
+  }
+}
+
 export async function getNormalizedSnapshotsListFromSupabase(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from('snapshots')
@@ -205,6 +239,9 @@ export async function getNormalizedSnapshotFromSupabase(
     gradeE: Number(r.grade_e) || 0,
     gradeC: Number(r.grade_c) || 0,
     persenGradeE: Number(r.persen_grade_e) || 0,
+    qty: r.qty === null || r.qty === undefined ? undefined : Number(r.qty),
+    qtyLt: r.qty_lt === null || r.qty_lt === undefined ? undefined : Number(r.qty_lt),
+    qtySt: r.qty_st === null || r.qty_st === undefined ? undefined : Number(r.qty_st),
   }));
 
   // 5. NC Items
@@ -220,6 +257,7 @@ export async function getNormalizedSnapshotFromSupabase(
     fgTon: Number(r.fg_ton) || 0,
     wipTon: Number(r.wip_ton) || 0,
     totalTon: Number(r.total_ton) || 0,
+    qty: r.qty === null || r.qty === undefined ? undefined : Number(r.qty),
     remarks: r.remarks,
   }));
 
@@ -533,8 +571,11 @@ export async function saveNormalizedSnapshotToSupabase(
         grade_e: n.gradeE || 0,
         grade_c: n.gradeC || 0,
         persen_grade_e: n.persenGradeE || 0,
+        qty: n.qty ?? null,
+        qty_lt: n.qtyLt ?? null,
+        qty_st: n.qtySt ?? null,
       }));
-      await chunkInsert(supabase, 'nc_warehouse', rows);
+      await chunkInsertWithOptionalColumns(supabase, 'nc_warehouse', rows, ['qty', 'qty_lt', 'qty_st']);
     })());
   }
 
@@ -555,9 +596,10 @@ export async function saveNormalizedSnapshotToSupabase(
         fg_ton: item.fgTon || 0,
         wip_ton: item.wipTon || 0,
         total_ton: item.totalTon || 0,
+        qty: item.qty ?? null,
         remarks: item.remarks || '',
       }));
-      await chunkInsert(supabase, 'nc_items', rows);
+      await chunkInsertWithOptionalColumns(supabase, 'nc_items', rows, ['qty']);
     })());
   }
 
