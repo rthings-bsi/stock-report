@@ -1,0 +1,75 @@
+{
+  "defaultManpower": {
+    "Gd.01": {
+      "Shift 1": 4,
+      "Shift 2": 3,
+      "Shift 3": 1
+    },
+    "Gd.02": {
+      "Shift 1": 6,
+      "Shift 2": 5,
+      "Shift 3": 1
+    },
+    "Gd.03": {
+      "Shift 1": 3,
+      "Shift 2": 3,
+      "Shift 3": 1
+    },
+    "Gd.04": {
+      "Shift 1": 4,
+      "Shift 2": 4,
+      "Shift 3": 1
+    },
+    "Gd.05": {
+      "Shift 1": 6,
+      "Shift 2": 5,
+      "Shift 3": 3
+    },
+    "Gd.06": {
+      "Shift 1": 4,
+      "Shift 2": 3,
+      "Shift 3": null
+    },
+    "Gd.08": {
+      "Shift 1": 4,
+      "Shift 2": 3,
+      "Shift 3": null
+    },
+    "Gd.09": {
+      "Shift 1": null,
+      "Shift 2": null,
+      "Shift 3": null
+    },
+    "Gd.10": {
+      "Shift 1": 6,
+      "Shift 2": 5,
+      "Shift 3": 5
+    },
+    "Gd.11": {
+      "Shift 1": 6,
+      "Shift 2": 5,
+      "Shift 3": 5
+    },
+    "Gd.12": {
+      "Shift 1": 3,
+      "Shift 2": 3,
+      "Shift 3": 1
+    },
+    "Gd.13": {
+      "Shift 1": 3,
+      "Shift 2": 3,
+      "Shift 3": 3
+    },
+    "Gd.14": {
+      "Shift 1": 5,
+      "Shift 2": 5,
+      "Shift 3": 3
+    }
+  },
+  "dateOverrides": [],
+  "thresholds": {
+    "lowKgPerMan": 5000,
+    "idleTxPerMan": 25,
+    "heavyKgPerTx": 2000
+  }
+}

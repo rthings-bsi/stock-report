@@ -227,6 +227,21 @@ export async function GET(request: Request) {
     const dataset = loadProductivityDataset();
     const headcount = loadHeadcountConfig();
 
+    // Auto-seed ke Supabase jika di cloud deploy tabel productivity_data masih kosong
+    if (dataset && isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('productivity_data').upsert({
+          data_key: 'current',
+          dataset,
+          headcount,
+          last_updated: new Date().toISOString(),
+        }, { onConflict: 'data_key' });
+        console.log('[SUPABASE] Auto-seed dataset produktivitas MB51 ke Supabase berhasil');
+      } catch (seedErr) {
+        console.warn('[SUPABASE] Auto-seed warning:', seedErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       dataset,
