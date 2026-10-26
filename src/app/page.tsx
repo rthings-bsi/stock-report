@@ -148,6 +148,18 @@ export default function Home() {
   const [isCustomizingLayout, setIsCustomizingLayout] = useState<boolean>(false);
   const [selectedSnapshotKey, setSelectedSnapshotKey] = useState<string>('latest');
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState<boolean>(false);
+
+  // String tanggal aktif (YYYY-MM-DD) yang disinkronkan dari header calendar / snapshot terpilih
+  const activeDateString = useMemo(() => {
+    if (!selectedSnapshotKey || selectedSnapshotKey === 'latest') {
+      const mIso = lastUpdated.match(/(\d{4})[./\-](\d{1,2})[./\-](\d{1,2})/);
+      if (mIso) return `${mIso[1]}-${mIso[2].padStart(2, '0')}-${mIso[3].padStart(2, '0')}`;
+      const mLocal = lastUpdated.match(/(\d{1,2})[./\-](\d{1,2})[./\-](\d{4})/);
+      if (mLocal) return `${mLocal[3]}-${mLocal[2].padStart(2, '0')}-${mLocal[1].padStart(2, '0')}`;
+      return new Date().toISOString().slice(0, 10);
+    }
+    return selectedSnapshotKey.replace('snap_', '');
+  }, [selectedSnapshotKey, lastUpdated]);
   const [activeTab, setActiveTab] = useState<TabType>('capacity');
   const [selectedGudangFilter, setSelectedGudangFilter] = useState<string>('ALL');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
@@ -1108,9 +1120,13 @@ export default function Home() {
 
   const handleResetData = async () => {
     try {
-      await fetch('/api/warehouse', { method: 'DELETE' });
+      await Promise.all([
+        fetch('/api/warehouse', { method: 'DELETE' }),
+        fetch('/api/productivity', { method: 'DELETE' }),
+      ]);
+      setProductivityRefreshKey((prev) => prev + 1);
     } catch (err) {
-      console.error('Failed to reset warehouse snapshot:', err);
+      console.error('Failed to reset warehouse and productivity data:', err);
     }
 
     try {
@@ -1152,6 +1168,15 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.success) {
+        // Hapus juga data produktivitas tanggal terkait jika ada
+        const snapDate = key.replace(/^snap_/, '');
+        try {
+          await fetch(`/api/productivity?date=${encodeURIComponent(snapDate)}`, { method: 'DELETE' });
+          setProductivityRefreshKey((prev) => prev + 1);
+        } catch (prodErr) {
+          console.warn('Failed to delete productivity for snapshot date:', prodErr);
+        }
+
         const altKey = key.startsWith('snap_') ? key.replace('snap_', '') : `snap_${key}`;
         const listRes = await fetch('/api/warehouse?list=true', { cache: 'no-store' });
         const listJson = await listRes.json();
@@ -2247,6 +2272,12 @@ export default function Home() {
               <ProductivityView
                 onOpenUploadModal={() => setIsUploadOpen(true)}
                 refreshTrigger={productivityRefreshKey}
+                activeDate={activeDateString}
+                onDateChange={(newDate) => {
+                  if (newDate && newDate !== 'ALL') {
+                    loadSnapshotByKey(`snap_${newDate}`);
+                  }
+                }}
               />
             )}
 

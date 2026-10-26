@@ -580,11 +580,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               isPackaging={true}
             />
 
-            {/* 6. Data Transaksi SAP MB51 (Progres NC, Repair & Produktivitas Gudang) */}
+            {/* 6. Data Transaksi SAP MB51 */}
             <UploadItemRow
               canUpload={canUploadMB51}
               title="Data Transaksi SAP MB51"
-              subtitle="Ekstraksi Progres NC, Repair & Produktivitas Gudang (Shift/HH)"
               file={mb51File}
               onFileChange={setMb51File}
               inputRef={mb51InputRef}

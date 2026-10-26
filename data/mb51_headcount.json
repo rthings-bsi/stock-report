@@ -66,7 +66,14 @@
       "Shift 3": 3
     }
   },
-  "dateOverrides": [],
+  "dateOverrides": [
+    {
+      "tanggal": "2026-10-26",
+      "gudang": "Gd.01",
+      "shift": "Shift 1",
+      "man": 4
+    }
+  ],
   "thresholds": {
     "lowKgPerMan": 5000,
     "idleTxPerMan": 25,

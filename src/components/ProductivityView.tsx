@@ -28,6 +28,8 @@ import {
   Building2,
   SlidersHorizontal,
   ChevronDown,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { tooltipStyleStrong } from '@/lib/chartTheme';
 import { cn } from '@/lib/utils';
@@ -51,6 +53,8 @@ type SubTab = 'matrix' | 'daily_trend' | 'detail_table' | 'hourly_pivot';
 export interface ProductivityViewProps {
   onOpenUploadModal?: () => void;
   refreshTrigger?: number | string;
+  activeDate?: string;
+  onDateChange?: (date: string) => void;
 }
 
 const WAREHOUSE_LIST = [
@@ -123,16 +127,119 @@ function extractMetrics(rec: MB51BucketRecord, calcMode: CalcMode) {
   return { inKg: 0, outKg: rec.rawAbsKg, totalKg: rec.rawAbsKg, tx: rec.rawTx };
 }
 
-export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: ProductivityViewProps = {}) {
+function TableCardContainer({
+  isFullscreen,
+  onCloseFullscreen,
+  children,
+  className,
+}: {
+  isFullscreen: boolean;
+  onCloseFullscreen: () => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  if (isFullscreen) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-3 lg:p-4 animate-in fade-in duration-150"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onCloseFullscreen();
+        }}
+      >
+        <div
+          className={cn(
+            'flex flex-col w-full h-full max-w-[98vw] 2xl:max-w-[1880px] rounded-2xl border border-slate-300 bg-white shadow-2xl overflow-hidden',
+            className
+          )}
+        >
+          {children}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn('rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden', className)}>
+      {children}
+    </div>
+  );
+}
+
+function FullscreenToggleBtn({
+  isFullscreen,
+  onToggle,
+}: {
+  isFullscreen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn(
+        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer active:scale-95 shrink-0',
+        isFullscreen
+          ? 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200 shadow-2xs font-semibold'
+          : 'bg-white border-slate-200/90 text-slate-600 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 shadow-2xs'
+      )}
+      title={isFullscreen ? 'Tutup mode layar penuh (Esc)' : 'Tampilkan tabel layar penuh'}
+    >
+      {isFullscreen ? (
+        <>
+          <Minimize2 className="w-3.5 h-3.5 text-slate-600" />
+          <span className="hidden sm:inline">Tutup Layar Penuh</span>
+        </>
+      ) : (
+        <>
+          <Maximize2 className="w-3.5 h-3.5 text-slate-500" />
+          <span className="hidden sm:inline">Layar Penuh</span>
+        </>
+      )}
+    </button>
+  );
+}
+
+export default function ProductivityView({
+  onOpenUploadModal,
+  refreshTrigger,
+  activeDate,
+  onDateChange,
+}: ProductivityViewProps = {}) {
   const [dataset, setDataset] = useState<MB51Dataset | null>(null);
   const [headcount, setHeadcount] = useState<HeadcountConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('matrix');
+  const [fullscreenTable, setFullscreenTable] = useState<
+    'matrix' | 'daily_tonase' | 'daily_prod' | 'detail_table' | 'hourly_pivot' | null
+  >(null);
+
+  useEffect(() => {
+    if (!fullscreenTable) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFullscreenTable(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [fullscreenTable]);
+
+  useEffect(() => {
+    setFullscreenTable(null);
+  }, [activeSubTab]);
   const [dateMode, setDateMode] = useState<DateMode>('tanggal_kerja');
   const [calcMode, setCalcMode] = useState<CalcMode>('handheld_clean');
-  const [selectedDate, setSelectedDate] = useState<string>('2025-12-09');
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    if (activeDate && activeDate !== 'latest') return activeDate;
+    return '2026-10-26';
+  });
   const [filterShift, setFilterShift] = useState<string>('ALL');
   const [filterGudang, setFilterGudang] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
@@ -171,6 +278,13 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
     setTimeout(() => setToastMsg(null), 3500);
   };
 
+  // Sinkronkan filter tanggal saat dipilih dari kalender header navbar
+  useEffect(() => {
+    if (activeDate && activeDate !== 'latest') {
+      setSelectedDate(activeDate);
+    }
+  }, [activeDate]);
+
   useEffect(() => {
     let mounted = true;
     async function fetchInitial() {
@@ -192,13 +306,15 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
           const isSingleDaySapSplit =
             (json.dataset?.postingDates?.length || 0) === 1 && (json.dataset?.tanggalKerjaDates?.length || 0) > 1;
           if (dates.length) {
-            setSelectedDate(
-              isSingleDaySapSplit
-                ? 'ALL'
-                : dates.includes('2025-12-09')
-                  ? '2025-12-09'
+            if (activeDate && activeDate !== 'latest') {
+              setSelectedDate(activeDate);
+            } else {
+              setSelectedDate(
+                isSingleDaySapSplit
+                  ? 'ALL'
                   : dates[dates.length - 1]
-            );
+              );
+            }
           }
         }
       } catch (err: any) {
@@ -211,19 +327,21 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
     return () => {
       mounted = false;
     };
-  }, [refreshTrigger]);
+  }, [refreshTrigger, activeDate]);
 
   const availableDates = useMemo(() => {
     if (!dataset) return [];
     return dateMode === 'posting_date' ? dataset.postingDates : dataset.tanggalKerjaDates;
   }, [dataset, dateMode]);
 
-  useEffect(() => {
-    if (!availableDates.length) return;
-    if (selectedDate !== 'ALL' && !availableDates.includes(selectedDate)) {
-      setSelectedDate(availableDates[availableDates.length - 1]);
+  const handleDateSelect = (newDate: string) => {
+    setSelectedDate(newDate);
+    if (onDateChange && newDate !== 'ALL') {
+      onDateChange(newDate);
     }
-  }, [availableDates, selectedDate]);
+  };
+
+  const isAvailableDate = selectedDate === 'ALL' || availableDates.includes(selectedDate);
 
   const getManpower = useMemo(() => {
     if (!headcount) return (_tgl: string, _gd: string, _sh: ShiftName): number | null => null;
@@ -711,7 +829,9 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
     if (!headcount) return;
     setDraftHeadcount(JSON.parse(JSON.stringify(headcount)));
     setNewOverrideDate(
-      selectedDate !== 'ALL' ? selectedDate : availableDates[availableDates.length - 1] || '2025-12-09'
+      selectedDate !== 'ALL'
+        ? selectedDate
+        : availableDates[availableDates.length - 1] || new Date().toISOString().slice(0, 10)
     );
     setShowHeadcountModal(true);
   };
@@ -786,13 +906,11 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
       const isSingleDaySapSplit =
         (json.dataset?.postingDates?.length || 0) === 1 && (json.dataset?.tanggalKerjaDates?.length || 0) > 1;
       if (dates.length) {
-        setSelectedDate(
-          isSingleDaySapSplit
-            ? 'ALL'
-            : dates.includes('2025-12-09')
-              ? '2025-12-09'
-              : dates[dates.length - 1]
-        );
+        if (activeDate && activeDate !== 'latest') {
+          handleDateSelect(activeDate);
+        } else {
+          handleDateSelect(isSingleDaySapSplit ? 'ALL' : dates[dates.length - 1]);
+        }
       }
       setShowUploadModal(false);
       showToast(`Berhasil memuat ${json.dataset.totalRowsRead.toLocaleString('id-ID')} baris transaksi MB51`);
@@ -800,6 +918,35 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
       setUploadError(err?.message || 'Gagal mengunggah file MB51');
     } finally {
       setUploadingFile(false);
+    }
+  };
+
+  const [resettingData, setResettingData] = useState(false);
+
+  const handleResetProductivity = async () => {
+    if (!confirm('Apakah Anda yakin ingin mereset/menghapus seluruh data transaksi produktivitas gudang ini?')) return;
+    setResettingData(true);
+    try {
+      const res = await fetch('/api/productivity', { method: 'DELETE' });
+      const json = await res.json();
+      if (json.success) {
+        setDataset({
+          sourceFile: '',
+          lastUpdated: new Date().toISOString(),
+          totalRowsRead: 0,
+          postingDates: [],
+          tanggalKerjaDates: [],
+          records: [],
+          hourlyRecords: [],
+        });
+        showToast('Data transaksi produktivitas berhasil direset.');
+      } else {
+        alert(json.error || 'Gagal mereset data produktivitas');
+      }
+    } catch (e: any) {
+      alert('Gagal mereset data produktivitas: ' + e?.message);
+    } finally {
+      setResettingData(false);
     }
   };
 
@@ -1042,13 +1189,13 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
     );
   }
 
-  if (error || !dataset || !headcount) {
+  if (error || !dataset || !headcount || !dataset.records || dataset.records.length === 0) {
     return (
       <div className="space-y-4">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-8 text-center shadow-xs">
           <AlertTriangle className="w-8 h-8 text-amber-600 mx-auto mb-3" />
           <h3 className="text-base font-bold text-slate-900 mb-1">Data Produktivitas MB51 Belum Tersedia</h3>
-          <p className="text-xs text-slate-600 mb-4">{error || 'Silakan unggah file export SAP MB51 (.xlsx / .csv).'}</p>
+          <p className="text-xs text-slate-600 mb-4">{error || 'Belum ada data transaksi produktivitas atau data telah direset. Silakan unggah file export SAP MB51 (.xlsx / .csv).'}</p>
           <button
             onClick={() => {
               if (onOpenUploadModal) {
@@ -1076,19 +1223,25 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
         label: 'Shift 1 (Kg/Man)',
         data: WAREHOUSE_LIST.map((gd) => Math.round(matrixData.perGudang[gd]?.shifts['Shift 1'].kgPerMan || 0)),
         backgroundColor: '#059669',
-        borderRadius: 4,
+        hoverBackgroundColor: '#047857',
+        borderRadius: 6,
+        maxBarThickness: 28,
       },
       {
         label: 'Shift 2 (Kg/Man)',
         data: WAREHOUSE_LIST.map((gd) => Math.round(matrixData.perGudang[gd]?.shifts['Shift 2'].kgPerMan || 0)),
         backgroundColor: '#0284c7',
-        borderRadius: 4,
+        hoverBackgroundColor: '#0369a1',
+        borderRadius: 6,
+        maxBarThickness: 28,
       },
       {
         label: 'Shift 3 (Kg/Man)',
         data: WAREHOUSE_LIST.map((gd) => Math.round(matrixData.perGudang[gd]?.shifts['Shift 3'].kgPerMan || 0)),
         backgroundColor: '#d97706',
-        borderRadius: 4,
+        hoverBackgroundColor: '#b45309',
+        borderRadius: 6,
+        maxBarThickness: 28,
       },
     ],
   };
@@ -1099,20 +1252,26 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
       {
         label: 'Shift 1 (Kg)',
         data: WAREHOUSE_LIST.map((gd) => Math.round(matrixData.perGudang[gd]?.shifts['Shift 1'].kg || 0)),
-        backgroundColor: '#10b981',
-        borderRadius: 3,
+        backgroundColor: '#059669',
+        hoverBackgroundColor: '#047857',
+        borderRadius: 4,
+        maxBarThickness: 32,
       },
       {
         label: 'Shift 2 (Kg)',
         data: WAREHOUSE_LIST.map((gd) => Math.round(matrixData.perGudang[gd]?.shifts['Shift 2'].kg || 0)),
         backgroundColor: '#0284c7',
-        borderRadius: 3,
+        hoverBackgroundColor: '#0369a1',
+        borderRadius: 4,
+        maxBarThickness: 32,
       },
       {
         label: 'Shift 3 (Kg)',
         data: WAREHOUSE_LIST.map((gd) => Math.round(matrixData.perGudang[gd]?.shifts['Shift 3'].kg || 0)),
-        backgroundColor: '#f59e0b',
-        borderRadius: 3,
+        backgroundColor: '#d97706',
+        hoverBackgroundColor: '#b45309',
+        borderRadius: 4,
+        maxBarThickness: 32,
       },
     ],
   };
@@ -1127,8 +1286,8 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
 
   const defaultDate = isSingleCalendarDaySplit
     ? 'ALL'
-    : availableDates.includes('2025-12-09')
-      ? '2025-12-09'
+    : activeDate && activeDate !== 'latest'
+      ? activeDate
       : availableDates[availableDates.length - 1] || 'ALL';
 
   const hasActiveFilter =
@@ -1145,7 +1304,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
 
   const resetFilters = () => {
     setDateMode('tanggal_kerja');
-    setSelectedDate(defaultDate);
+    handleDateSelect(defaultDate);
     setFilterShift('ALL');
     setFilterGudang('ALL');
     setCalcMode('handheld_clean');
@@ -1175,20 +1334,6 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
-            onClick={() => {
-              if (onOpenUploadModal) {
-                onOpenUploadModal();
-              } else {
-                setShowUploadModal(true);
-              }
-            }}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-xs transition-colors shadow-2xs border border-emerald-600 cursor-pointer"
-          >
-            <Upload className="w-3.5 h-3.5 shrink-0" />
-            <span>Upload MB51</span>
-          </button>
-
-          <button
             onClick={openHeadcountEditor}
             className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700/90 text-emerald-100 font-semibold text-xs transition-colors border border-emerald-700/80 cursor-pointer"
           >
@@ -1207,111 +1352,95 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
         </div>
       </div>
 
-      {/* 2. UNIFIED OPERATIONAL METRIC LEDGER (2x2 Mobile, 4-Col Desktop, Zero Slop Progress Bars) */}
+      {/* 2. UNIFIED OPERATIONAL METRIC LEDGER (Clean, Minimalist & High-Legibility) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="grid grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 divide-x divide-slate-100">
           {/* Metric 1: Total Tonase Handling */}
-          <div className="p-3.5 sm:p-4 border-r border-b lg:border-b-0 border-slate-100 flex flex-col justify-between">
+          <div className="p-4 sm:p-5 flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                  Total Tonase
-                </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium text-slate-500 bg-slate-100">
-                  {fmtKg(kpiSummary.totalKg, 0)} Kg
-                </span>
-              </div>
+              <span className="text-xs font-medium text-slate-500">
+                Total Tonase
+              </span>
               <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 tracking-tight tabular-nums">
+                <span className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 tracking-tight tabular-nums">
                   {fmtKg(kpiSummary.totalKg / 1000, 1)}
                 </span>
                 <span className="text-xs font-semibold text-slate-400">Ton</span>
               </div>
             </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-1 text-[10px] sm:text-[11px] font-mono text-slate-500">
-              <span>IN <strong className="font-semibold text-slate-700">{fmtKg(kpiSummary.totalInKg / 1000, 1)} T</strong></span>
-              <span className="text-slate-300">·</span>
-              <span>OUT <strong className="font-semibold text-slate-700">{fmtKg(kpiSummary.totalOutKg / 1000, 1)} T</strong></span>
+            <div className="mt-3 pt-2.5 border-t border-slate-100/80 flex items-center justify-between text-xs text-slate-500">
+              <span>In <strong className="font-semibold text-slate-700">{fmtKg(kpiSummary.totalInKg / 1000, 1)}T</strong></span>
+              <span className="text-slate-300">•</span>
+              <span>Out <strong className="font-semibold text-slate-700">{fmtKg(kpiSummary.totalOutKg / 1000, 1)}T</strong></span>
             </div>
           </div>
 
           {/* Metric 2: Frekuensi Scan Transaksi */}
-          <div className="p-3.5 sm:p-4 border-b lg:border-b-0 lg:border-r border-slate-100 flex flex-col justify-between">
+          <div className="p-4 sm:p-5 flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                  Scan Transaksi
-                </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium text-slate-500 bg-slate-100">
-                  {kpiSummary.totalManShifts} shift
-                </span>
-              </div>
+              <span className="text-xs font-medium text-slate-500">
+                Scan Transaksi
+              </span>
               <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 tracking-tight tabular-nums">
+                <span className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 tracking-tight tabular-nums">
                   {fmtKg(kpiSummary.totalTx)}
                 </span>
                 <span className="text-xs font-semibold text-slate-400">Tx</span>
               </div>
             </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-1 text-[10px] sm:text-[11px] text-slate-500">
-              <span>Rata-rata scan</span>
-              <span className="font-mono font-semibold text-slate-700">{fmtKg(kpiSummary.avgKgPerTx)} Kg/Tx</span>
+            <div className="mt-3 pt-2.5 border-t border-slate-100/80 flex items-center justify-between text-xs text-slate-500">
+              <span>{kpiSummary.totalManShifts} shift</span>
+              <span className="text-slate-300">•</span>
+              <span className="font-medium text-slate-700">{fmtKg(kpiSummary.avgKgPerTx)} Kg/Tx</span>
             </div>
           </div>
 
           {/* Metric 3: Produktivitas (Kg/Man) */}
-          <div className="p-3.5 sm:p-4 border-r border-slate-100 flex flex-col justify-between">
+          <div className="p-4 sm:p-5 flex flex-col justify-between bg-emerald-50/20">
             <div>
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider">
-                  Produktivitas
-                </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/60">
-                  {fmtKg(kpiSummary.avgKgPerMan / 1000, 1)} T/Man
-                </span>
-              </div>
+              <span className="text-xs font-medium text-emerald-800">
+                Produktivitas
+              </span>
               <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-700 tracking-tight tabular-nums">
+                <span className="text-2xl sm:text-3xl font-bold font-mono text-emerald-700 tracking-tight tabular-nums">
                   {fmtKg(kpiSummary.avgKgPerMan)}
                 </span>
                 <span className="text-xs font-semibold text-emerald-600/80">Kg/Man</span>
               </div>
             </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-1 text-[10px] sm:text-[11px] text-slate-500">
-              <span>Target standar</span>
-              <span className="font-mono font-semibold text-slate-700">≥ {fmtKg(headcount.thresholds.lowKgPerMan / 1000, 1)} T</span>
+            <div className="mt-3 pt-2.5 border-t border-emerald-100/80 flex items-center justify-between text-xs text-slate-500">
+              <span>Target</span>
+              <span className="font-medium text-slate-700">≥ {fmtKg(headcount.thresholds.lowKgPerMan / 1000, 1)} Ton</span>
             </div>
           </div>
 
           {/* Metric 4: Kecepatan Scan & Status */}
-          <div className="p-3.5 sm:p-4 flex flex-col justify-between">
+          <div className="p-4 sm:p-5 flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-500">
                   Kecepatan Scan
                 </span>
                 <span className={cn(
-                  'px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold border',
-                  optPct >= 70
-                    ? 'text-emerald-800 bg-emerald-50 border-emerald-200/60'
-                    : 'text-amber-800 bg-amber-50 border-amber-200/60'
+                  'text-[11px] font-semibold font-mono',
+                  optPct >= 70 ? 'text-emerald-700' : 'text-amber-700'
                 )}>
                   {optPct}% Optimal
                 </span>
               </div>
               <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 tracking-tight tabular-nums">
+                <span className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 tracking-tight tabular-nums">
                   {kpiSummary.avgTxPerMan.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 </span>
                 <span className="text-xs font-semibold text-slate-400">Tx/Man</span>
               </div>
             </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-1 text-[10px] sm:text-[11px] text-slate-500">
-              <span className="text-emerald-700 font-semibold">{kpiSummary.optimalCount} optimal</span>
-              <span className="text-slate-300">·</span>
-              <span className="text-amber-700">{kpiSummary.idleCount} idle</span>
-              <span className="text-slate-300">·</span>
-              <span className="text-rose-600">{kpiSummary.lowCount} rendah</span>
+            <div className="mt-3 pt-2.5 border-t border-slate-100/80 flex items-center justify-between text-xs">
+              <span className="text-emerald-700 font-medium">{kpiSummary.optimalCount} optimal</span>
+              <span className="text-slate-300">•</span>
+              <span className="text-amber-700 font-medium">{kpiSummary.idleCount} idle</span>
+              <span className="text-slate-300">•</span>
+              <span className="text-rose-600 font-medium">{kpiSummary.lowCount} rendah</span>
             </div>
           </div>
         </div>
@@ -1361,8 +1490,31 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
             })}
           </div>
 
-          {/* Pop-up Filter Trigger Button (Ringkas & Minimalis) */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Quick Date Selector & Pop-up Filter Trigger Button */}
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+            {/* Quick Date Selector Dropdown langsung di toolbar */}
+            <div className="relative">
+              <select
+                value={selectedDate}
+                onChange={(e) => handleDateSelect(e.target.value)}
+                className="text-xs font-semibold text-slate-800 bg-slate-50 hover:bg-white border border-slate-200/90 rounded-xl px-2.5 py-1.5 appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer shadow-2xs pr-7 transition-colors"
+                title="Pilih tanggal analisa produktivitas"
+              >
+                <option value="ALL">Semua Tanggal ({availableDates.length} Hari)</option>
+                {availableDates.map((d) => (
+                  <option key={d} value={d}>
+                    {fmtDateShort(d)}
+                  </option>
+                ))}
+                {!availableDates.includes(selectedDate) && selectedDate !== 'ALL' && (
+                  <option value={selectedDate}>
+                    {fmtDateShort(selectedDate)} (0 Transaksi)
+                  </option>
+                )}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" />
+            </div>
+
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
@@ -1374,17 +1526,13 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
               )}
             >
               <SlidersHorizontal className={cn('w-3.5 h-3.5', activeFilterCount > 0 ? 'text-emerald-700' : 'text-slate-500')} />
-              <span className="hidden sm:inline">Filter & Parameter</span>
+              <span className="hidden sm:inline">Filter Detail</span>
               <span className="sm:hidden">Filter</span>
               {activeFilterCount > 0 ? (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-emerald-700 text-white">
                   {activeFilterCount}
                 </span>
-              ) : (
-                <span className="text-[10px] text-slate-400 font-mono hidden md:inline">
-                  ({availableDates.length} Hari)
-                </span>
-              )}
+              ) : null}
             </button>
 
             {hasActiveFilter && (
@@ -1401,65 +1549,124 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
         </div>
       </div>
 
+      {/* ALERT BANNER: JIKA TANGGAL TERPILIH TIDAK MEMILIKI TRANSAKSI MB51 */}
+      {!isAvailableDate && selectedDate !== 'ALL' && (
+        <div className="rounded-2xl border border-amber-200/90 bg-amber-50/80 p-3 sm:p-3.5 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">
+          <div className="flex items-start sm:items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-amber-100 text-amber-800 shrink-0">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-semibold text-amber-950">
+                Tidak ada catatan transaksi MB51 untuk tanggal <strong>{fmtDateShort(selectedDate)}</strong> (Tonase: 0 Kg).
+              </p>
+              <p className="text-[11px] text-amber-800/80 mt-0.5">
+                Data MB51 tersedia untuk: {availableDates.slice(-5).map(fmtDateShort).join(', ')}.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+            {availableDates.slice(-3).map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => handleDateSelect(d)}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 hover:border-amber-400 transition-colors shadow-2xs cursor-pointer"
+              >
+                {fmtDateShort(d)}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => handleDateSelect('ALL')}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-800 text-white hover:bg-amber-900 transition-colors shadow-2xs cursor-pointer"
+            >
+              Lihat Semua
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* SUB-TAB 1: MATRIKS PRODUKTIVITAS HARIAN */}
       {activeSubTab === 'matrix' && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
-            <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-xl bg-emerald-100/80 text-emerald-700 border border-emerald-200/60 shrink-0">
-                  <Table2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                    Matriks Produktivitas Gudang ({selectedDate === 'ALL' ? `Akumulasi ${matrixData.numDays} Hari` : fmtDateShort(selectedDate)})
+          <TableCardContainer
+            isFullscreen={fullscreenTable === 'matrix'}
+            onCloseFullscreen={() => setFullscreenTable(null)}
+          >
+            <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 shrink-0">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                    Matriks Produktivitas Gudang
                   </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Jam Kerja 24 Jam (07:00 – 07:00) · Shift 1 (07:00–15:00) · Shift 2 (15:00–23:00) · Shift 3 (23:00–07:00)
-                  </p>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold bg-emerald-100/80 text-emerald-800">
+                    {selectedDate === 'ALL' ? `Akumulasi ${matrixData.numDays} Hari` : fmtDateShort(selectedDate)}
+                  </span>
+                  {filterGudang !== 'ALL' && (
+                    <button
+                      type="button"
+                      onClick={() => setFilterGudang('ALL')}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition-colors cursor-pointer"
+                      title="Klik untuk menghapus sorotan"
+                    >
+                      <span>Sorot: {filterGudang}</span>
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Siklus 24 Jam (07:00 – 07:00) · Shift 1, Shift 2 & Shift 3
+                </p>
               </div>
-              <div className="flex items-center gap-3 text-[11px] text-slate-500">
+
+              <div className="flex items-center gap-3 text-[11px] text-slate-600 flex-wrap">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  Optimal (&ge; {fmtKg(headcount.thresholds.lowKgPerMan)} Kg/Man)
+                  <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                  Optimal (&ge; {fmtKg(headcount.thresholds.lowKgPerMan)} Kg)
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-rose-500" />
-                  Rendah (&lt; {fmtKg(headcount.thresholds.lowKgPerMan)} Kg/Man)
+                  Rendah (&lt; {fmtKg(headcount.thresholds.lowKgPerMan)} Kg)
                 </span>
+                <FullscreenToggleBtn
+                  isFullscreen={fullscreenTable === 'matrix'}
+                  onToggle={() => setFullscreenTable(fullscreenTable === 'matrix' ? null : 'matrix')}
+                />
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className={cn('overflow-auto', fullscreenTable === 'matrix' ? 'flex-1' : '')}>
               <table className="w-full text-xs border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-20 bg-slate-50 shadow-2xs">
                   <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 text-[11px]">
-                    <th className="py-2.5 px-3.5 text-left font-semibold sticky left-0 bg-slate-50 z-10 min-w-[180px] border-r border-slate-200/80">
+                    <th className="py-2.5 px-3 text-left font-semibold sticky left-0 top-0 bg-slate-50 z-30 min-w-[100px] sm:min-w-[130px] border-r border-slate-200 shadow-[1px_0_3px_rgba(0,0,0,0.03)] text-slate-700">
                       Metrik / Shift
                     </th>
                     {WAREHOUSE_LIST.map((gd) => (
                       <th
                         key={gd}
+                        onClick={() => setFilterGudang(filterGudang === gd ? 'ALL' : gd)}
                         className={cn(
-                          'py-2.5 px-2.5 text-right font-semibold min-w-[78px]',
-                          filterGudang === gd && 'bg-emerald-50/80 text-emerald-800'
+                          'py-2.5 px-2 text-right font-semibold min-w-[72px] sm:min-w-[80px] cursor-pointer hover:bg-slate-100 transition-colors',
+                          filterGudang === gd && 'bg-emerald-50 text-emerald-800 font-bold ring-1 ring-inset ring-emerald-200'
                         )}
+                        title={`Klik untuk memfilter ${gd}`}
                       >
                         {gd}
                       </th>
                     ))}
-                    <th className="py-2.5 px-3.5 text-right font-bold bg-slate-100/90 text-slate-800 min-w-[100px] border-l border-slate-200/80">
+                    <th className="py-2.5 px-3 text-right font-bold bg-slate-100/90 text-slate-800 min-w-[90px] sm:min-w-[110px] border-l border-slate-200">
                       Total / Avg
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {/* SECTION 1: MAN POWER */}
-                  <tr className="bg-slate-50/60">
+                  <tr className="bg-slate-100/80 border-y border-slate-200/80">
                     <td
                       colSpan={WAREHOUSE_LIST.length + 2}
-                      className="py-1.5 px-3.5 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+                      className="py-1.5 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-700 sticky left-0 z-10"
                     >
                       1. Alokasi Tenaga Kerja (Man Power)
                     </td>
@@ -1470,10 +1677,9 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                       0
                     );
                     return (
-                      <tr key={`man-${sh}`} className="hover:bg-slate-50/70">
-                        <td className="py-1.5 px-3.5 text-slate-600 font-medium sticky left-0 bg-white z-10 border-r border-slate-200/60">
-                          <span>{sh}</span>
-                          <span className="ml-1.5 text-[10px] font-mono text-slate-400">({SHIFT_TIME_LABELS[sh]})</span>
+                      <tr key={`man-${sh}`} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="py-2 px-3 text-slate-700 font-medium sticky left-0 bg-white z-10 border-r border-slate-200 shadow-[1px_0_3px_rgba(0,0,0,0.03)] whitespace-nowrap">
+                          {sh}
                         </td>
                         {WAREHOUSE_LIST.map((gd) => {
                           const m = matrixData.perGudang[gd].man[sh];
@@ -1481,40 +1687,46 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                             <td
                               key={gd}
                               className={cn(
-                                'py-1.5 px-2.5 text-right font-mono tabular-nums text-slate-600',
-                                filterGudang === gd && 'bg-emerald-50/30'
+                                'py-2 px-2 text-right font-mono tabular-nums text-slate-600',
+                                filterGudang === gd && 'bg-emerald-50/40 font-medium text-slate-900'
                               )}
                             >
                               {m ?? <span className="text-slate-300">-</span>}
                             </td>
                           );
                         })}
-                        <td className="py-1.5 px-3.5 text-right font-mono tabular-nums font-semibold text-slate-700 bg-slate-50/60 border-l border-slate-200/60">
+                        <td className="py-2 px-3 text-right font-mono tabular-nums font-semibold text-slate-700 bg-slate-50/60 border-l border-slate-200">
                           {rowSum}
                         </td>
                       </tr>
                     );
                   })}
 
-                  <tr className="bg-slate-50/90 font-semibold text-slate-800 border-b border-slate-200">
-                    <td className="py-2 px-3.5 sticky left-0 bg-slate-50 z-10 border-r border-slate-200/80">
+                  <tr className="bg-slate-50 font-semibold text-slate-800 border-b border-slate-200">
+                    <td className="py-2 px-3 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 shadow-[1px_0_3px_rgba(0,0,0,0.03)]">
                       Total Man Power
                     </td>
                     {WAREHOUSE_LIST.map((gd) => (
-                      <td key={gd} className="py-2 px-2.5 text-right font-mono tabular-nums">
+                      <td
+                        key={gd}
+                        className={cn(
+                          'py-2 px-2 text-right font-mono tabular-nums',
+                          filterGudang === gd && 'bg-emerald-50/60 font-bold text-slate-900'
+                        )}
+                      >
                         {matrixData.perGudang[gd].totalMan || <span className="text-slate-300">-</span>}
                       </td>
                     ))}
-                    <td className="py-2 px-3.5 text-right font-mono tabular-nums font-bold text-slate-900 bg-slate-100/80 border-l border-slate-200/80">
-                      {WAREHOUSE_LIST.reduce((acc, gd) => acc + matrixData.perGudang[gd].totalMan, 0)} Orang
+                    <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-slate-900 bg-slate-100/80 border-l border-slate-200">
+                      {WAREHOUSE_LIST.reduce((acc, gd) => acc + matrixData.perGudang[gd].totalMan, 0)} Org
                     </td>
                   </tr>
 
                   {/* SECTION 2: TONASE HANDLING (KG) */}
-                  <tr className="bg-slate-50/60">
+                  <tr className="bg-sky-50/70 border-y border-sky-100">
                     <td
                       colSpan={WAREHOUSE_LIST.length + 2}
-                      className="py-1.5 px-3.5 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+                      className="py-1.5 px-3 text-[11px] font-bold uppercase tracking-wider text-sky-900 sticky left-0 z-10"
                     >
                       2. Beban Tonase Handling (Kg)
                     </td>
@@ -1525,10 +1737,9 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                       0
                     );
                     return (
-                      <tr key={`ton-${sh}`} className="hover:bg-slate-50/70">
-                        <td className="py-1.5 px-3.5 text-slate-700 font-medium sticky left-0 bg-white z-10 border-r border-slate-200/60">
-                          <span>Tonase {sh}</span>
-                          <span className="ml-1.5 text-[10px] font-mono text-slate-400">({SHIFT_TIME_LABELS[sh]})</span>
+                      <tr key={`ton-${sh}`} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="py-2 px-3 text-slate-700 font-medium sticky left-0 bg-white z-10 border-r border-slate-200 shadow-[1px_0_3px_rgba(0,0,0,0.03)] whitespace-nowrap">
+                          {sh}
                         </td>
                         {WAREHOUSE_LIST.map((gd) => {
                           const kg = matrixData.perGudang[gd].shifts[sh].kg;
@@ -1536,34 +1747,40 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                             <td
                               key={gd}
                               className={cn(
-                                'py-1.5 px-2.5 text-right font-mono tabular-nums text-slate-700',
-                                filterGudang === gd && 'bg-emerald-50/30'
+                                'py-2 px-2 text-right font-mono tabular-nums text-slate-700',
+                                filterGudang === gd && 'bg-emerald-50/40 font-medium text-slate-900'
                               )}
                             >
                               {kg > 0 ? fmtKg(kg, 0) : <span className="text-slate-300">-</span>}
                             </td>
                           );
                         })}
-                        <td className="py-1.5 px-3.5 text-right font-mono tabular-nums font-semibold text-slate-800 bg-slate-50/60 border-l border-slate-200/60">
+                        <td className="py-2 px-3 text-right font-mono tabular-nums font-semibold text-slate-800 bg-slate-50/60 border-l border-slate-200">
                           {fmtKg(sumKg, 0)}
                         </td>
                       </tr>
                     );
                   })}
 
-                  <tr className="bg-emerald-50/50 font-bold text-emerald-950 border-b border-slate-200">
-                    <td className="py-2 px-3.5 sticky left-0 bg-emerald-50/90 z-10 border-r border-emerald-200/60">
-                      Handling All (Total Kg)
+                  <tr className="bg-sky-50/50 font-bold text-sky-950 border-b border-slate-200">
+                    <td className="py-2 px-3 sticky left-0 bg-sky-50/90 z-10 border-r border-sky-200 shadow-[1px_0_3px_rgba(0,0,0,0.03)]">
+                      Total Tonase
                     </td>
                     {WAREHOUSE_LIST.map((gd) => {
                       const totalGdKg = matrixData.perGudang[gd].handlingAllKg;
                       return (
-                        <td key={gd} className="py-2 px-2.5 text-right font-mono tabular-nums">
+                        <td
+                          key={gd}
+                          className={cn(
+                            'py-2 px-2 text-right font-mono tabular-nums',
+                            filterGudang === gd && 'bg-emerald-100/60 text-emerald-950 font-bold'
+                          )}
+                        >
                           {totalGdKg > 0 ? fmtKg(totalGdKg, 0) : <span className="text-slate-300">-</span>}
                         </td>
                       );
                     })}
-                    <td className="py-2 px-3.5 text-right font-mono tabular-nums bg-emerald-100/70 text-emerald-950 border-l border-emerald-200/60">
+                    <td className="py-2 px-3 text-right font-mono tabular-nums bg-sky-100/80 text-sky-950 border-l border-sky-200">
                       {fmtKg(
                         WAREHOUSE_LIST.reduce((acc, gd) => acc + matrixData.perGudang[gd].handlingAllKg, 0),
                         0
@@ -1572,10 +1789,10 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   </tr>
 
                   {/* SECTION 3: PRODUKTIVITAS (KG/MAN) */}
-                  <tr className="bg-slate-50/60">
+                  <tr className="bg-emerald-50/80 border-y border-emerald-100">
                     <td
                       colSpan={WAREHOUSE_LIST.length + 2}
-                      className="py-1.5 px-3.5 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+                      className="py-1.5 px-3 text-[11px] font-bold uppercase tracking-wider text-emerald-950 sticky left-0 z-10"
                     >
                       3. Produktivitas Tenaga Kerja (Kg / Man)
                     </td>
@@ -1593,10 +1810,9 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                     const avgShiftKgMan = sumMan > 0 ? sumCoveredKg / sumMan : null;
 
                     return (
-                      <tr key={`prod-${sh}`} className="hover:bg-slate-50/70">
-                        <td className="py-2 px-3.5 font-semibold text-slate-800 sticky left-0 bg-white z-10 border-r border-slate-200/60">
-                          <span>Kg/Man · {sh}</span>
-                          <span className="ml-1.5 text-[10px] font-mono font-normal text-slate-400">({SHIFT_TIME_LABELS[sh]})</span>
+                      <tr key={`prod-${sh}`} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="py-2 px-3 font-semibold text-slate-800 sticky left-0 bg-white z-10 border-r border-slate-200 shadow-[1px_0_3px_rgba(0,0,0,0.03)] whitespace-nowrap">
+                          {sh}
                         </td>
                         {WAREHOUSE_LIST.map((gd) => {
                           const km = matrixData.perGudang[gd].shifts[sh].kgPerMan;
@@ -1605,19 +1821,20 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                             <td
                               key={gd}
                               className={cn(
-                                'py-2 px-2.5 text-right font-mono tabular-nums font-semibold',
+                                'py-2 px-2 text-right font-mono tabular-nums font-semibold',
                                 km === null
                                   ? 'text-slate-300 font-normal'
                                   : isLow
-                                  ? 'text-rose-600 bg-rose-50/60'
-                                  : 'text-emerald-700'
+                                  ? 'text-rose-700 bg-rose-50/70'
+                                  : 'text-emerald-700 bg-emerald-50/40',
+                                filterGudang === gd && 'ring-1 ring-inset ring-emerald-300'
                               )}
                             >
                               {km !== null ? fmtKg(km, 0) : '-'}
                             </td>
                           );
                         })}
-                        <td className="py-2 px-3.5 text-right font-mono tabular-nums font-bold text-slate-900 bg-slate-50/90 border-l border-slate-200/60">
+                        <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-slate-900 bg-slate-50/90 border-l border-slate-200">
                           {avgShiftKgMan !== null ? fmtKg(avgShiftKgMan, 0) : '-'}
                         </td>
                       </tr>
@@ -1626,29 +1843,24 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                 </tbody>
               </table>
             </div>
-          </div>
+          </TableCardContainer>
 
           {/* Side-by-Side Charts: Kg/Man & Total Tonase */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-xl bg-emerald-100/80 text-emerald-700 border border-emerald-200/60">
-                    <Gauge className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                      Produktivitas (Kg/Man) per Gudang
-                    </h4>
-                    <p className="text-[11px] text-slate-400">
-                      Output rata-rata per orang ({selectedDate === 'ALL' ? 'Rata-rata Harian' : fmtDateShort(selectedDate)})
-                    </p>
-                  </div>
+              <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                    Produktivitas Output (Kg / Man)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Rata-rata tonase per orang ({selectedDate === 'ALL' ? 'Akumulasi Periode' : fmtDateShort(selectedDate)})
+                  </p>
                 </div>
                 <div className="flex items-center gap-3 text-[11px] text-slate-600">
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-xs bg-emerald-600" />Shift 1</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-xs bg-sky-600" />Shift 2</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-xs bg-amber-600" />Shift 3</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-600" />Shift 1</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-sky-600" />Shift 2</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-600" />Shift 3</span>
                 </div>
               </div>
               <div className="p-4 h-64">
@@ -1664,7 +1876,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                     scales: {
                       x: {
                         grid: { display: false },
-                        ticks: { font: { size: 10 }, color: '#64748b' },
+                        ticks: { font: { size: 10, weight: 600 }, color: '#475569' },
                       },
                       y: {
                         beginAtZero: true,
@@ -1686,24 +1898,19 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
             </div>
 
             <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-xl bg-sky-100/80 text-sky-700 border border-sky-200/60">
-                    <BarChart3 className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                      Distribusi Beban Tonase (Kg) per Gudang
-                    </h4>
-                    <p className="text-[11px] text-slate-400">
-                      Akumulasi penerimaan + pengeluaran barang per shift
-                    </p>
-                  </div>
+              <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                    Distribusi Beban Tonase Handling (Kg)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Akumulasi penerimaan &amp; pengeluaran material per shift
+                  </p>
                 </div>
                 <div className="flex items-center gap-3 text-[11px] text-slate-600">
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-xs bg-emerald-500" />Shift 1</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-xs bg-sky-600" />Shift 2</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-xs bg-amber-500" />Shift 3</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-600" />Shift 1</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-sky-600" />Shift 2</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-600" />Shift 3</span>
                 </div>
               </div>
               <div className="p-4 h-64">
@@ -1720,7 +1927,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                       x: {
                         stacked: true,
                         grid: { display: false },
-                        ticks: { font: { size: 10 }, color: '#64748b' },
+                        ticks: { font: { size: 10, weight: 600 }, color: '#475569' },
                       },
                       y: {
                         stacked: true,
@@ -1750,19 +1957,14 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
             {/* Header Toolbar */}
-            <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-xl bg-emerald-100/80 text-emerald-700 border border-emerald-200/60 shadow-2xs">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                    Tren Harian per Shift ({fmtDateShort(availableDates[0])} – {fmtDateShort(availableDates[availableDates.length - 1])})
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Perbandingan performa antar shift per siklus tanggal kerja (07:00 – 07:00)
-                  </p>
-                </div>
+            <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                  Tren Performa Harian ({fmtDateShort(availableDates[0])} – {fmtDateShort(availableDates[availableDates.length - 1])})
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Perbandingan fluktuasi kerja 24 jam antar shift (07:00 – 07:00)
+                </p>
               </div>
 
               {/* Segmented Controls for Metric and Chart Mode */}
@@ -1800,7 +2002,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   <button
                     type="button"
                     onClick={() => setTrendChartType('area')}
-                    title="Tampilan Area Spline Halus"
+                    title="Tampilan Area Garis Halus"
                     className={cn(
                       'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer',
                       trendChartType === 'area'
@@ -1814,7 +2016,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   <button
                     type="button"
                     onClick={() => setTrendChartType('bar')}
-                    title="Tampilan Bar Bertumpuk per Hari"
+                    title="Tampilan Bar Bertumpuk"
                     className={cn(
                       'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer',
                       trendChartType === 'bar'
@@ -1830,7 +2032,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
             </div>
 
             {/* Interactive Shift Indicator Pills */}
-            <div className="px-4 py-2.5 bg-slate-50/40 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+            <div className="px-4 py-2 bg-slate-50/40 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
@@ -1839,7 +2041,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   }
                   title="Klik untuk menyembunyikan / menampilkan Shift 1"
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer select-none active:scale-95',
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer select-none',
                     visibleShifts['Shift 1']
                       ? 'bg-emerald-50/90 text-emerald-900 border-emerald-200 shadow-2xs'
                       : 'bg-slate-50 text-slate-400 border-slate-200 line-through opacity-60'
@@ -1848,7 +2050,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   <span
                     className={cn(
                       'w-2 h-2 rounded-full',
-                      visibleShifts['Shift 1'] ? 'bg-emerald-600 ring-2 ring-emerald-200' : 'bg-slate-300'
+                      visibleShifts['Shift 1'] ? 'bg-emerald-600' : 'bg-slate-300'
                     )}
                   />
                   <span>Shift 1</span>
@@ -1864,7 +2066,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   }
                   title="Klik untuk menyembunyikan / menampilkan Shift 2"
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer select-none active:scale-95',
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer select-none',
                     visibleShifts['Shift 2']
                       ? 'bg-sky-50/90 text-sky-900 border-sky-200 shadow-2xs'
                       : 'bg-slate-50 text-slate-400 border-slate-200 line-through opacity-60'
@@ -1873,7 +2075,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   <span
                     className={cn(
                       'w-2 h-2 rounded-full',
-                      visibleShifts['Shift 2'] ? 'bg-sky-600 ring-2 ring-sky-200' : 'bg-slate-300'
+                      visibleShifts['Shift 2'] ? 'bg-sky-600' : 'bg-slate-300'
                     )}
                   />
                   <span>Shift 2</span>
@@ -1889,7 +2091,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   }
                   title="Klik untuk menyembunyikan / menampilkan Shift 3"
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer select-none active:scale-95',
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer select-none',
                     visibleShifts['Shift 3']
                       ? 'bg-amber-50/90 text-amber-900 border-amber-200 shadow-2xs'
                       : 'bg-slate-50 text-slate-400 border-slate-200 line-through opacity-60'
@@ -1898,7 +2100,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   <span
                     className={cn(
                       'w-2 h-2 rounded-full',
-                      visibleShifts['Shift 3'] ? 'bg-amber-600 ring-2 ring-amber-200' : 'bg-slate-300'
+                      visibleShifts['Shift 3'] ? 'bg-amber-600' : 'bg-slate-300'
                     )}
                   />
                   <span>Shift 3</span>
@@ -1924,15 +2126,25 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Rekap Tonase Harian (IN + OUT, Kg)
-                </h4>
+            <TableCardContainer
+              isFullscreen={fullscreenTable === 'daily_tonase'}
+              onCloseFullscreen={() => setFullscreenTable(null)}
+            >
+              <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2.5 shrink-0">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                    Rekap Tonase Harian (Kg)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Total pergerakan material IN + OUT</p>
+                </div>
+                <FullscreenToggleBtn
+                  isFullscreen={fullscreenTable === 'daily_tonase'}
+                  onToggle={() => setFullscreenTable(fullscreenTable === 'daily_tonase' ? null : 'daily_tonase')}
+                />
               </div>
-              <div className="overflow-x-auto">
+              <div className={cn('overflow-auto', fullscreenTable === 'daily_tonase' ? 'flex-1' : '')}>
                 <table className="w-full text-xs">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-slate-50 shadow-2xs">
                     <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 text-[11px]">
                       <th className="py-2.5 px-3.5 text-left font-semibold">Tanggal</th>
                       <th className="py-2.5 px-3 text-right font-semibold">Shift 1</th>
@@ -1946,7 +2158,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                       <tr
                         key={r.tanggal}
                         onClick={() => {
-                          setSelectedDate(r.tanggal);
+                          handleDateSelect(r.tanggal);
                           setActiveSubTab('matrix');
                         }}
                         className={cn(
@@ -1966,17 +2178,27 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   </tbody>
                 </table>
               </div>
-            </div>
+            </TableCardContainer>
 
-            <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Rata-rata Produktivitas (Kg/Man) Per Hari
-                </h4>
+            <TableCardContainer
+              isFullscreen={fullscreenTable === 'daily_prod'}
+              onCloseFullscreen={() => setFullscreenTable(null)}
+            >
+              <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2.5 shrink-0">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                    Rata-rata Produktivitas (Kg / Man)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Rasio tonase per tenaga kerja aktif</p>
+                </div>
+                <FullscreenToggleBtn
+                  isFullscreen={fullscreenTable === 'daily_prod'}
+                  onToggle={() => setFullscreenTable(fullscreenTable === 'daily_prod' ? null : 'daily_prod')}
+                />
               </div>
-              <div className="overflow-x-auto">
+              <div className={cn('overflow-auto', fullscreenTable === 'daily_prod' ? 'flex-1' : '')}>
                 <table className="w-full text-xs">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-slate-50 shadow-2xs">
                     <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 text-[11px]">
                       <th className="py-2.5 px-3.5 text-left font-semibold">Tanggal</th>
                       <th className="py-2.5 px-3 text-right font-semibold">Shift 1</th>
@@ -1990,7 +2212,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                       <tr
                         key={r.tanggal}
                         onClick={() => {
-                          setSelectedDate(r.tanggal);
+                          handleDateSelect(r.tanggal);
                           setActiveSubTab('matrix');
                         }}
                         className={cn(
@@ -2016,15 +2238,38 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                   </tbody>
                 </table>
               </div>
-            </div>
+            </TableCardContainer>
           </div>
         </div>
       )}
 
       {/* SUB-TAB 3: TABEL DETAIL PRODUKTIVITAS & ANOMALI */}
       {activeSubTab === 'detail_table' && (
-        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
-          <div className="p-3.5 bg-slate-50/70 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+        <TableCardContainer
+          isFullscreen={fullscreenTable === 'detail_table'}
+          onCloseFullscreen={() => setFullscreenTable(null)}
+        >
+          <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap shrink-0">
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                Detail Transaksi &amp; Deteksi Anomali
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Rincian log harian per gudang, shift, dan rasio beban per tenaga kerja
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <div className="text-xs text-slate-500 font-mono">
+                Total: <strong className="text-slate-800 font-bold">{sortedDetailRows.length}</strong> baris
+              </div>
+              <FullscreenToggleBtn
+                isFullscreen={fullscreenTable === 'detail_table'}
+                onToggle={() => setFullscreenTable(fullscreenTable === 'detail_table' ? null : 'detail_table')}
+              />
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-50/40 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 shrink-0">
             <div className="flex flex-wrap items-center gap-1.5">
               {[
                 { id: 'ALL', label: 'Semua Status' },
@@ -2061,9 +2306,9 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
             </div>
           </div>
 
-          <div className="overflow-x-auto max-h-[560px]">
+          <div className={cn('overflow-auto', fullscreenTable === 'detail_table' ? 'flex-1 max-h-none' : 'max-h-[560px]')}>
             <table className="w-full text-xs">
-              <thead className="bg-slate-50 text-slate-600 sticky top-0 z-10 border-b border-slate-200 text-[11px]">
+              <thead className="bg-slate-50 text-slate-600 sticky top-0 z-10 border-b border-slate-200 text-[11px] shadow-2xs">
                 <tr>
                   {[
                     { key: 'tanggal', label: 'Tanggal', align: 'left' },
@@ -2169,29 +2414,37 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
               </tbody>
             </table>
           </div>
-        </div>
+        </TableCardContainer>
       )}
 
       {/* SUB-TAB 4: FREKUENSI SCAN PER JAM (PIVOT2) */}
       {activeSubTab === 'hourly_pivot' && (
-        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100 flex items-center gap-2.5">
-            <div className="p-1.5 rounded-xl bg-emerald-100/80 text-emerald-700 border border-emerald-200/60">
-              <Clock className="w-4 h-4" />
-            </div>
+        <TableCardContainer
+          isFullscreen={fullscreenTable === 'hourly_pivot'}
+          onCloseFullscreen={() => setFullscreenTable(null)}
+        >
+          <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap shrink-0">
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                Matriks Frekuensi Transaksi per Jam Kerja (07:00 – 07:00)
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                Frekuensi Scan Transaksi per Jam
               </h3>
-              <p className="text-[11px] text-slate-500">
-                Urutan jam kerja 24 jam mulai 07:00 s/d 07:00 · Shift 1, 2, dan 3
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Pola aktivitas pergerakan barang 24 jam (07:00 – 07:00) per gudang
               </p>
+            </div>
+            <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300" />&ge; 20 Tx</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />&ge; 50 Tx (Padat)</span>
+              <FullscreenToggleBtn
+                isFullscreen={fullscreenTable === 'hourly_pivot'}
+                onToggle={() => setFullscreenTable(fullscreenTable === 'hourly_pivot' ? null : 'hourly_pivot')}
+              />
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className={cn('overflow-auto', fullscreenTable === 'hourly_pivot' ? 'flex-1' : '')}>
             <table className="w-full text-xs border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-slate-50 shadow-2xs">
                 <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 text-[11px]">
                   <th className="py-2.5 px-3 text-left font-semibold">Shift</th>
                   <th className="py-2.5 px-3 text-left font-semibold">Rentang Jam</th>
@@ -2259,7 +2512,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
               </tbody>
             </table>
           </div>
-        </div>
+        </TableCardContainer>
       )}
 
       {/* MODAL 1: ATUR MASTER HEADCOUNT (MAN POWER) */}
@@ -2636,7 +2889,7 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                     <div className="relative">
                       <select
                         value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
+                        onChange={(e) => handleDateSelect(e.target.value)}
                         className="w-full text-xs font-medium text-slate-800 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl px-2.5 py-2 appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer shadow-2xs pr-7 transition-colors"
                       >
                         <option value="ALL">Semua ({availableDates.length} Hari)</option>
@@ -2645,6 +2898,11 @@ export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: 
                             {fmtDateShort(d)}
                           </option>
                         ))}
+                        {!availableDates.includes(selectedDate) && selectedDate !== 'ALL' && (
+                          <option value={selectedDate}>
+                            {fmtDateShort(selectedDate)} (0 Transaksi)
+                          </option>
+                        )}
                       </select>
                       <ChevronDown className="w-3.5 h-3.5 text-slate-400 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
                     </div>

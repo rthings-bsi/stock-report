@@ -106,6 +106,28 @@ function loadProductivityDataset() {
   return JSON.parse(fs.readFileSync(PRODUCTIVITY_JSON_PATH, 'utf-8'));
 }
 
+function sanitizeProductivityDataset(dataset: any) {
+  if (!dataset || !Array.isArray(dataset.records)) return dataset;
+  const hasOldDemo = dataset.records.some((r: any) => String(r.tanggal || '').startsWith('2025'));
+  if (!hasOldDemo) return dataset;
+
+  const records = dataset.records.filter((r: any) => !String(r.tanggal || '').startsWith('2025'));
+  const hourlyRecords = Array.isArray(dataset.hourlyRecords)
+    ? dataset.hourlyRecords.filter((h: any) => !String(h.tanggal || '').startsWith('2025'))
+    : [];
+  const postingDates = (dataset.postingDates || []).filter((d: string) => !String(d).startsWith('2025'));
+  const tanggalKerjaDates = (dataset.tanggalKerjaDates || []).filter((d: string) => !String(d).startsWith('2025'));
+
+  return {
+    ...dataset,
+    totalRowsRead: records.length,
+    postingDates,
+    tanggalKerjaDates,
+    records,
+    hourlyRecords,
+  };
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const isDiagnostic = url.searchParams.get('check') === '1' || url.searchParams.get('diagnostic') === '1';
@@ -186,7 +208,8 @@ export async function GET(request: Request) {
           .maybeSingle();
 
         if (supaRow && supaRow.dataset) {
-          const dataset = typeof supaRow.dataset === 'string' ? JSON.parse(supaRow.dataset) : supaRow.dataset;
+          const rawDataset = typeof supaRow.dataset === 'string' ? JSON.parse(supaRow.dataset) : supaRow.dataset;
+          const dataset = sanitizeProductivityDataset(rawDataset);
           const headcount = supaRow.headcount
             ? (typeof supaRow.headcount === 'string' ? JSON.parse(supaRow.headcount) : supaRow.headcount)
             : loadHeadcountConfig();
@@ -209,7 +232,8 @@ export async function GET(request: Request) {
       try {
         const row = db.prepare("SELECT dataset, headcount, last_updated FROM productivity_data WHERE data_key = 'current' LIMIT 1").get() as any;
         if (row && row.dataset) {
-          const dataset = JSON.parse(row.dataset);
+          const rawDataset = JSON.parse(row.dataset);
+          const dataset = sanitizeProductivityDataset(rawDataset);
           const headcount = row.headcount ? JSON.parse(row.headcount) : loadHeadcountConfig();
           return NextResponse.json({
             success: true,
@@ -224,11 +248,12 @@ export async function GET(request: Request) {
     }
 
     // 3. Fallback File JSON Lokal
-    const dataset = loadProductivityDataset();
+    const rawDataset = loadProductivityDataset();
+    const dataset = sanitizeProductivityDataset(rawDataset);
     const headcount = loadHeadcountConfig();
 
-    // Auto-seed ke Supabase jika di cloud deploy tabel productivity_data masih kosong
-    if (dataset && isSupabaseConfigured && supabase) {
+    // Auto-seed ke Supabase jika di cloud deploy tabel productivity_data masih kosong dan ada data valid
+    if (dataset && Array.isArray(dataset.records) && dataset.records.length > 0 && isSupabaseConfigured && supabase) {
       try {
         await supabase.from('productivity_data').upsert({
           data_key: 'current',
@@ -397,29 +422,32 @@ export async function POST(request: Request) {
         let finalDataset = incomingDataset;
         if (existingDataset && Array.isArray(existingDataset.records) && !body.replace) {
           // Merge: tanggal yang ada di incoming akan menimpa/menambah, tanggal lain tetap dipertahankan
+          // Pastikan data demo legacy 2025 tidak diikutkan lagi
           const incomingDates = new Set<string>();
           for (const r of incomingDataset.records) {
-            if (r.tanggal) incomingDates.add(r.tanggal);
+            if (r.tanggal && !String(r.tanggal).startsWith('2025')) incomingDates.add(r.tanggal);
           }
 
-          const mergedRecords = existingDataset.records.filter((r: any) => !incomingDates.has(r.tanggal));
-          mergedRecords.push(...incomingDataset.records);
+          const mergedRecords = existingDataset.records
+            .filter((r: any) => !incomingDates.has(r.tanggal) && !String(r.tanggal || '').startsWith('2025'));
+          mergedRecords.push(...incomingDataset.records.filter((r: any) => !String(r.tanggal || '').startsWith('2025')));
 
           let mergedHourly: any[] = [];
           if (Array.isArray(incomingDataset.hourlyRecords)) {
             const existingHourly = Array.isArray(existingDataset.hourlyRecords) ? existingDataset.hourlyRecords : [];
-            mergedHourly = existingHourly.filter((hb: any) => !incomingDates.has(hb.tanggal));
-            mergedHourly.push(...incomingDataset.hourlyRecords);
+            mergedHourly = existingHourly
+              .filter((hb: any) => !incomingDates.has(hb.tanggal) && !String(hb.tanggal || '').startsWith('2025'));
+            mergedHourly.push(...incomingDataset.hourlyRecords.filter((hb: any) => !String(hb.tanggal || '').startsWith('2025')));
           } else if (Array.isArray(existingDataset.hourlyRecords)) {
-            mergedHourly = existingDataset.hourlyRecords;
+            mergedHourly = existingDataset.hourlyRecords.filter((hb: any) => !String(hb.tanggal || '').startsWith('2025'));
           }
 
           const postingDates = Array.from(
             new Set([...(existingDataset.postingDates || []), ...(incomingDataset.postingDates || [])])
-          ).sort();
+          ).filter((d) => !String(d).startsWith('2025')).sort();
           const tanggalKerjaDates = Array.from(
             new Set([...(existingDataset.tanggalKerjaDates || []), ...(incomingDataset.tanggalKerjaDates || [])])
-          ).sort();
+          ).filter((d) => !String(d).startsWith('2025')).sort();
 
           finalDataset = {
             sourceFile: incomingDataset.sourceFile || existingDataset.sourceFile || 'SAP_MB51_Export.xlsx',
@@ -594,3 +622,135 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  const originErr = rejectCrossOrigin(request);
+  if (originErr) return originErr;
+
+  const auth = await requireAuth(request);
+  if (!isAuthContext(auth)) return auth;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const dateParam = searchParams.get('date');
+
+    const cleanDate = dateParam ? dateParam.trim().replace(/^snap_/, '') : null;
+    const isSingleDateDelete = Boolean(cleanDate && cleanDate !== '' && cleanDate !== 'latest' && cleanDate !== 'ALL');
+
+    const emptyDataset = {
+      sourceFile: '',
+      lastUpdated: new Date().toISOString(),
+      totalRowsRead: 0,
+      postingDates: [],
+      tanggalKerjaDates: [],
+      records: [],
+      hourlyRecords: [],
+    };
+
+    let targetDataset = emptyDataset;
+
+    if (isSingleDateDelete && cleanDate) {
+      // Ambil dataset yang ada saat ini
+      let currentDataset: any = null;
+      const db = getLocalDb();
+      if (db) {
+        try {
+          const row = db.prepare("SELECT dataset FROM productivity_data WHERE data_key = 'current' LIMIT 1").get() as any;
+          if (row?.dataset) {
+            currentDataset = typeof row.dataset === 'string' ? JSON.parse(row.dataset) : row.dataset;
+          }
+        } catch (e) {
+          console.warn('SQLite read error during DELETE:', e);
+        }
+      }
+
+      if (!currentDataset && isSupabaseConfigured && supabase) {
+        try {
+          const { data } = await supabase.from('productivity_data').select('dataset').eq('data_key', 'current').maybeSingle();
+          if (data?.dataset) {
+            currentDataset = typeof data.dataset === 'string' ? JSON.parse(data.dataset) : data.dataset;
+          }
+        } catch (e) {
+          console.warn('Supabase read error during DELETE:', e);
+        }
+      }
+
+      if (!currentDataset) {
+        currentDataset = loadProductivityDataset();
+      }
+
+      if (currentDataset && Array.isArray(currentDataset.records)) {
+        const filteredRecords = currentDataset.records.filter((r: any) => r.tanggal !== cleanDate);
+        const filteredHourly = Array.isArray(currentDataset.hourlyRecords)
+          ? currentDataset.hourlyRecords.filter((h: any) => h.tanggal !== cleanDate)
+          : [];
+        const postingDates = (currentDataset.postingDates || []).filter((d: string) => d !== cleanDate);
+        const tanggalKerjaDates = (currentDataset.tanggalKerjaDates || []).filter((d: string) => d !== cleanDate);
+
+        targetDataset = {
+          sourceFile: currentDataset.sourceFile || '',
+          lastUpdated: new Date().toISOString(),
+          totalRowsRead: filteredRecords.length,
+          postingDates,
+          tanggalKerjaDates,
+          records: filteredRecords,
+          hourlyRecords: filteredHourly,
+        };
+      }
+    }
+
+    // 1. Simpan ke file JSON lokal
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(PRODUCTIVITY_JSON_PATH, JSON.stringify(targetDataset, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn('Filesystem write warning during DELETE:', e);
+    }
+
+    // 2. Simpan ke SQLite
+    const db = getLocalDb();
+    if (db) {
+      try {
+        db.prepare(`
+          INSERT INTO productivity_data (data_key, dataset, last_updated)
+          VALUES ('current', ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(data_key) DO UPDATE SET
+            dataset = excluded.dataset,
+            last_updated = excluded.last_updated
+        `).run(JSON.stringify(targetDataset));
+      } catch (e) {
+        console.warn('SQLite save error during DELETE:', e);
+      }
+    }
+
+    // 3. Simpan ke Supabase jika terkonfigurasi
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('productivity_data').upsert({
+          data_key: 'current',
+          dataset: targetDataset,
+          last_updated: new Date().toISOString(),
+        }, { onConflict: 'data_key' });
+      } catch (e) {
+        console.warn('Supabase save error during DELETE:', e);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: isSingleDateDelete
+        ? `Data produktivitas tanggal ${cleanDate} berhasil dihapus.`
+        : 'Semua data transaksi produktivitas berhasil direset.',
+      deletedDate: isSingleDateDelete ? cleanDate : null,
+      remainingRows: targetDataset.totalRowsRead,
+      dataset: targetDataset,
+    });
+  } catch (err: any) {
+    console.error('Error in DELETE /api/productivity:', err);
+    return NextResponse.json(
+      { success: false, error: err?.message || 'Gagal menghapus data produktivitas' },
+      { status: 500 }
+    );
+  }
+}
+
