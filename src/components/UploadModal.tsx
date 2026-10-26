@@ -24,6 +24,7 @@ interface UploadModalProps {
 interface UploadItemRowProps {
   canUpload: boolean;
   title: string;
+  subtitle?: string;
   file: File | null;
   onFileChange: (file: File | null) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -33,6 +34,7 @@ interface UploadItemRowProps {
 const UploadItemRow: React.FC<UploadItemRowProps> = ({
   canUpload,
   title,
+  subtitle,
   file,
   onFileChange,
   inputRef,
@@ -67,6 +69,11 @@ const UploadItemRow: React.FC<UploadItemRowProps> = ({
             <span className="text-xs font-semibold text-slate-800 block truncate">
               {title}
             </span>
+            {subtitle && (
+              <span className="text-[10px] text-slate-400 block truncate leading-tight mt-0.5 font-normal">
+                {subtitle}
+              </span>
+            )}
           </div>
         </div>
 
@@ -143,7 +150,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [looFile, setLooFile] = useState<File | null>(null);
   const [packagingFile, setPackagingFile] = useState<File | null>(null);
   const [incomingFile, setIncomingFile] = useState<File | null>(null);
-  const [ncProgressFile, setNcProgressFile] = useState<File | null>(null);
   const [stoFile, setStoFile] = useState<File | null>(null);
   const [auditSLocFile, setAuditSLocFile] = useState<File | null>(null);
   const [mb51File, setMb51File] = useState<File | null>(null);
@@ -159,14 +165,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const canUploadSTO = isAdmin || Boolean(userPermissions?.canUploadSTO ?? userPermissions?.canUploadSAP ?? true);
   const canUploadAuditSLoc = isAdmin || Boolean(userPermissions?.canUploadAuditSLoc ?? userPermissions?.canUploadSAP ?? true);
   const canUploadProductivity = isAdmin || Boolean(userPermissions?.canUploadProductivity ?? userPermissions?.canUploadSAP ?? true);
-  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg || canUploadProgressNC || canUploadSTO || canUploadAuditSLoc || canUploadProductivity;
+  const canUploadMB51 = canUploadProgressNC || canUploadProductivity;
+  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg || canUploadMB51 || canUploadSTO || canUploadAuditSLoc;
 
   const pipeInputRef = useRef<HTMLInputElement>(null);
   const coilInputRef = useRef<HTMLInputElement>(null);
   const looInputRef = useRef<HTMLInputElement>(null);
   const packagingInputRef = useRef<HTMLInputElement>(null);
   const incomingInputRef = useRef<HTMLInputElement>(null);
-  const ncProgressInputRef = useRef<HTMLInputElement>(null);
   const stoInputRef = useRef<HTMLInputElement>(null);
   const auditSLocInputRef = useRef<HTMLInputElement>(null);
   const mb51InputRef = useRef<HTMLInputElement>(null);
@@ -182,10 +188,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   })();
 
   const isBackdate = targetDate !== todayStr;
-  const selectedCount = [pipeFile, coilFile, looFile, packagingFile, incomingFile, ncProgressFile, stoFile, auditSLocFile, mb51File].filter(Boolean).length;
+  const selectedCount = [pipeFile, coilFile, looFile, packagingFile, incomingFile, mb51File, stoFile, auditSLocFile].filter(Boolean).length;
 
   const handleProcessFiles = async () => {
-    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile && !ncProgressFile && !stoFile && !auditSLocFile && !mb51File) {
+    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile && !mb51File && !stoFile && !auditSLocFile) {
       setErrorMsg('Silakan pilih minimal satu file spreadsheet export SAP (.xlsx / .xls).');
       return;
     }
@@ -199,7 +205,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       let looRows: Record<string, unknown>[] = [];
       let packagingRows: Record<string, unknown>[] = [];
       let incomingRows: Record<string, unknown>[] = [];
-      let ncProgressRows: Record<string, unknown>[] = [];
       let stoRawMatrix: unknown[][] = [];
       let auditSLocRawMatrix: unknown[][] = [];
 
@@ -262,15 +267,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         } catch (e: unknown) {
           const m = e instanceof Error ? e.message : 'Format file tidak dapat dibaca';
           throw new Error(`File Incoming Packaging (${incomingFile.name}): ${m}`);
-        }
-      }
-
-      if (ncProgressFile && canUploadProgressNC) {
-        try {
-          ncProgressRows = await readExcelFile(ncProgressFile);
-        } catch (e: unknown) {
-          const m = e instanceof Error ? e.message : 'Format file tidak dapat dibaca';
-          throw new Error(`File Progres NC (${ncProgressFile.name}): ${m}`);
         }
       }
 
@@ -355,16 +351,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         }
       }
 
-      if (ncProgressFile && canUploadProgressNC && ncProgressRows.length > 0) {
-        try {
-          parsedResult.ncProgressData = parseNCProgressRows(ncProgressRows);
-          uploadedCategories.push('progress_nc');
-        } catch (e: unknown) {
-          const m = e instanceof Error ? e.message : 'Format kolom Progres NC tidak sesuai';
-          throw new Error(`Gagal memproses Progres NC: ${m}`);
-        }
-      }
-
       if (stoFile && canUploadSTO && stoRawMatrix.length > 0) {
         try {
           const parsedSto = parseStockOpnameFile(stoRawMatrix);
@@ -393,18 +379,55 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         }
       }
 
-      if (mb51File && canUploadProductivity) {
+      // Ekstraksi Terpadu File SAP MB51 (Progres NC, Repair & Produktivitas Gudang)
+      if (mb51File && canUploadMB51) {
+        let mb51Rows: Record<string, unknown>[] = [];
+        let mb51RawMatrix: unknown[][] = [];
+
         try {
-          const mb51RawMatrix = await readExcelFileRawMatrix(mb51File);
-          const parsedMB51 = parseMB51File(mb51RawMatrix, mb51File.name, targetDate);
-          if (!parsedMB51 || parsedMB51.records.length === 0) {
-            throw new Error('Tidak ada transaksi MB51 valid yang dapat diproses. Pastikan file memuat kolom tanggal, jam, kuantitas/berat, dan SLoc.');
-          }
-          parsedResult.productivityData = parsedMB51;
-          uploadedCategories.push('productivity');
+          const [rows, matrix] = await Promise.all([
+            canUploadProgressNC ? readExcelFile(mb51File).catch(() => []) : Promise.resolve([]),
+            canUploadProductivity ? readExcelFileRawMatrix(mb51File).catch(() => []) : Promise.resolve([]),
+          ]);
+          mb51Rows = rows;
+          mb51RawMatrix = matrix;
         } catch (e: unknown) {
-          const m = e instanceof Error ? e.message : 'Format file MB51 tidak sesuai';
-          throw new Error(`Gagal memproses Data Produktivitas MB51 (${mb51File.name}): ${m}`);
+          const m = e instanceof Error ? e.message : 'Format file tidak dapat dibaca';
+          throw new Error(`File SAP MB51 (${mb51File.name}): ${m}`);
+        }
+
+        let hasExtractedAny = false;
+
+        // 1. Ekstraksi Data Transaksi Progres NC & Repair (MVT 309, 261, 101)
+        if (canUploadProgressNC && mb51Rows.length > 0) {
+          try {
+            const parsedNC = parseNCProgressRows(mb51Rows);
+            if (parsedNC && parsedNC.length > 0) {
+              parsedResult.ncProgressData = parsedNC;
+              uploadedCategories.push('progress_nc');
+              hasExtractedAny = true;
+            }
+          } catch (ncErr: unknown) {
+            console.warn('Progres NC tidak terdeteksi pada file MB51:', ncErr);
+          }
+        }
+
+        // 2. Ekstraksi Data Produktivitas Tenaga Kerja Gudang (Shift & HandHeld)
+        if (canUploadProductivity && mb51RawMatrix.length > 0) {
+          try {
+            const parsedMB51 = parseMB51File(mb51RawMatrix, mb51File.name, targetDate);
+            if (parsedMB51 && parsedMB51.records.length > 0) {
+              parsedResult.productivityData = parsedMB51;
+              uploadedCategories.push('productivity');
+              hasExtractedAny = true;
+            }
+          } catch (prodErr: unknown) {
+            console.warn('Produktivitas MB51 tidak terdeteksi pada file:', prodErr);
+          }
+        }
+
+        if (!hasExtractedAny) {
+          throw new Error(`File SAP MB51 (${mb51File.name}) tidak memuat transaksi valid untuk Progres NC maupun Produktivitas Gudang.`);
         }
       }
 
@@ -557,13 +580,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               isPackaging={true}
             />
 
-            {/* 6. Data Transaksi Progres NC (MVT 309, 261, 101) */}
+            {/* 6. Data Transaksi SAP MB51 (Progres NC, Repair & Produktivitas Gudang) */}
             <UploadItemRow
-              canUpload={canUploadProgressNC}
-              title="Data Transaksi Progres NC & Repair"
-              file={ncProgressFile}
-              onFileChange={setNcProgressFile}
-              inputRef={ncProgressInputRef}
+              canUpload={canUploadMB51}
+              title="Data Transaksi SAP MB51"
+              subtitle="Ekstraksi Progres NC, Repair & Produktivitas Gudang (Shift/HH)"
+              file={mb51File}
+              onFileChange={setMb51File}
+              inputRef={mb51InputRef}
             />
 
             {/* 7. Data Stock Opname (Actual vs SAP) */}
@@ -582,15 +606,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               file={auditSLocFile}
               onFileChange={setAuditSLocFile}
               inputRef={auditSLocInputRef}
-            />
-
-            {/* 9. Data Produktivitas Tenaga Kerja Gudang (SAP MB51) */}
-            <UploadItemRow
-              canUpload={canUploadProductivity}
-              title="Data Produktivitas MB51 (Shift & HandHeld)"
-              file={mb51File}
-              onFileChange={setMb51File}
-              inputRef={mb51InputRef}
             />
           </div>
         </div>
