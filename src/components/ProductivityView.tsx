@@ -101,18 +101,6 @@ function fmtDateShort(dateStr: string): string {
   return `${d} ${months[mi] || m} ${y}`;
 }
 
-function fmtCutoffWindow(dateStr: string): string {
-  if (!dateStr || dateStr === 'ALL' || dateStr.length < 10) return '07:00 – 07:00';
-  const [y, m, d] = dateStr.split('-').map((n) => parseInt(n, 10));
-  if (!y || !m || !d) return fmtDateShort(dateStr);
-  const nextDt = new Date(Date.UTC(y, m - 1, d + 1));
-  const ny = nextDt.getUTCFullYear();
-  const nm = String(nextDt.getUTCMonth() + 1).padStart(2, '0');
-  const nd = String(nextDt.getUTCDate()).padStart(2, '0');
-  const nextStr = `${ny}-${nm}-${nd}`;
-  return `${fmtDateShort(dateStr)} 07:00 – ${fmtDateShort(nextStr)} 07:00`;
-}
-
 function extractMetrics(rec: MB51BucketRecord, calcMode: CalcMode) {
   if (calcMode === 'handheld_clean') {
     const inKg = rec.hhInKg;
@@ -234,7 +222,7 @@ export default function ProductivityView({
   useEffect(() => {
     setFullscreenTable(null);
   }, [activeSubTab]);
-  const [dateMode, setDateMode] = useState<DateMode>('tanggal_kerja');
+  const dateMode: DateMode = 'posting_date';
   const [calcMode, setCalcMode] = useState<CalcMode>('handheld_clean');
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     if (activeDate && activeDate !== 'latest') return activeDate;
@@ -299,21 +287,12 @@ export default function ProductivityView({
         if (mounted) {
           setDataset(json.dataset);
           setHeadcount(json.headcount);
-          const dates: string[] =
-            json.dataset?.tanggalKerjaDates?.length
-              ? json.dataset.tanggalKerjaDates
-              : json.dataset?.postingDates || [];
-          const isSingleDaySapSplit =
-            (json.dataset?.postingDates?.length || 0) === 1 && (json.dataset?.tanggalKerjaDates?.length || 0) > 1;
+          const dates: string[] = json.dataset?.postingDates || [];
           if (dates.length) {
-            if (activeDate && activeDate !== 'latest') {
+            if (activeDate && activeDate !== 'latest' && dates.includes(activeDate)) {
               setSelectedDate(activeDate);
             } else {
-              setSelectedDate(
-                isSingleDaySapSplit
-                  ? 'ALL'
-                  : dates[dates.length - 1]
-              );
+              setSelectedDate(dates[dates.length - 1]);
             }
           }
         }
@@ -331,8 +310,8 @@ export default function ProductivityView({
 
   const availableDates = useMemo(() => {
     if (!dataset) return [];
-    return dateMode === 'posting_date' ? dataset.postingDates : dataset.tanggalKerjaDates;
-  }, [dataset, dateMode]);
+    return dataset.postingDates || [];
+  }, [dataset]);
 
   const handleDateSelect = (newDate: string) => {
     setSelectedDate(newDate);
@@ -964,7 +943,7 @@ export default function ProductivityView({
         `REKAP PRODUKTIVITAS HARIAN GUDANG (${selectedDate === 'ALL' ? 'SEMUA TANGGAL' : selectedDate})`,
       ]);
       wsMatrix.addRow([
-        `Sumber: ${dataset.sourceFile} | Basis: ${dateMode === 'posting_date' ? 'Posting Date' : 'Tanggal Kerja'} | Mode: ${calcMode}`,
+        `Sumber: ${dataset.sourceFile} | Basis: Posting Date SAP | Mode: ${calcMode}`,
       ]);
       wsMatrix.addRow([]);
 
@@ -1161,7 +1140,7 @@ export default function ProductivityView({
             <ul className="list-disc pl-4 space-y-0.5 text-slate-600">
               <li><strong>Gudang:</strong> Otomatis dari karakter ke-2 <code>Storage Location</code> / <code>Sloc</code> (mis. <code>5M09</code> → <code>Gd.13</code>, <code>5N21</code> → <code>Gd.14</code>, <code>5A21</code> → <code>Gd.01</code>).</li>
               <li><strong>Tonase (Kg) &amp; Qty:</strong> Membaca <code>Quantity</code> / <code>Berat</code> sebagai Kg (termasuk desimal koma seperti <code>-594,00</code> / <code>-133,056</code>) dan <code>Qty in Un. of Entry</code> / <code>Qty</code> sebagai satuan fisik.</li>
-              <li><strong>Jam Kerja 24 Jam (07:00 – 07:00):</strong> Shift 1 (<code>07:00–15:00</code>), Shift 2 (<code>15:00–23:00</code>), dan Shift 3 (<code>23:00–07:00</code>). Transaksi dini hari jam <code>00:00–06:59</code> otomatis terhitung dalam siklus 24 jam tanggal kerja tersebut.</li>
+              <li><strong>Basis Posting Date SAP:</strong> Mengikuti tanggal posting resmi SAP MB51. Shift 1 (<code>07:00–14:59</code>), Shift 2 (<code>15:00–22:59</code>), dan Shift 3 (<code>23:00–06:59</code>).</li>
               <li><strong>HandHeld vs Desktop:</strong> Otomatis dipetakan dari <code>User name</code> (mis. <code>GUDANG13C</code> → <code>HandHeld</code>) &amp; filter validasi <code>Work Center + Movement Type</code>.</li>
             </ul>
           </div>
@@ -1281,12 +1260,8 @@ export default function ProductivityView({
   const totalStatusCount = Math.max(1, kpiSummary.optimalCount + kpiSummary.idleCount + kpiSummary.lowCount);
   const optPct = Math.round((kpiSummary.optimalCount / totalStatusCount) * 100);
 
-  const isSingleCalendarDaySplit =
-    dataset.postingDates.length === 1 && dataset.tanggalKerjaDates.length > 1 && dateMode === 'tanggal_kerja';
-
-  const defaultDate = isSingleCalendarDaySplit
-    ? 'ALL'
-    : activeDate && activeDate !== 'latest'
+  const defaultDate =
+    activeDate && activeDate !== 'latest' && availableDates.includes(activeDate)
       ? activeDate
       : availableDates[availableDates.length - 1] || 'ALL';
 
@@ -1303,8 +1278,7 @@ export default function ProductivityView({
     (calcMode !== 'handheld_clean' ? 1 : 0);
 
   const resetFilters = () => {
-    setDateMode('tanggal_kerja');
-    handleDateSelect(defaultDate);
+    handleDateSelect(dataset?.postingDates?.[dataset.postingDates.length - 1] || 'ALL');
     setFilterShift('ALL');
     setFilterGudang('ALL');
     setCalcMode('handheld_clean');
@@ -1616,7 +1590,7 @@ export default function ProductivityView({
                   )}
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Siklus 24 Jam (07:00 – 07:00) · Shift 1, Shift 2 & Shift 3
+                  Posting Date SAP · Shift 1, Shift 2 & Shift 3
                 </p>
               </div>
 
@@ -1963,7 +1937,7 @@ export default function ProductivityView({
                   Tren Performa Harian ({fmtDateShort(availableDates[0])} – {fmtDateShort(availableDates[availableDates.length - 1])})
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Perbandingan fluktuasi kerja 24 jam antar shift (07:00 – 07:00)
+                  Perbandingan fluktuasi tonase dan transaksi antar shift (Shift 1, 2, 3)
                 </p>
               </div>
 
@@ -2429,7 +2403,7 @@ export default function ProductivityView({
                 Frekuensi Scan Transaksi per Jam
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Pola aktivitas pergerakan barang 24 jam (07:00 – 07:00) per gudang
+                Distribusi intensitas transaksi per jam operasional (00:00 – 23:59) per gudang
               </p>
             </div>
             <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
@@ -2879,6 +2853,7 @@ export default function ProductivityView({
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2 block">
                   1. Cakupan Data Operasional
                 </span>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   {/* Tanggal */}
                   <div className="space-y-1">

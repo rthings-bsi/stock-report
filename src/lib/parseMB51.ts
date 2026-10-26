@@ -415,17 +415,6 @@ export function deriveShiftAndTk(entryDateStr: string, hour: number | null): { s
   if (hour >= 15 && hour <= 22) {
     return { shift: 'Shift 2', tkStr: entryDateStr };
   }
-  // Cutoff 24 jam shift 3 (23:00 - 06:59): jam 00:00 - 06:59 adalah tanggal kerja hari sebelumnya (Day-1)
-  if (hour >= 0 && hour <= 6 && entryDateStr) {
-    try {
-      const dt = new Date(`${entryDateStr}T12:00:00Z`);
-      dt.setUTCDate(dt.getUTCDate() - 1);
-      const prevStr = dt.toISOString().slice(0, 10);
-      return { shift: 'Shift 3', tkStr: prevStr };
-    } catch {
-      // fallback
-    }
-  }
   return { shift: 'Shift 3', tkStr: entryDateStr };
 }
 
