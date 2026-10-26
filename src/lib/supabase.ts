@@ -8,12 +8,20 @@ const isCloudDeploy =
   process.env.DISABLE_SUPABASE !== 'true';
 
 const supabaseUrl = isCloudDeploy
-  ? (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '')
+  ? (process.env.NEXT_PUBLIC_SUPABASE_URL ||
+     process.env.SUPABASE_URL ||
+     'https://gobcmaehhdktvyqbvfjv.supabase.co')
   : '';
 
-// Wajib service role key. Publishable/anon key sengaja tidak dipakai lagi agar
-// tidak ada jalur akses langsung ke database dari key yang bisa tersebar.
-const supabaseKey = isCloudDeploy ? (process.env.SUPABASE_SERVICE_ROLE_KEY || '') : '';
+// Wajib service role key untuk operasi server-side. Mendukung berbagai alias environment variable Vercel.
+const supabaseKey = isCloudDeploy
+  ? (process.env.SUPABASE_SERVICE_ROLE_KEY ||
+     process.env.SUPABASE_SERVICE_KEY ||
+     process.env.SUPABASE_KEY ||
+     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+     process.env.SUPABASE_ANON_KEY ||
+     '')
+  : '';
 
 export const isSupabaseConfigured = Boolean(
   isCloudDeploy && supabaseUrl.startsWith('http') && supabaseKey

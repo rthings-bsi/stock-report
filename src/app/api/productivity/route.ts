@@ -107,6 +107,71 @@ function loadProductivityDataset() {
 }
 
 export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const isDiagnostic = url.searchParams.get('check') === '1' || url.searchParams.get('diagnostic') === '1';
+
+  // Mode diagnostik: periksa konektivitas dan kelengkapan tabel Supabase di produksi
+  if (isDiagnostic) {
+    const diag: Record<string, any> = {
+      timestamp: new Date().toISOString(),
+      environment: {
+        isCloudDeploy: Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.ENABLE_SUPABASE === 'true'),
+        nodeEnv: process.env.NODE_ENV,
+        isSupabaseConfigured,
+        hasSupabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL),
+        hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY),
+        hasAnySupabaseKey: Boolean(
+          process.env.SUPABASE_SERVICE_ROLE_KEY ||
+          process.env.SUPABASE_SERVICE_KEY ||
+          process.env.SUPABASE_KEY ||
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+          process.env.SUPABASE_ANON_KEY
+        ),
+      },
+      tables: {},
+      summary: '',
+    };
+
+    if (!isSupabaseConfigured || !supabase) {
+      diag.summary = 'Supabase BELUM terkonfigurasi. Pastikan NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY sudah diset di Vercel Environment Variables.';
+      return NextResponse.json({ success: false, diagnostic: diag });
+    }
+
+    try {
+      const { data, error } = await supabase.from('productivity_data').select('data_key, last_updated').limit(1);
+      diag.tables.productivity_data = error
+        ? { exists: false, error: error.message, code: error.code }
+        : { exists: true, rowCount: data?.length ?? 0 };
+    } catch (e: any) {
+      diag.tables.productivity_data = { exists: false, exception: e?.message };
+    }
+
+    try {
+      const { data, error } = await supabase.from('warehouse_snapshots').select('snapshot_key, audit_sloc_data, sto_data, nc_progress_data').limit(1);
+      diag.tables.warehouse_snapshots = error
+        ? { exists: false, error: error.message, code: error.code }
+        : { exists: true, hasAuditSLocCol: true, rowCount: data?.length ?? 0 };
+    } catch (e: any) {
+      diag.tables.warehouse_snapshots = { exists: false, exception: e?.message };
+    }
+
+    try {
+      const { data, error } = await supabase.from('roles').select('id, key').limit(1);
+      diag.tables.roles = error
+        ? { exists: false, error: error.message }
+        : { exists: true, rowCount: data?.length ?? 0 };
+    } catch (e: any) {
+      diag.tables.roles = { exists: false, exception: e?.message };
+    }
+
+    const allOk = Boolean(diag.tables.productivity_data?.exists && diag.tables.warehouse_snapshots?.exists);
+    diag.summary = allOk
+      ? 'Database Supabase SIAP. Tabel productivity_data dan warehouse_snapshots terdeteksi.'
+      : 'Tabel Supabase BELUM LENGKAP. Silakan jalankan script supabase_master_migration.sql di Supabase SQL Editor.';
+
+    return NextResponse.json({ success: allOk, diagnostic: diag });
+  }
+
   const auth = await requireAuth(request);
   if (!isAuthContext(auth)) return auth;
 
@@ -377,21 +442,31 @@ export async function POST(request: Request) {
         }
 
         // 3. Simpan ke Supabase
+        let supaErrorDetail: string | null = null;
         if (isSupabaseConfigured && supabase) {
           try {
-            await supabase.from('productivity_data').upsert({
+            const { error: supaErr } = await supabase.from('productivity_data').upsert({
               data_key: 'current',
               dataset: finalDataset,
               last_updated: new Date().toISOString(),
             }, { onConflict: 'data_key' });
-          } catch (e) {
+            if (supaErr) {
+              console.error('Supabase save dataset error:', supaErr);
+              supaErrorDetail = supaErr.message || JSON.stringify(supaErr);
+            }
+          } catch (e: any) {
             console.warn('Supabase save dataset warning:', e);
+            supaErrorDetail = e?.message || 'Exception during Supabase save';
           }
         }
 
         return NextResponse.json({
           success: true,
           dataset: finalDataset,
+          persisted: {
+            supabase: isSupabaseConfigured ? (!supaErrorDetail ? 'saved' : `error: ${supaErrorDetail}`) : 'not_configured',
+            sqlite: db ? 'saved' : 'skipped',
+          },
         });
       }
 
@@ -455,16 +530,22 @@ export async function POST(request: Request) {
         }
 
         // Simpan ke Supabase
+        let supaErrorDetail: string | null = null;
         if (isSupabaseConfigured && supabase) {
           try {
-            await supabase.from('productivity_data').upsert({
+            const { error: supaErr } = await supabase.from('productivity_data').upsert({
               data_key: 'current',
               dataset,
               headcount,
               last_updated: new Date().toISOString(),
             }, { onConflict: 'data_key' });
-          } catch (e) {
+            if (supaErr) {
+              console.error('Supabase save productivity dataset warning:', supaErr);
+              supaErrorDetail = supaErr.message || JSON.stringify(supaErr);
+            }
+          } catch (e: any) {
             console.warn('Supabase save productivity dataset warning:', e);
+            supaErrorDetail = e?.message || 'Exception during Supabase save';
           }
         }
 
@@ -472,6 +553,9 @@ export async function POST(request: Request) {
           success: true,
           dataset,
           headcount,
+          persisted: {
+            supabase: isSupabaseConfigured ? (!supaErrorDetail ? 'saved' : `error: ${supaErrorDetail}`) : 'not_configured',
+          },
         });
       } finally {
         try {
