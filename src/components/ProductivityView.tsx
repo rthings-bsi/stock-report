@@ -31,70 +31,26 @@ import {
 } from 'lucide-react';
 import { tooltipStyleStrong } from '@/lib/chartTheme';
 import { cn } from '@/lib/utils';
+import { readExcelFileRawMatrix } from '@/lib/parser';
+import { parseMB51File } from '@/lib/parseMB51';
+import type {
+  ShiftName,
+  DateMode,
+  CalcMode,
+  MB51BucketRecord,
+  MB51HourlyRecord,
+  MB51Dataset,
+  HeadcountOverride,
+  HeadcountConfig,
+} from '@/types/productivity';
 
 ChartJS.register(...registerables);
 
-type ShiftName = 'Shift 1' | 'Shift 2' | 'Shift 3';
-type DateMode = 'posting_date' | 'tanggal_kerja';
-type CalcMode = 'handheld_clean' | 'all_devices_clean' | 'raw_abs';
 type SubTab = 'matrix' | 'daily_trend' | 'detail_table' | 'hourly_pivot';
 
-interface MB51BucketRecord {
-  dateMode: DateMode;
-  tanggal: string;
-  shift: ShiftName;
-  gudang: string;
-  hhInKg: number;
-  hhOutKg: number;
-  hhInTx: number;
-  hhOutTx: number;
-  allInKg: number;
-  allOutKg: number;
-  allInTx: number;
-  allOutTx: number;
-  rawAbsKg: number;
-  rawTx: number;
-  coilKg: number;
-  stripKg: number;
-  pipaKg: number;
-}
-
-interface MB51HourlyRecord {
-  dateMode: DateMode;
-  tanggal: string;
-  shift: ShiftName;
-  hour: number;
-  gudang: string;
-  hhTx: number;
-  allTx: number;
-  hhKg: number;
-}
-
-interface MB51Dataset {
-  sourceFile: string;
-  lastUpdated: string;
-  totalRowsRead: number;
-  postingDates: string[];
-  tanggalKerjaDates: string[];
-  records: MB51BucketRecord[];
-  hourlyRecords: MB51HourlyRecord[];
-}
-
-interface HeadcountOverride {
-  tanggal: string;
-  gudang: string;
-  shift: ShiftName;
-  man: number | null;
-}
-
-interface HeadcountConfig {
-  defaultManpower: Record<string, Record<ShiftName, number | null>>;
-  dateOverrides: HeadcountOverride[];
-  thresholds: {
-    lowKgPerMan: number;
-    idleTxPerMan: number;
-    heavyKgPerTx: number;
-  };
+export interface ProductivityViewProps {
+  onOpenUploadModal?: () => void;
+  refreshTrigger?: number | string;
 }
 
 const WAREHOUSE_LIST = [
@@ -167,7 +123,7 @@ function extractMetrics(rec: MB51BucketRecord, calcMode: CalcMode) {
   return { inKg: 0, outKg: rec.rawAbsKg, totalKg: rec.rawAbsKg, tx: rec.rawTx };
 }
 
-export default function ProductivityView() {
+export default function ProductivityView({ onOpenUploadModal, refreshTrigger }: ProductivityViewProps = {}) {
   const [dataset, setDataset] = useState<MB51Dataset | null>(null);
   const [headcount, setHeadcount] = useState<HeadcountConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -255,7 +211,7 @@ export default function ProductivityView() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshTrigger]);
 
   const availableDates = useMemo(() => {
     if (!dataset) return [];
@@ -806,18 +762,23 @@ export default function ProductivityView() {
     setUploadingFile(true);
     setUploadError(null);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      // Parse client-side dengan raw matrix & parseMB51File (Bebas ketergantungan runtime Python)
+      const rawMatrix = await readExcelFileRawMatrix(file);
+      const parsedDataset = parseMB51File(rawMatrix, file.name);
+
       const res = await fetch('/api/productivity', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_dataset',
+          dataset: parsedDataset,
+        }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
         throw new Error(json.error || 'Gagal memproses file MB51');
       }
       setDataset(json.dataset);
-      setHeadcount(json.headcount);
       const dates: string[] =
         json.dataset?.tanggalKerjaDates?.length
           ? json.dataset.tanggalKerjaDates
@@ -978,6 +939,96 @@ export default function ProductivityView() {
     }
   };
 
+  const renderUploadModal = () => (
+    <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+        <div className="px-5 py-4 bg-emerald-900 text-white flex items-center justify-between">
+          <div>
+            <h3 className="text-sm sm:text-base font-bold">
+              Upload File Mentah SAP MB51 / Daily Report WH
+            </h3>
+            <p className="text-[11px] text-emerald-200">
+              Mendukung hasil download langsung SAP MB51 (28 kolom mentah) maupun Excel Daily Report WH (.xlsx, .xls, .csv, .txt, .tsv)
+            </p>
+          </div>
+          <button
+            onClick={() => setShowUploadModal(false)}
+            className="p-1.5 rounded-lg text-emerald-200 hover:text-white hover:bg-emerald-800 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv,.tsv,.txt"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFileUpload(f);
+            }}
+          />
+
+          <div
+            onClick={() => !uploadingFile && fileInputRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (uploadingFile) return;
+              const f = e.dataTransfer.files?.[0];
+              if (f) handleFileUpload(f);
+            }}
+            className={cn(
+              'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors',
+              uploadingFile
+                ? 'border-emerald-300 bg-emerald-50/40 cursor-wait'
+                : 'border-slate-300 hover:border-emerald-600 hover:bg-emerald-50/20'
+            )}
+          >
+            <FileSpreadsheet className="w-10 h-10 text-emerald-700 mx-auto mb-3" />
+            {uploadingFile ? (
+              <div>
+                <p className="text-sm font-bold text-slate-900">
+                  Memproses ribuan baris transaksi MB51...
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Menghitung otomatis klasifikasi Gudang, Shift, Tanggal Kerja (H-1 Shift 3), HandHeld/Desktop, dan Work Center + MVT...
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm font-bold text-slate-900">
+                  Klik untuk memilih file atau tarik (drag & drop) ke sini
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Langsung upload file mentah hasil download SAP MB51 (28 kolom: <code>Entry Date</code>, <code>Time of Entry</code> / <code>Entry Time</code>, <code>Storage Location</code> / <code>Sloc</code>, <code>Posting Date</code>, <code>Movement Type</code> / <code>Mvt</code>, <code>Material</code>, <code>Qty in Un. of Entry</code>, <code>Quantity</code> / <code>Berat</code>, <code>User name</code>, dst.)
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200/70 text-[11px] text-slate-700 space-y-1">
+            <p className="font-bold text-emerald-900">Rumus Otomatis dari Data Mentah SAP MB51:</p>
+            <ul className="list-disc pl-4 space-y-0.5 text-slate-600">
+              <li><strong>Gudang:</strong> Otomatis dari karakter ke-2 <code>Storage Location</code> / <code>Sloc</code> (mis. <code>5M09</code> → <code>Gd.13</code>, <code>5N21</code> → <code>Gd.14</code>, <code>5A21</code> → <code>Gd.01</code>).</li>
+              <li><strong>Tonase (Kg) &amp; Qty:</strong> Membaca <code>Quantity</code> / <code>Berat</code> sebagai Kg (termasuk desimal koma seperti <code>-594,00</code> / <code>-133,056</code>) dan <code>Qty in Un. of Entry</code> / <code>Qty</code> sebagai satuan fisik.</li>
+              <li><strong>Jam Kerja 24 Jam (07:00 – 07:00):</strong> Shift 1 (<code>07:00–15:00</code>), Shift 2 (<code>15:00–23:00</code>), dan Shift 3 (<code>23:00–07:00</code>). Transaksi dini hari jam <code>00:00–06:59</code> otomatis terhitung dalam siklus 24 jam tanggal kerja tersebut.</li>
+              <li><strong>HandHeld vs Desktop:</strong> Otomatis dipetakan dari <code>User name</code> (mis. <code>GUDANG13C</code> → <code>HandHeld</code>) &amp; filter validasi <code>Work Center + Movement Type</code>.</li>
+            </ul>
+          </div>
+
+          {uploadError && (
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
+              {uploadError}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -993,17 +1044,27 @@ export default function ProductivityView() {
 
   if (error || !dataset || !headcount) {
     return (
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-8 text-center shadow-xs">
-        <AlertTriangle className="w-8 h-8 text-amber-600 mx-auto mb-3" />
-        <h3 className="text-base font-bold text-slate-900 mb-1">Data Produktivitas MB51 Belum Tersedia</h3>
-        <p className="text-xs text-slate-600 mb-4">{error || 'Silakan unggah file export SAP MB51 (.xlsx / .csv).'}</p>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 transition-colors"
-        >
-          <Upload className="w-3.5 h-3.5" />
-          Upload File SAP MB51
-        </button>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-8 text-center shadow-xs">
+          <AlertTriangle className="w-8 h-8 text-amber-600 mx-auto mb-3" />
+          <h3 className="text-base font-bold text-slate-900 mb-1">Data Produktivitas MB51 Belum Tersedia</h3>
+          <p className="text-xs text-slate-600 mb-4">{error || 'Silakan unggah file export SAP MB51 (.xlsx / .csv).'}</p>
+          <button
+            onClick={() => {
+              if (onOpenUploadModal) {
+                onOpenUploadModal();
+              } else {
+                setShowUploadModal(true);
+              }
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 transition-colors cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Upload File SAP MB51
+          </button>
+        </div>
+
+        {showUploadModal && renderUploadModal()}
       </div>
     );
   }
@@ -1114,7 +1175,13 @@ export default function ProductivityView() {
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
-            onClick={() => setShowUploadModal(true)}
+            onClick={() => {
+              if (onOpenUploadModal) {
+                onOpenUploadModal();
+              } else {
+                setShowUploadModal(true);
+              }
+            }}
             className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-xs transition-colors shadow-2xs border border-emerald-600 cursor-pointer"
           >
             <Upload className="w-3.5 h-3.5 shrink-0" />
@@ -2507,96 +2574,8 @@ export default function ProductivityView() {
         </div>
       )}
 
-      {/* MODAL 2: UPLOAD FILE SAP MB51 (.XLSX / .XLS / .CSV / .TXT / .TSV) */}
-      {showUploadModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
-            <div className="px-5 py-4 bg-emerald-900 text-white flex items-center justify-between">
-              <div>
-                <h3 className="text-sm sm:text-base font-bold">
-                  Upload File Mentah SAP MB51 / Daily Report WH
-                </h3>
-                <p className="text-[11px] text-emerald-200">
-                  Mendukung hasil download langsung SAP MB51 (28 kolom mentah) maupun Excel Daily Report WH (.xlsx, .xls, .csv, .txt, .tsv)
-                </p>
-              </div>
-              <button
-                onClick={() => setShowUploadModal(false)}
-                className="p-1.5 rounded-lg text-emerald-200 hover:text-white hover:bg-emerald-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv,.tsv,.txt"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleFileUpload(f);
-                }}
-              />
-
-              <div
-                onClick={() => !uploadingFile && fileInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (uploadingFile) return;
-                  const f = e.dataTransfer.files?.[0];
-                  if (f) handleFileUpload(f);
-                }}
-                className={cn(
-                  'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors',
-                  uploadingFile
-                    ? 'border-emerald-300 bg-emerald-50/40 cursor-wait'
-                    : 'border-slate-300 hover:border-emerald-600 hover:bg-emerald-50/20'
-                )}
-              >
-                <FileSpreadsheet className="w-10 h-10 text-emerald-700 mx-auto mb-3" />
-                {uploadingFile ? (
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">
-                      Memproses ribuan baris transaksi MB51...
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Menghitung otomatis klasifikasi Gudang, Shift, Tanggal Kerja (H-1 Shift 3), HandHeld/Desktop, dan Work Center + MVT...
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">
-                      Klik untuk memilih file atau tarik (drag & drop) ke sini
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Langsung upload file mentah hasil download SAP MB51 (28 kolom: <code>Entry Date</code>, <code>Time of Entry</code> / <code>Entry Time</code>, <code>Storage Location</code> / <code>Sloc</code>, <code>Posting Date</code>, <code>Movement Type</code> / <code>Mvt</code>, <code>Material</code>, <code>Qty in Un. of Entry</code>, <code>Quantity</code> / <code>Berat</code>, <code>User name</code>, dst.)
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200/70 text-[11px] text-slate-700 space-y-1">
-                <p className="font-bold text-emerald-900">Rumus Otomatis dari Data Mentah SAP MB51:</p>
-                <ul className="list-disc pl-4 space-y-0.5 text-slate-600">
-                  <li><strong>Gudang:</strong> Otomatis dari karakter ke-2 <code>Storage Location</code> / <code>Sloc</code> (mis. <code>5M09</code> → <code>Gd.13</code>, <code>5N21</code> → <code>Gd.14</code>, <code>5A21</code> → <code>Gd.01</code>).</li>
-                  <li><strong>Tonase (Kg) &amp; Qty:</strong> Membaca <code>Quantity</code> / <code>Berat</code> sebagai Kg (termasuk desimal koma seperti <code>-594,00</code> / <code>-133,056</code>) dan <code>Qty in Un. of Entry</code> / <code>Qty</code> sebagai satuan fisik.</li>
-                  <li><strong>Jam Kerja 24 Jam (07:00 – 07:00):</strong> Shift 1 (<code>07:00–15:00</code>), Shift 2 (<code>15:00–23:00</code>), dan Shift 3 (<code>23:00–07:00</code>). Transaksi dini hari jam <code>00:00–06:59</code> otomatis terhitung dalam siklus 24 jam tanggal kerja tersebut.</li>
-                  <li><strong>HandHeld vs Desktop:</strong> Otomatis dipetakan dari <code>User name</code> (mis. <code>GUDANG13C</code> → <code>HandHeld</code>) &amp; filter validasi <code>Work Center + Movement Type</code>.</li>
-                </ul>
-              </div>
-
-              {uploadError && (
-                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
-                  {uploadError}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODAL 2: UPLOAD FILE SAP MB51 */}
+      {showUploadModal && renderUploadModal()}
 
       {/* MODAL 3: FILTER & PARAMETER PRODUKTIVITAS (Pop-up Ringkas & Terstruktur) */}
       {showFilterModal && (

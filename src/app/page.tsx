@@ -142,6 +142,7 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState<string>('02.09.2026 - 07:31 WIB');
   const [isCustomData, setIsCustomData] = useState<boolean>(false);
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
+  const [productivityRefreshKey, setProductivityRefreshKey] = useState<number>(0);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [isCustomizingLayout, setIsCustomizingLayout] = useState<boolean>(false);
@@ -857,6 +858,9 @@ export default function Home() {
     const hasAuditSLoc = newState.uploadedCategories
       ? newState.uploadedCategories.includes('audit_sloc')
       : Boolean(newState.auditSLocData && newState.auditSLocData.length > 0);
+    const hasProductivity = newState.uploadedCategories
+      ? newState.uploadedCategories.includes('productivity')
+      : Boolean(newState.productivityData);
 
     // Helper untuk memperkaya item LOO dengan data stock eksisting jika hanya LOO yang diunggah
     const enrichLooWithExistingStock = (
@@ -997,11 +1001,11 @@ export default function Home() {
 
     // 1. Simpan ke database server (Prioritas utama)
     try {
-      // Pisahkan modul STO & Audit SLoc agar main warehouse POST tidak melampaui limit payload Vercel (4.5 MB)
+      // Pisahkan modul STO, Audit SLoc & Produktivitas agar main warehouse POST tidak melampaui limit payload Vercel (4.5 MB)
       const { stoData: _, auditSLocData: __, ...mainPostState } = mergedFullState;
       if (Array.isArray(mainPostState.uploadedCategories)) {
         mainPostState.uploadedCategories = mainPostState.uploadedCategories.filter(
-          (c) => c !== 'sto' && c !== 'audit_sloc'
+          (c) => c !== 'sto' && c !== 'audit_sloc' && c !== 'productivity'
         );
       }
       const hasOtherModulesToPost = hasPipe || hasCoil || hasLoo || hasDamagedPkg || hasIncomingPkg || hasProgressNC;
@@ -1045,6 +1049,24 @@ export default function Home() {
             auditSLocData: newState.auditSLocData,
           }),
         });
+      }
+
+      // Jika file Produktivitas MB51 baru diunggah, simpan ke endpoint /api/productivity
+      if (hasProductivity && newState.productivityData) {
+        try {
+          await fetch('/api/productivity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'save_dataset',
+              dataset: newState.productivityData,
+              targetDate: newState.targetDate,
+            }),
+          });
+          setProductivityRefreshKey((prev) => prev + 1);
+        } catch (prodErr) {
+          console.error('Failed to sync productivity data to server:', prodErr);
+        }
       }
 
       if (hasIncomingPkg && newState.incomingPackagingData) {
@@ -1233,6 +1255,7 @@ export default function Home() {
       userPermissions.canUploadProgressNC ||
       userPermissions.canUploadSTO ||
       userPermissions.canUploadAuditSLoc ||
+      userPermissions.canUploadProductivity ||
       userPermissions.canUploadSAP
     );
   const canCustomizeLayout = currentUser?.role === 'admin' || Boolean(userPermissions.canCustomizeLayout);
@@ -2221,7 +2244,10 @@ export default function Home() {
             )}
 
             {activeTab === 'productivity' && (currentUser.role === 'admin' || userPermissions.viewProductivity !== false) && (
-              <ProductivityView />
+              <ProductivityView
+                onOpenUploadModal={() => setIsUploadOpen(true)}
+                refreshTrigger={productivityRefreshKey}
+              />
             )}
 
             {activeTab === 'loo' && (currentUser.role === 'admin' || userPermissions.viewLoo) && (

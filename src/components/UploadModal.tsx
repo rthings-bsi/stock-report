@@ -8,6 +8,7 @@ import { parseIncomingPackagingFile } from '../lib/parseIncomingPackaging';
 import { parseNCProgressRows } from '../lib/parseNCProgress';
 import { parseStockOpnameFile } from '../lib/parseStockOpname';
 import { parseAuditSLocFile } from '../lib/parseAuditSLoc';
+import { parseMB51File } from '../lib/parseMB51';
 import { RolePermissions } from '../types/auth';
 import { WarehouseCapacityConfig } from '../types/warehouse';
 
@@ -145,6 +146,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [ncProgressFile, setNcProgressFile] = useState<File | null>(null);
   const [stoFile, setStoFile] = useState<File | null>(null);
   const [auditSLocFile, setAuditSLocFile] = useState<File | null>(null);
+  const [mb51File, setMb51File] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -156,7 +158,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const canUploadProgressNC = isAdmin || Boolean(userPermissions?.canUploadProgressNC ?? userPermissions?.canUploadSAP ?? true);
   const canUploadSTO = isAdmin || Boolean(userPermissions?.canUploadSTO ?? userPermissions?.canUploadSAP ?? true);
   const canUploadAuditSLoc = isAdmin || Boolean(userPermissions?.canUploadAuditSLoc ?? userPermissions?.canUploadSAP ?? true);
-  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg || canUploadProgressNC || canUploadSTO || canUploadAuditSLoc;
+  const canUploadProductivity = isAdmin || Boolean(userPermissions?.canUploadProductivity ?? userPermissions?.canUploadSAP ?? true);
+  const hasAnyUploadPermission = canUploadPipe || canUploadCoil || canUploadLoo || canUploadDamagedPkg || canUploadIncomingPkg || canUploadProgressNC || canUploadSTO || canUploadAuditSLoc || canUploadProductivity;
 
   const pipeInputRef = useRef<HTMLInputElement>(null);
   const coilInputRef = useRef<HTMLInputElement>(null);
@@ -166,6 +169,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const ncProgressInputRef = useRef<HTMLInputElement>(null);
   const stoInputRef = useRef<HTMLInputElement>(null);
   const auditSLocInputRef = useRef<HTMLInputElement>(null);
+  const mb51InputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -178,10 +182,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   })();
 
   const isBackdate = targetDate !== todayStr;
-  const selectedCount = [pipeFile, coilFile, looFile, packagingFile, incomingFile, ncProgressFile, stoFile, auditSLocFile].filter(Boolean).length;
+  const selectedCount = [pipeFile, coilFile, looFile, packagingFile, incomingFile, ncProgressFile, stoFile, auditSLocFile, mb51File].filter(Boolean).length;
 
   const handleProcessFiles = async () => {
-    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile && !ncProgressFile && !stoFile && !auditSLocFile) {
+    if (!pipeFile && !coilFile && !looFile && !packagingFile && !incomingFile && !ncProgressFile && !stoFile && !auditSLocFile && !mb51File) {
       setErrorMsg('Silakan pilih minimal satu file spreadsheet export SAP (.xlsx / .xls).');
       return;
     }
@@ -297,7 +301,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         throw new Error(`Gagal memproses data Stock / LOO: ${m}`);
       }
 
-      const uploadedCategories: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto' | 'audit_sloc')[] = [];
+      const uploadedCategories: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto' | 'audit_sloc' | 'productivity')[] = [];
 
       if (pipeFile && pipeRows.length > 0) {
         const pipeStockTotal = (parsedResult.pipeCapacities || []).reduce((acc, c) => acc + (c.stock || 0), 0);
@@ -386,6 +390,21 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         } catch (e: unknown) {
           const m = e instanceof Error ? e.message : 'Format kolom Audit SLoc tidak sesuai';
           throw new Error(`Gagal memproses Data Audit SLoc: ${m}`);
+        }
+      }
+
+      if (mb51File && canUploadProductivity) {
+        try {
+          const mb51RawMatrix = await readExcelFileRawMatrix(mb51File);
+          const parsedMB51 = parseMB51File(mb51RawMatrix, mb51File.name, targetDate);
+          if (!parsedMB51 || parsedMB51.records.length === 0) {
+            throw new Error('Tidak ada transaksi MB51 valid yang dapat diproses. Pastikan file memuat kolom tanggal, jam, kuantitas/berat, dan SLoc.');
+          }
+          parsedResult.productivityData = parsedMB51;
+          uploadedCategories.push('productivity');
+        } catch (e: unknown) {
+          const m = e instanceof Error ? e.message : 'Format file MB51 tidak sesuai';
+          throw new Error(`Gagal memproses Data Produktivitas MB51 (${mb51File.name}): ${m}`);
         }
       }
 
@@ -563,6 +582,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               file={auditSLocFile}
               onFileChange={setAuditSLocFile}
               inputRef={auditSLocInputRef}
+            />
+
+            {/* 9. Data Produktivitas Tenaga Kerja Gudang (SAP MB51) */}
+            <UploadItemRow
+              canUpload={canUploadProductivity}
+              title="Data Produktivitas MB51 (Shift & HandHeld)"
+              file={mb51File}
+              onFileChange={setMb51File}
+              inputRef={mb51InputRef}
             />
           </div>
         </div>

@@ -27,6 +27,7 @@ export interface RolePermissions {
   canUploadProgressNC?: boolean;// Upload Raw Transaksi Progres NC (MVT 309/261/101)
   canUploadSTO?: boolean;        // Upload Raw Stock Opname SAP (STO)
   canUploadAuditSLoc?: boolean;  // Upload Raw Audit SLoc SAP Report (14 Kolom)
+  canUploadProductivity?: boolean; // Upload Raw SAP MB51 Produktivitas Gudang
 
   // Action & Operational Permissions
   canEditIncomingPkg: boolean; // Tambah/Edit/Hapus Data RTP
@@ -97,6 +98,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   canUploadProgressNC: true,
   canUploadSTO: true,
   canUploadAuditSLoc: true,
+  canUploadProductivity: true,
   canEditIncomingPkg: true,
   canEditDamagedPkg: true,
   canEditProgressNC: true,
@@ -133,6 +135,7 @@ export const DEFAULT_STAFF_PERMISSIONS: RolePermissions = {
   canUploadProgressNC: false,
   canUploadSTO: false,
   canUploadAuditSLoc: false,
+  canUploadProductivity: false,
   canEditIncomingPkg: true,
   canEditDamagedPkg: false,
   canEditProgressNC: true,
@@ -169,6 +172,7 @@ export const DEFAULT_VIEWER_PERMISSIONS: RolePermissions = {
   canUploadProgressNC: false,
   canUploadSTO: false,
   canUploadAuditSLoc: false,
+  canUploadProductivity: false,
   canEditIncomingPkg: false,
   canEditDamagedPkg: false,
   canEditProgressNC: false,

@@ -17,6 +17,7 @@ import {
   StockOpnameItem,
   AuditSLocItem
 } from '../types/warehouse';
+import { MB51Dataset } from '../types/productivity';
 
 export interface ParsedWarehouseState {
   pipeCapacities?: WarehousePipeCapacity[];
@@ -34,16 +35,17 @@ export interface ParsedWarehouseState {
   ncProgressData?: NCProgressTransaction[];
   stoData?: StockOpnameItem[];
   auditSLocData?: AuditSLocItem[];
+  productivityData?: MB51Dataset;
   customerBreakdown?: Record<string, Array<{ customer: string; qty: number; tonase: number }>>;
   lastUpdated: string;
   snapshotKey?: string;
   targetDate?: string;
-  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto' | 'audit_sloc')[];
+  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto' | 'audit_sloc' | 'productivity')[];
 }
 
 export interface ParseExcelOptions {
   targetDate?: string;
-  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto' | 'audit_sloc')[];
+  uploadedCategories?: ('pipe' | 'coil' | 'loo' | 'damaged_pkg' | 'incoming_pkg' | 'progress_nc' | 'sto' | 'audit_sloc' | 'productivity')[];
   customCapacities?: WarehouseCapacityConfig;
 }
 
