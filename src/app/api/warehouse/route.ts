@@ -129,7 +129,8 @@ export async function GET(request: Request) {
             ? db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE sto_data IS NOT NULL AND length(sto_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`)
             : db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE snapshot_key = ? LIMIT 1`);
           let r = key === 'latest' ? stmt.get() : stmt.get(key);
-          if (!r?.sto_data && key !== 'latest') {
+          const hasValidSto = r?.sto_data && String(r.sto_data).trim().length > 5;
+          if (!hasValidSto && key !== 'latest') {
             r = db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE sto_data IS NOT NULL AND length(sto_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`).get();
           }
           if (r?.sto_data) {
@@ -265,7 +266,8 @@ export async function GET(request: Request) {
             ? db.prepare(`SELECT audit_sloc_data FROM warehouse_snapshots WHERE audit_sloc_data IS NOT NULL AND length(audit_sloc_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`)
             : db.prepare(`SELECT audit_sloc_data FROM warehouse_snapshots WHERE snapshot_key = ? LIMIT 1`);
           let r = key === 'latest' ? stmt.get() : stmt.get(key);
-          if (!r?.audit_sloc_data && key !== 'latest') {
+          const hasValidAudit = r?.audit_sloc_data && String(r.audit_sloc_data).trim().length > 5;
+          if (!hasValidAudit && key !== 'latest') {
             r = db.prepare(`SELECT audit_sloc_data FROM warehouse_snapshots WHERE audit_sloc_data IS NOT NULL AND length(audit_sloc_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`).get();
           }
           if (r?.audit_sloc_data) {
@@ -829,8 +831,11 @@ export async function POST(request: Request) {
         if (db) {
           try {
             db.prepare(`
-              INSERT INTO warehouse_snapshots (snapshot_key, last_updated, sto_data)
-              VALUES (?, ?, ?)
+              INSERT INTO warehouse_snapshots (
+                snapshot_key, last_updated, sto_data,
+                pipe_capacities, fast_slow_data, coil_strip_data, nc_warehouse_data, nc_items, loo_st_data, loo_lt_data, unfifo_data
+              )
+              VALUES (?, ?, ?, '[]', '[]', '[]', '[]', '[]', '[]', '[]', '[]')
               ON CONFLICT(snapshot_key) DO UPDATE SET
                 sto_data = excluded.sto_data,
                 last_updated = excluded.last_updated
@@ -880,8 +885,11 @@ export async function POST(request: Request) {
         if (db) {
           try {
             db.prepare(`
-              INSERT INTO warehouse_snapshots (snapshot_key, last_updated, audit_sloc_data)
-              VALUES (?, ?, ?)
+              INSERT INTO warehouse_snapshots (
+                snapshot_key, last_updated, audit_sloc_data,
+                pipe_capacities, fast_slow_data, coil_strip_data, nc_warehouse_data, nc_items, loo_st_data, loo_lt_data, unfifo_data
+              )
+              VALUES (?, ?, ?, '[]', '[]', '[]', '[]', '[]', '[]', '[]', '[]')
               ON CONFLICT(snapshot_key) DO UPDATE SET
                 audit_sloc_data = excluded.audit_sloc_data,
                 last_updated = excluded.last_updated
@@ -1299,8 +1307,8 @@ export async function POST(request: Request) {
     const uploadHasDamagedPkg = isExplicitUpload ? uploadedCategories.includes('damaged_pkg') : hasArray(damagedPackagingData);
     const uploadHasIncomingPkg = isExplicitUpload ? uploadedCategories.includes('incoming_pkg') : hasArray(incomingPackagingData);
     const uploadHasProgressNC = isExplicitUpload ? uploadedCategories.includes('progress_nc') : hasArray(ncProgressData);
-    const uploadHasSTO = isExplicitUpload ? uploadedCategories.includes('sto') : hasArray(stoData);
-    const uploadHasAuditSLoc = isExplicitUpload ? uploadedCategories.includes('audit_sloc') : hasArray(auditSLocData);
+    const uploadHasSTO = isExplicitUpload ? (uploadedCategories.includes('sto') && hasArray(stoData)) : hasArray(stoData);
+    const uploadHasAuditSLoc = isExplicitUpload ? (uploadedCategories.includes('audit_sloc') && hasArray(auditSLocData)) : hasArray(auditSLocData);
 
     const finalPipe = uploadHasPipe && hasRealPipe(pipeCapacities) ? pipeCapacities : (hasRealPipe(prevPipe) ? prevPipe : (pipeCapacities || []));
     const finalFastSlow = uploadHasPipe && hasArray(fastSlowData) ? fastSlowData : prevFastSlow;
@@ -1319,8 +1327,8 @@ export async function POST(request: Request) {
     const finalDamagedPkg = uploadHasDamagedPkg && hasArray(damagedPackagingData) ? damagedPackagingData : prevDamagedPkg;
     const finalIncomingPkg = uploadHasIncomingPkg && hasArray(incomingPackagingData) ? incomingPackagingData : prevIncomingPkg;
     const finalNcProgress = uploadHasProgressNC && hasArray(ncProgressData) ? ncProgressData : prevNcProgress;
-    const finalStoData = uploadHasSTO ? (Array.isArray(stoData) ? stoData : []) : prevStoData;
-    const finalAuditSLocData = uploadHasAuditSLoc ? (Array.isArray(auditSLocData) ? auditSLocData : []) : prevAuditSLocData;
+    const finalStoData = uploadHasSTO && hasArray(stoData) ? stoData : prevStoData;
+    const finalAuditSLocData = uploadHasAuditSLoc && hasArray(auditSLocData) ? auditSLocData : prevAuditSLocData;
     const finalCustBreakdown = uploadHasPipe && hasObject(customerBreakdown) ? customerBreakdown : prevCustBreakdown;
 
     let sqliteSaved = false;

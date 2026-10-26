@@ -14,6 +14,7 @@ export interface RolePermissions {
   viewCapacitySettings?: boolean; // Master Kapasitas Gudang (Pipa & Coil)
   viewSTO?: boolean;           // Stock Opname (STO) & Rekonsiliasi Actual-SAP
   viewAuditSLoc?: boolean;     // Audit SLoc Rekonsiliasi 14 Kolom SAP
+  viewProductivity?: boolean;  // Produktivitas Tenaga Kerja Gudang (SAP MB51)
   viewUserManagement: boolean; // Kelola Pengguna & Roles
 
   // Upload Raw Data Permissions (Pecahan Upload Data Raw SAP & Packaging)
@@ -85,6 +86,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   viewCapacitySettings: true,
   viewSTO: true,
   viewAuditSLoc: true,
+  viewProductivity: true,
   viewUserManagement: true,
   canUploadSAP: true,
   canUploadPipe: true,
@@ -120,6 +122,7 @@ export const DEFAULT_STAFF_PERMISSIONS: RolePermissions = {
   viewCapacitySettings: true,
   viewSTO: true,
   viewAuditSLoc: true,
+  viewProductivity: true,
   viewUserManagement: false,
   canUploadSAP: false,
   canUploadPipe: false,
@@ -155,6 +158,7 @@ export const DEFAULT_VIEWER_PERMISSIONS: RolePermissions = {
   viewCapacitySettings: true,
   viewSTO: true,
   viewAuditSLoc: true,
+  viewProductivity: true,
   viewUserManagement: false,
   canUploadSAP: false,
   canUploadPipe: false,

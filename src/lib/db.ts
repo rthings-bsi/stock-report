@@ -114,6 +114,14 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           );
+
+          CREATE TABLE IF NOT EXISTS productivity_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data_key TEXT UNIQUE NOT NULL DEFAULT 'current',
+            dataset TEXT,
+            headcount TEXT,
+            last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
         `);
 
         // Schema migrations for warehouse_snapshots
@@ -142,6 +150,31 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
           }
         } catch (migErr) {
           console.warn('Migration check failed:', migErr);
+        }
+
+        // Seed productivity_data from existing JSON files if empty
+        try {
+          const prodCheck = db.prepare("SELECT COUNT(*) as count FROM productivity_data WHERE data_key = 'current'").get() as { count: number };
+          if (!prodCheck || prodCheck.count === 0) {
+            const prodJsonPath = path.join(dbDir, 'mb51_productivity.json');
+            const headJsonPath = path.join(dbDir, 'mb51_headcount.json');
+            let initialDataset: string | null = null;
+            let initialHeadcount: string | null = null;
+            if (fs.existsSync(prodJsonPath)) {
+              initialDataset = fs.readFileSync(prodJsonPath, 'utf-8');
+            }
+            if (fs.existsSync(headJsonPath)) {
+              initialHeadcount = fs.readFileSync(headJsonPath, 'utf-8');
+            }
+            if (initialDataset || initialHeadcount) {
+              db.prepare(`
+                INSERT INTO productivity_data (data_key, dataset, headcount, last_updated)
+                VALUES ('current', ?, ?, CURRENT_TIMESTAMP)
+              `).run(initialDataset, initialHeadcount);
+            }
+          }
+        } catch (prodInitErr) {
+          console.warn('Productivity table seeding check warning:', prodInitErr);
         }
 
         // Seed default roles if empty

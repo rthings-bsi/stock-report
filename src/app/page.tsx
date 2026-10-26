@@ -44,6 +44,7 @@ import { NCQualityView } from '@/components/NCQualityView';
 import { NCProgressView } from '@/components/NCProgressView';
 import { StockOpnameView } from '@/components/StockOpnameView';
 import { AuditSLocView } from '@/components/AuditSLocView';
+import ProductivityView from '@/components/ProductivityView';
 import { LooFulfillmentView } from '@/components/LooFulfillmentView';
 import { UnfifoView } from '@/components/UnfifoView';
 import { DamagedPackagingView } from '@/components/DamagedPackagingView';
@@ -97,6 +98,7 @@ const VALID_TABS = [
   'nc_progress',
   'sto',
   'audit_sloc',
+  'productivity',
   'loo',
   'unfifo',
   'packaging',
@@ -997,15 +999,24 @@ export default function Home() {
     try {
       // Pisahkan modul STO & Audit SLoc agar main warehouse POST tidak melampaui limit payload Vercel (4.5 MB)
       const { stoData: _, auditSLocData: __, ...mainPostState } = mergedFullState;
-      const res = await fetch('/api/warehouse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mainPostState),
-      });
+      if (Array.isArray(mainPostState.uploadedCategories)) {
+        mainPostState.uploadedCategories = mainPostState.uploadedCategories.filter(
+          (c) => c !== 'sto' && c !== 'audit_sloc'
+        );
+      }
+      const hasOtherModulesToPost = hasPipe || hasCoil || hasLoo || hasDamagedPkg || hasIncomingPkg || hasProgressNC;
 
-      const resJson = await res.json().catch(() => null);
-      if (!res.ok || !resJson?.success) {
-        console.error('Server save error:', resJson);
+      if (hasOtherModulesToPost) {
+        const res = await fetch('/api/warehouse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mainPostState),
+        });
+
+        const resJson = await res.json().catch(() => null);
+        if (!res.ok || !resJson?.success) {
+          console.error('Server save error:', resJson);
+        }
       }
 
       // Jika file STO baru diunggah, simpan ke endpoint modul STO terpisah
@@ -1241,6 +1252,7 @@ export default function Home() {
     { id: 'nc_progress', label: 'Progres NC & Repair', icon: GitFork, desc: 'MVT 309, 261 & 101', permKey: 'viewProgressNC' },
     { id: 'sto', label: 'Stock Opname (STO)', icon: ClipboardCheck, desc: 'Rekonsiliasi Actual vs SAP', permKey: 'viewSTO' },
     { id: 'audit_sloc', label: 'Audit SLoc Harian', icon: MapPinCheck, desc: 'Rekonsiliasi Fisik SLoc vs SAP', permKey: 'viewAuditSLoc' },
+    { id: 'productivity', label: 'Produktivitas Gudang', icon: Users, desc: 'Analisa Manpower & Tonase MB51', permKey: 'viewProductivity' },
     { id: 'unfifo', label: 'UNFIFO', icon: RefreshCcw, desc: 'Audit Alur Pengeluaran', permKey: 'viewUnfifo' },
     { id: 'loo', label: 'Stock Pipa vs LOO', icon: TrendingUp, desc: 'Pemenuhan Target LOO', permKey: 'viewLoo' },
     { id: 'packaging', label: 'Data Packaging Rusak', icon: PackageX, desc: 'Temuan & Status Repack', permKey: 'viewDamagedPkg' },
@@ -1250,6 +1262,7 @@ export default function Home() {
   const dashboardMenuItems = useMemo(() => {
     return allDashboardMenuItems.filter((item) => {
       if (currentUser?.role === 'admin') return true;
+      if (item.permKey === 'viewProductivity' && userPermissions.viewProductivity === undefined) return true;
       return Boolean(userPermissions[item.permKey as keyof RolePermissions]);
     });
   }, [allDashboardMenuItems, currentUser, userPermissions]);
@@ -2205,6 +2218,10 @@ export default function Home() {
                 pipeData={unfifoPipeData}
                 isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
               />
+            )}
+
+            {activeTab === 'productivity' && (currentUser.role === 'admin' || userPermissions.viewProductivity !== false) && (
+              <ProductivityView />
             )}
 
             {activeTab === 'loo' && (currentUser.role === 'admin' || userPermissions.viewLoo) && (
