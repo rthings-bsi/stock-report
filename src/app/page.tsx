@@ -418,7 +418,7 @@ export default function Home() {
         if (Array.isArray(d.stoData) && d.stoData.length > 0) {
           setStoData(d.stoData);
           try {
-            sessionStorage.setItem('spindo_sto_cache', JSON.stringify(d.stoData));
+            sessionStorage.setItem(`spindo_sto_cache_${key}`, JSON.stringify(d.stoData));
           } catch {}
         } else {
           // Coba fetch modul STO untuk snapshot ini
@@ -430,11 +430,20 @@ export default function Home() {
               if (items.length > 0) {
                 setStoData(items);
                 try {
-                  sessionStorage.setItem('spindo_sto_cache', JSON.stringify(items));
+                  sessionStorage.setItem(`spindo_sto_cache_${key}`, JSON.stringify(items));
+                } catch {}
+              } else {
+                setStoData([]);
+                try {
+                  sessionStorage.removeItem(`spindo_sto_cache_${key}`);
                 } catch {}
               }
+            } else {
+              setStoData([]);
             }
-          } catch {}
+          } catch {
+            setStoData([]);
+          }
         }
 
         if (Array.isArray(d.auditSLocData) && d.auditSLocData.length > 0) {
@@ -516,7 +525,6 @@ export default function Home() {
           if (d.damagedPackagingData?.length > 0) setDamagedPackagingData(d.damagedPackagingData);
           if (d.incomingPackagingData?.length > 0) setIncomingPackagingData(d.incomingPackagingData);
           if (d.ncProgressData?.length > 0) setNcProgressData(d.ncProgressData);
-          if (d.stoData?.length > 0) setStoData(d.stoData);
           if (d.auditSLocData?.length > 0) setAuditSLocData(d.auditSLocData);
           if (d.customerBreakdown && Object.keys(d.customerBreakdown).length > 0) setCustomerBreakdown(d.customerBreakdown);
           if (d.lastUpdated) setLastUpdated(d.lastUpdated);
@@ -526,14 +534,18 @@ export default function Home() {
         console.error('Failed to parse localStorage cache:', err);
       }
 
-      // Restore STO & Audit SLoc cache dari sessionStorage agar instan tersedia saat refresh web
+      // Restore STO cache scoped per snapshot key dari sessionStorage
       try {
-        const localSto = sessionStorage.getItem('spindo_sto_cache');
-        if (localSto) {
-          const stoItems = JSON.parse(localSto);
-          if (Array.isArray(stoItems) && stoItems.length > 0) {
-            setStoData(stoItems);
-            setIsCustomData(true);
+        sessionStorage.removeItem('spindo_sto_cache'); // Hapus legacy un-scoped cache
+        const savedKey = typeof window !== 'undefined' ? localStorage.getItem('spindo_selected_snapshot_key') : null;
+        if (savedKey) {
+          const localSto = sessionStorage.getItem(`spindo_sto_cache_${savedKey}`);
+          if (localSto) {
+            const stoItems = JSON.parse(localSto);
+            if (Array.isArray(stoItems) && stoItems.length > 0) {
+              setStoData(stoItems);
+              setIsCustomData(true);
+            }
           }
         }
       } catch (err) {
@@ -601,8 +613,10 @@ export default function Home() {
               if (Array.isArray(d.stoData) && d.stoData.length > 0) {
                 setStoData(d.stoData);
                 try {
-                  sessionStorage.setItem('spindo_sto_cache', JSON.stringify(d.stoData));
+                  sessionStorage.setItem(`spindo_sto_cache_${d.snapshotKey || 'latest'}`, JSON.stringify(d.stoData));
                 } catch {}
+              } else {
+                setStoData([]);
               }
               if (Array.isArray(d.auditSLocData) && d.auditSLocData.length > 0) {
                 setAuditSLocData(d.auditSLocData);
@@ -648,15 +662,19 @@ export default function Home() {
   // Load STO data on-demand saat tab STO aktif agar initial page load cepat & aman dari limit payload Vercel
   useEffect(() => {
     if (!currentUser) return;
-    if (activeTab === 'sto' && stoData.length === 0) {
+    if (activeTab === 'sto') {
+      const activeKey = selectedSnapshotKey && selectedSnapshotKey !== 'latest'
+        ? selectedSnapshotKey
+        : (typeof window !== 'undefined' ? localStorage.getItem('spindo_selected_snapshot_key') : null) || 'latest';
+
       const fetchStoOnDemand = async () => {
         try {
-          // 1. Coba pulihkan dari sessionStorage dulu jika tersedia untuk render 0ms
+          // 1. Coba pulihkan dari sessionStorage scoped per key jika tersedia untuk render 0ms
           try {
-            const cachedSto = sessionStorage.getItem('spindo_sto_cache');
+            const cachedSto = sessionStorage.getItem(`spindo_sto_cache_${activeKey}`);
             if (cachedSto) {
               const parsed = JSON.parse(cachedSto);
-              if (Array.isArray(parsed) && parsed.length > 0) {
+              if (Array.isArray(parsed)) {
                 setStoData(parsed);
                 setIsCustomData(true);
                 return;
@@ -664,11 +682,8 @@ export default function Home() {
             }
           } catch {}
 
-          const savedKey = selectedSnapshotKey && selectedSnapshotKey !== 'latest'
-            ? selectedSnapshotKey
-            : (typeof window !== 'undefined' ? localStorage.getItem('spindo_selected_snapshot_key') : null);
-          const stoUrl = savedKey && savedKey !== 'latest'
-            ? `/api/warehouse?module=sto&key=${encodeURIComponent(savedKey)}`
+          const stoUrl = activeKey && activeKey !== 'latest'
+            ? `/api/warehouse?module=sto&key=${encodeURIComponent(activeKey)}`
             : '/api/warehouse?module=sto';
           const res = await fetch(stoUrl, { cache: 'no-store' });
           if (res.ok) {
@@ -676,21 +691,22 @@ export default function Home() {
             const stoList = Array.isArray(json?.data)
               ? json.data
               : (Array.isArray(json?.stoData) ? json.stoData : []);
-            if (json?.success && stoList.length > 0) {
-              setStoData(stoList);
-              setIsCustomData(true);
-              try {
-                sessionStorage.setItem('spindo_sto_cache', JSON.stringify(stoList));
-              } catch {}
-            }
+            setStoData(stoList);
+            setIsCustomData(true);
+            try {
+              sessionStorage.setItem(`spindo_sto_cache_${activeKey}`, JSON.stringify(stoList));
+            } catch {}
+          } else {
+            setStoData([]);
           }
         } catch (err) {
           console.warn('Failed to load STO on-demand:', err);
+          setStoData([]);
         }
       };
       fetchStoOnDemand();
     }
-  }, [currentUser, activeTab, selectedSnapshotKey, stoData.length]);
+  }, [currentUser, activeTab, selectedSnapshotKey]);
 
   // Load Audit SLoc data on-demand saat tab audit_sloc aktif agar initial page load cepat & aman dari limit payload Vercel
   useEffect(() => {
@@ -771,7 +787,7 @@ export default function Home() {
     }
     if (stoData.length > 0) {
       try {
-        sessionStorage.setItem('spindo_sto_cache', JSON.stringify(stoData));
+        sessionStorage.setItem(`spindo_sto_cache_${selectedSnapshotKey || 'latest'}`, JSON.stringify(stoData));
       } catch {}
     }
     if (auditSLocData.length > 0) {
@@ -939,14 +955,15 @@ export default function Home() {
       ? enrichLooWithExistingStock(rawLooLT, looLTData.length > 0 ? looLTData : currentSaved.looLTData)
       : rawLooLT;
 
+    const snapshotKey = newState.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
+    const nowStr = newState.lastUpdated || new Date().toLocaleString('id-ID');
+    const isSameSnapshot = snapshotKey === selectedSnapshotKey;
+
     const nextDamagedPackagingData = hasDamagedPkg ? newState.damagedPackagingData! : (damagedPackagingData.length > 0 ? damagedPackagingData : (currentSaved.damagedPackagingData || []));
     const nextIncomingPackagingData = hasIncomingPkg ? newState.incomingPackagingData! : (incomingPackagingData.length > 0 ? incomingPackagingData : (currentSaved.incomingPackagingData || []));
     const nextNcProgressData = hasProgressNC ? newState.ncProgressData! : (ncProgressData.length > 0 ? ncProgressData : (currentSaved.ncProgressData || []));
-    const nextStoData = hasSTO ? newState.stoData! : (stoData.length > 0 ? stoData : (currentSaved.stoData || []));
-    const nextAuditSLocData = hasAuditSLoc ? newState.auditSLocData! : (auditSLocData.length > 0 ? auditSLocData : (currentSaved.auditSLocData || []));
-
-    const snapshotKey = newState.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
-    const nowStr = newState.lastUpdated || new Date().toLocaleString('id-ID');
+    const nextStoData = hasSTO ? (newState.stoData || []) : (isSameSnapshot ? stoData : []);
+    const nextAuditSLocData = hasAuditSLoc ? (newState.auditSLocData || []) : (isSameSnapshot ? auditSLocData : []);
 
     if (hasPipe) {
       setPipeCapacities(nextPipeCapacities);
@@ -976,12 +993,8 @@ export default function Home() {
     if (hasProgressNC) {
       setNcProgressData(nextNcProgressData);
     }
-    if (hasSTO) {
-      setStoData(nextStoData);
-    }
-    if (hasAuditSLoc) {
-      setAuditSLocData(nextAuditSLocData);
-    }
+    setStoData(nextStoData);
+    setAuditSLocData(nextAuditSLocData);
 
     setLastUpdated(nowStr);
     setIsCustomData(true);
@@ -1106,11 +1119,14 @@ export default function Home() {
     } catch (lsErr) {
       console.warn('LocalStorage quota exceeded (data tetap aman di server database):', lsErr);
     }
-    if (nextStoData && nextStoData.length > 0) {
-      try {
-        sessionStorage.setItem('spindo_sto_cache', JSON.stringify(nextStoData));
-      } catch {}
-    }
+    try {
+      sessionStorage.removeItem('spindo_sto_cache');
+      if (nextStoData && nextStoData.length > 0) {
+        sessionStorage.setItem(`spindo_sto_cache_${snapshotKey}`, JSON.stringify(nextStoData));
+      } else {
+        sessionStorage.removeItem(`spindo_sto_cache_${snapshotKey}`);
+      }
+    } catch {}
     if (nextAuditSLocData && nextAuditSLocData.length > 0) {
       try {
         sessionStorage.setItem('spindo_audit_sloc_cache', JSON.stringify(nextAuditSLocData));
@@ -1134,6 +1150,13 @@ export default function Home() {
     } catch {}
     try {
       sessionStorage.removeItem('spindo_sto_cache');
+      if (typeof window !== 'undefined') {
+        Object.keys(sessionStorage).forEach((k) => {
+          if (k.startsWith('spindo_sto_cache')) {
+            sessionStorage.removeItem(k);
+          }
+        });
+      }
     } catch {}
     try {
       sessionStorage.removeItem('spindo_audit_sloc_cache');

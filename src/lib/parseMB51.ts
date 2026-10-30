@@ -415,6 +415,18 @@ export function deriveShiftAndTk(entryDateStr: string, hour: number | null): { s
   if (hour >= 15 && hour <= 22) {
     return { shift: 'Shift 2', tkStr: entryDateStr };
   }
+  // Shift 3 (23:00 - 06:59): Jam 00:00 - 06:59 adalah bagian Shift 3 hari kerja sebelumnya (Day - 1)
+  if (hour >= 0 && hour <= 6 && entryDateStr) {
+    try {
+      const dt = new Date(`${entryDateStr}T12:00:00Z`);
+      dt.setUTCDate(dt.getUTCDate() - 1);
+      const prevStr = dt.toISOString().slice(0, 10);
+      return { shift: 'Shift 3', tkStr: prevStr };
+    } catch {
+      // fallback
+    }
+  }
+  // Jam 23:00 - 23:59 adalah Shift 3 hari kerja yang sama
   return { shift: 'Shift 3', tkStr: entryDateStr };
 }
 

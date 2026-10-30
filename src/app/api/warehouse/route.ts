@@ -126,13 +126,9 @@ export async function GET(request: Request) {
       if (db) {
         try {
           const stmt = key === 'latest'
-            ? db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE sto_data IS NOT NULL AND length(sto_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`)
+            ? db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE snapshot_key LIKE 'snap_%' ORDER BY snapshot_key DESC LIMIT 1`)
             : db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE snapshot_key = ? LIMIT 1`);
           let r = key === 'latest' ? stmt.get() : stmt.get(key);
-          const hasValidSto = r?.sto_data && String(r.sto_data).trim().length > 5;
-          if (!hasValidSto && key !== 'latest') {
-            r = db.prepare(`SELECT sto_data FROM warehouse_snapshots WHERE sto_data IS NOT NULL AND length(sto_data) > 5 ORDER BY snapshot_key DESC LIMIT 1`).get();
-          }
           if (r?.sto_data) {
             const stoData = parseJsonSafe(r.sto_data, []);
             if (Array.isArray(stoData) && stoData.length > 0) {
@@ -146,25 +142,26 @@ export async function GET(request: Request) {
 
       if (isSupabaseConfigured && supabase) {
         try {
-          let query = supabase.from('stock_opname').select('data_json, snapshot_key');
-          if (key === 'latest') {
-            query = query.order('snapshot_key', { ascending: false }).limit(1);
-          } else {
-            query = query.eq('snapshot_key', key).limit(1);
-          }
-          let { data: rows, error: sErr } = await query;
-
-          // Fallback jika snapshot_key tertentu tidak ditemukan: ambil snapshot STO terbaru
-          if ((!rows || rows.length === 0) && key !== 'latest') {
-            const fbRes = await supabase
-              .from('stock_opname')
-              .select('data_json, snapshot_key')
+          let targetKey = key;
+          if (targetKey === 'latest') {
+            const { data: latestSnap } = await supabase
+              .from('snapshots')
+              .select('snapshot_key')
+              .like('snapshot_key', 'snap_%')
               .order('snapshot_key', { ascending: false })
               .limit(1);
-            if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
-              rows = fbRes.data;
+            if (latestSnap && latestSnap.length > 0) {
+              targetKey = latestSnap[0].snapshot_key;
             }
           }
+
+          let query = supabase.from('stock_opname').select('data_json, snapshot_key');
+          if (targetKey === 'latest') {
+            query = query.order('snapshot_key', { ascending: false }).limit(1);
+          } else {
+            query = query.eq('snapshot_key', targetKey).limit(1);
+          }
+          let { data: rows } = await query;
 
           if (rows && rows.length > 0 && rows[0].data_json) {
             const raw = rows[0].data_json;
@@ -175,25 +172,12 @@ export async function GET(request: Request) {
           }
 
           let legQuery = supabase.from('warehouse_snapshots').select('sto_data, snapshot_key');
-          if (key === 'latest') {
+          if (targetKey === 'latest') {
             legQuery = legQuery.order('snapshot_key', { ascending: false }).limit(1);
           } else {
-            legQuery = legQuery.eq('snapshot_key', key).limit(1);
+            legQuery = legQuery.eq('snapshot_key', targetKey).limit(1);
           }
-          let { data: legRows, error: legErr } = await legQuery;
-
-          // Fallback jika snapshot_key tertentu tidak ditemukan di legacy: ambil yang terbaru
-          if ((!legRows || legRows.length === 0) && key !== 'latest') {
-            const fbLegRes = await supabase
-              .from('warehouse_snapshots')
-              .select('sto_data, snapshot_key')
-              .not('sto_data', 'is', null)
-              .order('snapshot_key', { ascending: false })
-              .limit(1);
-            if (!fbLegRes.error && fbLegRes.data && fbLegRes.data.length > 0) {
-              legRows = fbLegRes.data;
-            }
-          }
+          let { data: legRows } = await legQuery;
 
           if (legRows && legRows.length > 0 && legRows[0].sto_data) {
             const stoData = parseJsonSafe(legRows[0].sto_data, []);
@@ -536,11 +520,6 @@ export async function GET(request: Request) {
             }
 
             let stoData = parseJsonSafe(row.sto_data, []);
-            if (!hasArray(stoData)) {
-              const fb = getLatestNonEmptySqliteCol(db, 'sto_data', 10);
-              const p = parseJsonSafe(fb, []);
-              if (hasArray(p)) stoData = p;
-            }
 
             let auditSLocData = parseJsonSafe(row.audit_sloc_data, []);
             if (!hasArray(auditSLocData)) {

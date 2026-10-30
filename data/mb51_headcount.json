@@ -57,8 +57,8 @@
     },
     "Gd.13": {
       "Shift 1": 3,
-      "Shift 2": 3,
-      "Shift 3": 3
+      "Shift 2": 4,
+      "Shift 3": 2
     },
     "Gd.14": {
       "Shift 1": 5,
@@ -66,14 +66,7 @@
       "Shift 3": 3
     }
   },
-  "dateOverrides": [
-    {
-      "tanggal": "2026-10-26",
-      "gudang": "Gd.01",
-      "shift": "Shift 1",
-      "man": 4
-    }
-  ],
+  "dateOverrides": [],
   "thresholds": {
     "lowKgPerMan": 5000,
     "idleTxPerMan": 25,

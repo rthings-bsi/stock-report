@@ -222,7 +222,7 @@ export default function ProductivityView({
   useEffect(() => {
     setFullscreenTable(null);
   }, [activeSubTab]);
-  const dateMode: DateMode = 'posting_date';
+  const dateMode: DateMode = 'tanggal_kerja';
   const [calcMode, setCalcMode] = useState<CalcMode>('handheld_clean');
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     if (activeDate && activeDate !== 'latest') return activeDate;
@@ -287,7 +287,9 @@ export default function ProductivityView({
         if (mounted) {
           setDataset(json.dataset);
           setHeadcount(json.headcount);
-          const dates: string[] = json.dataset?.postingDates || [];
+          const dates: string[] = json.dataset?.tanggalKerjaDates?.length
+            ? json.dataset.tanggalKerjaDates
+            : (json.dataset?.postingDates || []);
           if (dates.length) {
             if (activeDate && activeDate !== 'latest' && dates.includes(activeDate)) {
               setSelectedDate(activeDate);
@@ -310,6 +312,7 @@ export default function ProductivityView({
 
   const availableDates = useMemo(() => {
     if (!dataset) return [];
+    if (dataset.tanggalKerjaDates?.length) return dataset.tanggalKerjaDates;
     return dataset.postingDates || [];
   }, [dataset]);
 

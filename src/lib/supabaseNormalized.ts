@@ -183,7 +183,7 @@ export async function getNormalizedSnapshotFromSupabase(
     fetchTableWithFallback('unfifo_pipe', unfifoPipeRes.data),
     fetchTableWithFallback('damaged_packaging', damagedRes.data),
     fetchTableWithFallback('nc_progress', ncProgRes.data),
-    includeSto ? fetchTableWithFallback('stock_opname', stoRes.data, true) : Promise.resolve([]),
+    includeSto ? Promise.resolve(stoRes.data || []) : Promise.resolve([]),
     fetchTableWithFallback('customer_breakdown', custRes.data),
   ]);
 
