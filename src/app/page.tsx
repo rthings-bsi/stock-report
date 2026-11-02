@@ -25,7 +25,8 @@ import {
   GitFork,
   SlidersHorizontal,
   ClipboardCheck,
-  MapPinCheck
+  MapPinCheck,
+  BarChart3
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { LoginPage } from '@/components/LoginPage';
@@ -53,6 +54,7 @@ import { PackagingBufferSettingsView } from '@/components/PackagingBufferSetting
 import { PACKAGING_CUSTOMER_BOX_MASTER } from '@/lib/packagingMaster';
 import { UserManagementView } from '@/components/UserManagementView';
 import { CapacitySettingsView } from '@/components/CapacitySettingsView';
+import WeeklyAnalyticsView from '@/components/WeeklyAnalyticsView';
 import { UploadModal } from '@/components/UploadModal';
 import {
   initialPipeCapacityData,
@@ -99,6 +101,7 @@ const VALID_TABS = [
   'sto',
   'audit_sloc',
   'productivity',
+  'weekly_analytics',
   'loo',
   'unfifo',
   'packaging',
@@ -1324,6 +1327,7 @@ export default function Home() {
     { id: 'sto', label: 'Stock Opname (STO)', icon: ClipboardCheck, desc: 'Rekonsiliasi Actual vs SAP', permKey: 'viewSTO' },
     { id: 'audit_sloc', label: 'Audit SLoc Harian', icon: MapPinCheck, desc: 'Rekonsiliasi Fisik SLoc vs SAP', permKey: 'viewAuditSLoc' },
     { id: 'productivity', label: 'Produktivitas Gudang', icon: Users, desc: 'Analisa Manpower & Tonase MB51', permKey: 'viewProductivity' },
+    { id: 'weekly_analytics', label: 'Analisis Mingguan', icon: BarChart3, desc: 'Evaluasi & Tren Lintas Menu', permKey: 'viewWeeklyAnalytics' },
     { id: 'unfifo', label: 'UNFIFO', icon: RefreshCcw, desc: 'Audit Alur Pengeluaran', permKey: 'viewUnfifo' },
     { id: 'loo', label: 'Stock Pipa vs LOO', icon: TrendingUp, desc: 'Pemenuhan Target LOO', permKey: 'viewLoo' },
     { id: 'packaging', label: 'Data Packaging Rusak', icon: PackageX, desc: 'Temuan & Status Repack', permKey: 'viewDamagedPkg' },
@@ -1334,6 +1338,7 @@ export default function Home() {
     return allDashboardMenuItems.filter((item) => {
       if (currentUser?.role === 'admin') return true;
       if (item.permKey === 'viewProductivity' && userPermissions.viewProductivity === undefined) return true;
+      if (item.permKey === 'viewWeeklyAnalytics' && userPermissions.viewWeeklyAnalytics === undefined) return true;
       return Boolean(userPermissions[item.permKey as keyof RolePermissions]);
     });
   }, [allDashboardMenuItems, currentUser, userPermissions]);
@@ -2301,6 +2306,12 @@ export default function Home() {
                     loadSnapshotByKey(`snap_${newDate}`);
                   }
                 }}
+              />
+            )}
+
+            {activeTab === 'weekly_analytics' && (currentUser.role === 'admin' || userPermissions.viewWeeklyAnalytics !== false) && (
+              <WeeklyAnalyticsView
+                onOpenUploadModal={() => setIsUploadOpen(true)}
               />
             )}
 

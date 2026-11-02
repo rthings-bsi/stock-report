@@ -15,6 +15,7 @@ export interface RolePermissions {
   viewSTO?: boolean;           // Stock Opname (STO) & Rekonsiliasi Actual-SAP
   viewAuditSLoc?: boolean;     // Audit SLoc Rekonsiliasi 14 Kolom SAP
   viewProductivity?: boolean;  // Produktivitas Tenaga Kerja Gudang (SAP MB51)
+  viewWeeklyAnalytics?: boolean;// Analisis Mingguan & Evaluasi Lintas Menu
   viewUserManagement: boolean; // Kelola Pengguna & Roles
 
   // Upload Raw Data Permissions (Pecahan Upload Data Raw SAP & Packaging)
@@ -88,6 +89,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   viewSTO: true,
   viewAuditSLoc: true,
   viewProductivity: true,
+  viewWeeklyAnalytics: true,
   viewUserManagement: true,
   canUploadSAP: true,
   canUploadPipe: true,
@@ -125,6 +127,7 @@ export const DEFAULT_STAFF_PERMISSIONS: RolePermissions = {
   viewSTO: true,
   viewAuditSLoc: true,
   viewProductivity: true,
+  viewWeeklyAnalytics: true,
   viewUserManagement: false,
   canUploadSAP: false,
   canUploadPipe: false,
@@ -162,6 +165,7 @@ export const DEFAULT_VIEWER_PERMISSIONS: RolePermissions = {
   viewSTO: true,
   viewAuditSLoc: true,
   viewProductivity: true,
+  viewWeeklyAnalytics: true,
   viewUserManagement: false,
   canUploadSAP: false,
   canUploadPipe: false,
