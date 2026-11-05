@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import {
+  hasPermission,
   isAuthContext,
   rejectCrossOrigin,
   requireAuth,
@@ -129,11 +130,21 @@ function sanitizeProductivityDataset(dataset: any) {
 }
 
 export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (!isAuthContext(auth)) return auth;
+
   const url = new URL(request.url);
   const isDiagnostic = url.searchParams.get('check') === '1' || url.searchParams.get('diagnostic') === '1';
 
-  // Mode diagnostik: periksa konektivitas dan kelengkapan tabel Supabase di produksi
+  // Mode diagnostik: hanya untuk Administrator / Pengelola User
   if (isDiagnostic) {
+    if (auth.user.role !== 'admin' && !hasPermission(auth, 'canManageUsers')) {
+      return NextResponse.json(
+        { success: false, error: 'Akses ditolak: Mode diagnostik hanya untuk Administrator.' },
+        { status: 403 }
+      );
+    }
+
     const diag: Record<string, any> = {
       timestamp: new Date().toISOString(),
       environment: {
@@ -194,8 +205,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: allOk, diagnostic: diag });
   }
 
-  const auth = await requireAuth(request);
-  if (!isAuthContext(auth)) return auth;
+  // Otorisasi melihat modul produktivitas
+  if (auth.user.role !== 'admin' && !hasPermission(auth, 'viewProductivity')) {
+    return NextResponse.json(
+      { success: false, error: 'Akses ditolak: Anda tidak memiliki izin untuk melihat modul Produktivitas.' },
+      { status: 403 }
+    );
+  }
 
   try {
     // 1. Supabase Cloud (Primary jika aktif)
@@ -295,6 +311,19 @@ export async function POST(request: Request) {
     // 1. JSON body -> Save Headcount Config or Reset Default
     if (contentType.includes('application/json')) {
       const body = await request.json();
+      if (body.action === 'reset_headcount' || body.action === 'save_headcount') {
+        if (
+          auth.user.role !== 'admin' &&
+          !hasPermission(auth, 'canManageCapacity') &&
+          !hasPermission(auth, 'canManageUsers')
+        ) {
+          return NextResponse.json(
+            { success: false, error: 'Akses ditolak: Hanya Administrator atau Pengelola Kapasitas yang dapat mengubah konfigurasi headcount.' },
+            { status: 403 }
+          );
+        }
+      }
+
       if (body.action === 'reset_headcount') {
         fs.mkdirSync(DATA_DIR, { recursive: true });
         fs.writeFileSync(HEADCOUNT_JSON_PATH, JSON.stringify(DEFAULT_HEADCOUNT_CONFIG, null, 2), 'utf-8');
@@ -385,6 +414,18 @@ export async function POST(request: Request) {
       }
 
       if (body.action === 'save_dataset' || body.dataset) {
+        if (
+          auth.user.role !== 'admin' &&
+          !hasPermission(auth, 'canUploadProductivity') &&
+          !hasPermission(auth, 'canUploadSAP') &&
+          !hasPermission(auth, 'canUploadPipe')
+        ) {
+          return NextResponse.json(
+            { success: false, error: 'Akses ditolak: Anda tidak memiliki izin untuk menyimpan dataset produktivitas.' },
+            { status: 403 }
+          );
+        }
+
         const incomingDataset = body.dataset;
         if (!incomingDataset || !Array.isArray(incomingDataset.records)) {
           return NextResponse.json({ success: false, error: 'Dataset MB51 tidak valid' }, { status: 400 });
@@ -518,10 +559,30 @@ export async function POST(request: Request) {
 
     // 2. Multipart Form Data -> Upload File MB51 (.xlsx / .xls / .csv)
     if (contentType.includes('multipart/form-data')) {
+      if (
+        auth.user.role !== 'admin' &&
+        !hasPermission(auth, 'canUploadProductivity') &&
+        !hasPermission(auth, 'canUploadSAP') &&
+        !hasPermission(auth, 'canUploadPipe')
+      ) {
+        return NextResponse.json(
+          { success: false, error: 'Akses ditolak: Anda tidak memiliki izin untuk mengunggah file produktivitas MB51.' },
+          { status: 403 }
+        );
+      }
+
       const formData = await request.formData();
       const file = formData.get('file') as File | null;
       if (!file) {
         return NextResponse.json({ success: false, error: 'File tidak ditemukan pada request' }, { status: 400 });
+      }
+
+      // Validasi batas ukuran file (maksimal 25 MB)
+      if (file.size > 25 * 1024 * 1024) {
+        return NextResponse.json(
+          { success: false, error: `Ukuran file (${(file.size / (1024 * 1024)).toFixed(1)} MB) melebihi batas maksimal 25 MB.` },
+          { status: 400 }
+        );
       }
 
       const ext = path.extname(file.name).toLowerCase();
@@ -609,14 +670,13 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: false, error: 'Unsupported Content-Type' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Tipe konten (Content-Type) tidak didukung.' }, { status: 400 });
   } catch (err: any) {
     console.error('Error in POST /api/productivity:', err);
-    const stderrMsg = err?.stderr ? String(err.stderr).trim() : '';
     return NextResponse.json(
       {
         success: false,
-        error: stderrMsg || err?.message || 'Gagal memproses file MB51',
+        error: 'Terjadi kesalahan saat memproses data SAP MB51. Silakan periksa format file.',
       },
       { status: 500 }
     );
@@ -630,12 +690,36 @@ export async function DELETE(request: Request) {
   const auth = await requireAuth(request);
   if (!isAuthContext(auth)) return auth;
 
+  // Wajibkan izin kelola user (admin) atau kelola kapasitas untuk menghapus data produktivitas
+  if (
+    auth.user.role !== 'admin' &&
+    !hasPermission(auth, 'canManageUsers') &&
+    !hasPermission(auth, 'canManageCapacity')
+  ) {
+    return NextResponse.json(
+      { success: false, error: 'Akses ditolak: Hanya Administrator atau Pengelola Kapasitas yang dapat menghapus data produktivitas.' },
+      { status: 403 }
+    );
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get('date');
+    const confirm = searchParams.get('confirm');
 
     const cleanDate = dateParam ? dateParam.trim().replace(/^snap_/, '') : null;
     const isSingleDateDelete = Boolean(cleanDate && cleanDate !== '' && cleanDate !== 'latest' && cleanDate !== 'ALL');
+
+    // Jika ingin mereset seluruh data, wajibkan parameter confirm=CONFIRM_DELETE_ALL
+    if (!isSingleDateDelete && confirm !== 'CONFIRM_DELETE_ALL') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Penghapusan seluruh riwayat produktivitas memerlukan parameter confirm=CONFIRM_DELETE_ALL.',
+        },
+        { status: 400 }
+      );
+    }
 
     const emptyDataset = {
       sourceFile: '',
@@ -748,7 +832,7 @@ export async function DELETE(request: Request) {
   } catch (err: any) {
     console.error('Error in DELETE /api/productivity:', err);
     return NextResponse.json(
-      { success: false, error: err?.message || 'Gagal menghapus data produktivitas' },
+      { success: false, error: 'Terjadi kesalahan pada server saat menghapus data produktivitas.' },
       { status: 500 }
     );
   }

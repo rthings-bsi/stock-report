@@ -1,19 +1,38 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { isAuthContext, requireAuth } from '@/lib/auth-server';
+import { hasPermission, isAuthContext, requireAuth } from '@/lib/auth-server';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
   detectAvailableWeeks,
   computeWeeklyNCAnalysis,
   computeWeeklyProductivity,
+  computeWeeklyCapacity,
+  computeWeeklyFastSlow,
+  computeWeeklyCoilStrip,
+  computeWeeklyNCStock,
+  computeWeeklyLoo,
+  computeWeeklyUnfifo,
+  computeWeeklyPackaging,
   generateWeeklyInsights,
-  WeeklyPeriod,
-  WeeklyCapacitySummary,
+  aggregateMB51ForWeek,
   parseDateSafe,
   formatDateToYmd,
 } from '@/lib/weeklyAnalytics';
-import { NCProgressTransaction, WarehousePipeCapacity, CoilStripArea } from '@/types/warehouse';
+import {
+  NCProgressTransaction,
+  WarehousePipeCapacity,
+  FastSlowPipe,
+  CoilStripArea,
+  PipeNCWarehouse,
+  PipeNCItem,
+  LooComparisonItem,
+  UnfifoItem,
+  UnfifoCoilItem,
+  UnfifoPipeItem,
+  DamagedPackagingItem,
+  IncomingPackagingItem,
+} from '@/types/warehouse';
 import { MB51Dataset } from '@/types/productivity';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +73,13 @@ export async function GET(request: Request) {
   const auth = await requireAuth(request);
   if (!isAuthContext(auth)) return auth;
 
+  if (auth.user.role !== 'admin' && !hasPermission(auth, 'viewWeeklyAnalytics')) {
+    return NextResponse.json(
+      { success: false, error: 'Akses ditolak: Anda tidak memiliki izin untuk melihat modul Analisis Mingguan.' },
+      { status: 403 }
+    );
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const requestedWeek = searchParams.get('week');
@@ -71,20 +97,36 @@ export async function GET(request: Request) {
 
     const prodDates = prodDataset?.tanggalKerjaDates || prodDataset?.postingDates || [];
 
-    // 2. Ambil list snapshots dari SQLite / Supabase
+    // 2. Ambil list snapshots komprehensif dari SQLite / Supabase
     const db = getLocalDb();
     let snapshotRows: Array<{
       snapshot_key: string;
       last_updated: string;
-      nc_progress_data?: string;
       pipe_capacities?: string;
+      fast_slow_data?: string;
       coil_strip_data?: string;
+      nc_warehouse_data?: string;
+      nc_items?: string;
+      loo_st_data?: string;
+      loo_lt_data?: string;
+      unfifo_data?: string;
+      unfifo_coil_data?: string;
+      unfifo_pipe_data?: string;
+      damaged_packaging_data?: string;
+      incoming_packaging_data?: string;
+      nc_progress_data?: string;
     }> = [];
 
     if (db) {
       try {
         const rows = db.prepare(`
-          SELECT snapshot_key, last_updated, nc_progress_data, pipe_capacities, coil_strip_data
+          SELECT snapshot_key, last_updated,
+                 pipe_capacities, fast_slow_data, coil_strip_data,
+                 nc_warehouse_data, nc_items,
+                 loo_st_data, loo_lt_data,
+                 unfifo_data, unfifo_coil_data, unfifo_pipe_data,
+                 damaged_packaging_data, incoming_packaging_data,
+                 nc_progress_data
           FROM warehouse_snapshots
           WHERE snapshot_key LIKE 'snap_%'
           ORDER BY snapshot_key ASC
@@ -101,7 +143,16 @@ export async function GET(request: Request) {
       try {
         const { data: supaRows } = await supabase
           .from('warehouse_snapshots')
-          .select('snapshot_key, last_updated, nc_progress_data, pipe_capacities, coil_strip_data')
+          .select(`
+            snapshot_key, last_updated,
+            pipe_capacities, fast_slow_data, coil_strip_data,
+            nc_warehouse_data, nc_items,
+            loo_st_data, loo_lt_data,
+            unfifo_data, unfifo_coil_data, unfifo_pipe_data,
+            damaged_packaging_data, incoming_packaging_data,
+            nc_progress_data
+          `)
+          .like('snapshot_key', 'snap_%')
           .order('snapshot_key', { ascending: true });
         if (supaRows) {
           snapshotRows = supaRows;
@@ -132,7 +183,7 @@ export async function GET(request: Request) {
       if (matched) selectedPeriod = matched;
     }
 
-    // 4. Kumpulkan seluruh transaksi NC unik di pekan ini dari snapshot terkait
+    // 4. Kumpulkan transaksi NC unik di pekan ini dari snapshot terkait
     const uniqueNcMap = new Map<string, NCProgressTransaction>();
 
     snapshotRows.forEach((snap) => {
@@ -156,103 +207,121 @@ export async function GET(request: Request) {
 
     const allNcTransactions = Array.from(uniqueNcMap.values());
 
-    // 5. Hitung analisis mingguan Progres NC
-    const ncSummary = computeWeeklyNCAnalysis(allNcTransactions, selectedPeriod);
-
-    // 6. Hitung analisis mingguan Produktivitas MB51
-    const productivitySummary = computeWeeklyProductivity(prodDataset, selectedPeriod);
-
-    // 7. Hitung analisis pergerakan Kapasitas Gudang (Awal Minggu vs Akhir Minggu)
-    // Filter snapshot yang jatuh dalam pekan ini
+    // 5. Filter snapshot dalam pekan ini & snapshot sebelum pekan ini sebagai start snapshot
     const weekSnapshots = snapshotRows.filter((s) => {
       const snapDate = s.snapshot_key.replace(/^snap_/, '');
       return snapDate >= selectedPeriod.startDate && snapDate <= selectedPeriod.endDate;
     });
 
-    let startPipeStock = 0;
-    let endPipeStock = 0;
-    let startCoilStock = 0;
-    let endCoilStock = 0;
-    let avgOccupancy = 0;
-    const whMovementMap = new Map<string, {
-      gudang: string;
-      kapasitas: number;
-      stockStart: number;
-      stockEnd: number;
-      deltaStock: number;
-      occupancyEnd: number;
-    }>();
+    const priorSnapshots = snapshotRows.filter((s) => {
+      const snapDate = s.snapshot_key.replace(/^snap_/, '');
+      return snapDate < selectedPeriod.startDate;
+    });
+    const priorSnap = priorSnapshots.length > 0 ? priorSnapshots[priorSnapshots.length - 1] : null;
 
-    if (weekSnapshots.length > 0) {
-      const firstSnap = weekSnapshots[0];
-      const lastSnap = weekSnapshots[weekSnapshots.length - 1];
+    let firstSnap = weekSnapshots[0] || priorSnap || null;
+    let lastSnap = weekSnapshots.length > 0 ? weekSnapshots[weekSnapshots.length - 1] : (priorSnap || null);
 
-      const firstPipes: WarehousePipeCapacity[] = parseJsonSafe(firstSnap.pipe_capacities, []);
-      const lastPipes: WarehousePipeCapacity[] = parseJsonSafe(lastSnap.pipe_capacities, []);
-      const firstCoils: CoilStripArea[] = parseJsonSafe(firstSnap.coil_strip_data, []);
-      const lastCoils: CoilStripArea[] = parseJsonSafe(lastSnap.coil_strip_data, []);
-
-      firstPipes.forEach((p) => {
-        startPipeStock += p.stock || 0;
-        whMovementMap.set(p.gudang, {
-          gudang: p.gudang,
-          kapasitas: p.kapasitas || 0,
-          stockStart: p.stock || 0,
-          stockEnd: p.stock || 0,
-          deltaStock: 0,
-          occupancyEnd: p.persenTerisi || 0,
-        });
-      });
-
-      lastPipes.forEach((p) => {
-        endPipeStock += p.stock || 0;
-        if (!whMovementMap.has(p.gudang)) {
-          whMovementMap.set(p.gudang, {
-            gudang: p.gudang,
-            kapasitas: p.kapasitas || 0,
-            stockStart: p.stock || 0,
-            stockEnd: p.stock || 0,
-            deltaStock: 0,
-            occupancyEnd: p.persenTerisi || 0,
-          });
-        } else {
-          const entry = whMovementMap.get(p.gudang)!;
-          entry.stockEnd = p.stock || 0;
-          entry.deltaStock = (p.stock || 0) - entry.stockStart;
-          entry.occupancyEnd = p.kapasitas > 0 ? Number(((p.stock / p.kapasitas) * 100).toFixed(1)) : 0;
-        }
-      });
-
-      firstCoils.forEach((c) => {
-        startCoilStock += c.totalTon || 0;
-      });
-
-      lastCoils.forEach((c) => {
-        endCoilStock += c.totalTon || 0;
-      });
-
-      let totalCap = 0;
-      lastPipes.forEach((p) => {
-        totalCap += p.kapasitas || 0;
-      });
-      avgOccupancy = totalCap > 0 ? Number(((endPipeStock / totalCap) * 100).toFixed(1)) : 0;
+    if (weekSnapshots.length === 1 && priorSnap) {
+      firstSnap = priorSnap;
+      lastSnap = weekSnapshots[0];
     }
 
-    const capacitySummary: WeeklyCapacitySummary = {
-      startSnapshotKey: weekSnapshots[0]?.snapshot_key || '',
-      endSnapshotKey: weekSnapshots[weekSnapshots.length - 1]?.snapshot_key || '',
-      startPipeStock: Math.round(startPipeStock),
-      endPipeStock: Math.round(endPipeStock),
-      deltaPipeStock: Math.round(endPipeStock - startPipeStock),
-      avgPipeOccupancy: avgOccupancy,
-      startCoilStock: Math.round(startCoilStock),
-      endCoilStock: Math.round(endCoilStock),
-      deltaCoilStock: Math.round(endCoilStock - startCoilStock),
-      warehouseMovement: Array.from(whMovementMap.values()),
-    };
+    // Ekstraksi data modul dari snapshot awal dan akhir
+    const firstPipes: WarehousePipeCapacity[] = parseJsonSafe(firstSnap?.pipe_capacities, []);
+    const lastPipes: WarehousePipeCapacity[] = parseJsonSafe(lastSnap?.pipe_capacities, []);
+    const firstFS: FastSlowPipe[] = parseJsonSafe(firstSnap?.fast_slow_data, []);
+    const lastFS: FastSlowPipe[] = parseJsonSafe(lastSnap?.fast_slow_data, []);
+    const firstCoils: CoilStripArea[] = parseJsonSafe(firstSnap?.coil_strip_data, []);
+    const lastCoils: CoilStripArea[] = parseJsonSafe(lastSnap?.coil_strip_data, []);
+    const firstNCWh: PipeNCWarehouse[] = parseJsonSafe(firstSnap?.nc_warehouse_data, []);
+    const lastNCWh: PipeNCWarehouse[] = parseJsonSafe(lastSnap?.nc_warehouse_data, []);
+    const ncItems: PipeNCItem[] = parseJsonSafe(lastSnap?.nc_items || firstSnap?.nc_items, []);
 
-    // 8. Generate Executive Insights
-    const keyInsights = generateWeeklyInsights(ncSummary, productivitySummary, capacitySummary);
+    const lastLooST: LooComparisonItem[] = parseJsonSafe(lastSnap?.loo_st_data || firstSnap?.loo_st_data, []);
+    const lastLooLT: LooComparisonItem[] = parseJsonSafe(lastSnap?.loo_lt_data || firstSnap?.loo_lt_data, []);
+
+    const unfifoItems: UnfifoItem[] = parseJsonSafe(lastSnap?.unfifo_data || firstSnap?.unfifo_data, []);
+    const unfifoCoil: UnfifoCoilItem[] = parseJsonSafe(lastSnap?.unfifo_coil_data || firstSnap?.unfifo_coil_data, []);
+    const unfifoPipe: UnfifoPipeItem[] = parseJsonSafe(lastSnap?.unfifo_pipe_data || firstSnap?.unfifo_pipe_data, []);
+
+    const incomingPkg: IncomingPackagingItem[] = parseJsonSafe(lastSnap?.incoming_packaging_data || firstSnap?.incoming_packaging_data, []);
+    const damagedPkg: DamagedPackagingItem[] = parseJsonSafe(lastSnap?.damaged_packaging_data || firstSnap?.damaged_packaging_data, []);
+
+    // 6. Hitung agregasi MB51 untuk Smart Fallback
+    const mb51Agg = aggregateMB51ForWeek(prodDataset, selectedPeriod);
+
+    // 7. Hitung kalkulasi analitik seluruh 9 modul
+    const capacitySummary = computeWeeklyCapacity(
+      firstPipes,
+      lastPipes,
+      firstCoils,
+      lastCoils,
+      selectedPeriod,
+      mb51Agg
+    );
+
+    const fastSlowSummary = computeWeeklyFastSlow(
+      firstFS,
+      lastFS,
+      selectedPeriod,
+      capacitySummary.warehouseMovement,
+      mb51Agg
+    );
+
+    const coilStripSummary = computeWeeklyCoilStrip(
+      firstCoils,
+      lastCoils,
+      selectedPeriod,
+      mb51Agg
+    );
+
+    const ncSummary = computeWeeklyNCAnalysis(allNcTransactions, selectedPeriod);
+
+    const ncStockSummary = computeWeeklyNCStock(
+      firstNCWh,
+      lastNCWh,
+      ncItems,
+      selectedPeriod,
+      ncSummary
+    );
+
+    const looSummary = computeWeeklyLoo(
+      lastLooST,
+      lastLooLT,
+      lastPipes,
+      selectedPeriod,
+      mb51Agg
+    );
+
+    const unfifoSummary = computeWeeklyUnfifo(
+      unfifoItems,
+      unfifoCoil,
+      unfifoPipe,
+      selectedPeriod
+    );
+
+    const packagingSummary = computeWeeklyPackaging(
+      incomingPkg,
+      damagedPkg,
+      selectedPeriod,
+      mb51Agg
+    );
+
+    const productivitySummary = computeWeeklyProductivity(prodDataset, selectedPeriod);
+
+    // 8. Generate Executive Insights Komprehensif
+    const keyInsights = generateWeeklyInsights(
+      ncSummary,
+      productivitySummary,
+      capacitySummary,
+      fastSlowSummary,
+      coilStripSummary,
+      ncStockSummary,
+      looSummary,
+      unfifoSummary,
+      packagingSummary
+    );
 
     return NextResponse.json({
       success: true,
@@ -260,9 +329,15 @@ export async function GET(request: Request) {
       selectedWeek: selectedPeriod.id,
       report: {
         period: selectedPeriod,
-        ncSummary,
-        productivitySummary,
         capacitySummary,
+        fastSlowSummary,
+        coilStripSummary,
+        ncStockSummary,
+        ncSummary,
+        looSummary,
+        unfifoSummary,
+        packagingSummary,
+        productivitySummary,
         keyInsights,
       },
     });

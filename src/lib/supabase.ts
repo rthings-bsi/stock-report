@@ -10,16 +10,14 @@ const isCloudDeploy =
 const supabaseUrl = isCloudDeploy
   ? (process.env.NEXT_PUBLIC_SUPABASE_URL ||
      process.env.SUPABASE_URL ||
-     'https://gobcmaehhdktvyqbvfjv.supabase.co')
+     '')
   : '';
 
-// Wajib service role key untuk operasi server-side. Mendukung berbagai alias environment variable Vercel.
+// Wajib service role key untuk operasi server-side. Mendukung alias environment variable service key.
 const supabaseKey = isCloudDeploy
   ? (process.env.SUPABASE_SERVICE_ROLE_KEY ||
      process.env.SUPABASE_SERVICE_KEY ||
      process.env.SUPABASE_KEY ||
-     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-     process.env.SUPABASE_ANON_KEY ||
      '')
   : '';
 

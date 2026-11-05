@@ -5,24 +5,11 @@ import {
   requireAuth,
   verifyCredentials,
 } from '@/lib/auth-server';
+import { authRateLimiter } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS = 8;
-const attempts = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(key: string): boolean {
-  const entry = attempts.get(key);
-  if (!entry) return false;
-  if (Date.now() > entry.resetAt) {
-    attempts.delete(key);
-    return false;
-  }
-  return entry.count >= MAX_ATTEMPTS;
-}
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOrigin(request);
@@ -49,8 +36,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const key = `${auth.user.username.toLowerCase()}:${request.headers.get('x-forwarded-for') || 'local'}`;
-  if (isRateLimited(key)) {
+  const userKey = `user:${auth.user.username.toLowerCase()}`;
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'local';
+  const ipKey = `ip:${ip}`;
+
+  if (authRateLimiter.isLimited(userKey) || authRateLimiter.isLimited(ipKey)) {
     return NextResponse.json(
       { success: false, error: 'Terlalu banyak percobaan. Coba lagi dalam 15 menit.' },
       { status: 429 }
@@ -59,18 +49,15 @@ export async function POST(request: Request) {
 
   const verified = await verifyCredentials(auth.user.username, password);
   if (!verified) {
-    const entry = attempts.get(key);
-    if (!entry || Date.now() > entry.resetAt) {
-      attempts.set(key, { count: 1, resetAt: Date.now() + WINDOW_MS });
-    } else {
-      entry.count += 1;
-    }
+    authRateLimiter.recordFailure(userKey);
+    authRateLimiter.recordFailure(ipKey);
     return NextResponse.json(
       { success: false, error: 'Password salah.' },
       { status: 401 }
     );
   }
 
-  attempts.delete(key);
+  authRateLimiter.clear(userKey);
+  authRateLimiter.clear(ipKey);
   return NextResponse.json({ success: true });
 }

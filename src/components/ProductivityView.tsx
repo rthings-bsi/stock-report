@@ -35,6 +35,7 @@ import { tooltipStyleStrong } from '@/lib/chartTheme';
 import { cn } from '@/lib/utils';
 import { readExcelFileRawMatrix } from '@/lib/parser';
 import { parseMB51File } from '@/lib/parseMB51';
+import { sanitizeFormulaValue } from '@/lib/sanitizeFormula';
 import type {
   ShiftName,
   DateMode,
@@ -55,6 +56,7 @@ export interface ProductivityViewProps {
   refreshTrigger?: number | string;
   activeDate?: string;
   onDateChange?: (date: string) => void;
+  onNavigateToWeekly?: (subTabId?: string) => void;
 }
 
 const WAREHOUSE_LIST = [
@@ -192,6 +194,7 @@ export default function ProductivityView({
   refreshTrigger,
   activeDate,
   onDateChange,
+  onNavigateToWeekly,
 }: ProductivityViewProps = {}) {
   const [dataset, setDataset] = useState<MB51Dataset | null>(null);
   const [headcount, setHeadcount] = useState<HeadcountConfig | null>(null);
@@ -946,7 +949,7 @@ export default function ProductivityView({
         `REKAP PRODUKTIVITAS HARIAN GUDANG (${selectedDate === 'ALL' ? 'SEMUA TANGGAL' : selectedDate})`,
       ]);
       wsMatrix.addRow([
-        `Sumber: ${dataset.sourceFile} | Basis: Posting Date SAP | Mode: ${calcMode}`,
+        sanitizeFormulaValue(`Sumber: ${dataset.sourceFile} | Basis: Posting Date SAP | Mode: ${calcMode}`),
       ]);
       wsMatrix.addRow([]);
 
@@ -1036,9 +1039,9 @@ export default function ProductivityView({
       wsDetail.getRow(1).font = { bold: true };
       for (const r of sortedDetailRows) {
         wsDetail.addRow([
-          r.tanggal,
-          r.shift,
-          r.gudang,
+          sanitizeFormulaValue(r.tanggal),
+          sanitizeFormulaValue(r.shift),
+          sanitizeFormulaValue(r.gudang),
           Math.round(r.inKg),
           Math.round(r.outKg),
           Math.round(r.totalKg),
@@ -1047,7 +1050,7 @@ export default function ProductivityView({
           r.man ?? '',
           r.kgPerMan ?? '',
           r.txPerMan ?? '',
-          r.catatan || 'Optimal',
+          sanitizeFormulaValue(r.catatan || 'Optimal'),
         ]);
       }
 
@@ -1310,6 +1313,17 @@ export default function ProductivityView({
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {onNavigateToWeekly && (
+            <button
+              onClick={() => onNavigateToWeekly('productivity')}
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700/90 text-emerald-100 font-semibold text-xs transition-colors border border-emerald-700/80 cursor-pointer"
+              title="Lihat Analisis Mingguan untuk Produktivitas Gudang"
+            >
+              <BarChart3 className="w-3.5 h-3.5 shrink-0 text-amber-300" />
+              <span>Analisa Mingguan</span>
+            </button>
+          )}
+
           <button
             onClick={openHeadcountEditor}
             className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700/90 text-emerald-100 font-semibold text-xs transition-colors border border-emerald-700/80 cursor-pointer"

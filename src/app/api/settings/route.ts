@@ -127,7 +127,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, data: null });
   } catch (error) {
     console.error('Settings GET error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to get settings' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Gagal memuat pengaturan.' }, { status: 500 });
   }
 }
 
@@ -166,9 +166,15 @@ export async function POST(request: Request) {
         );
       }
     } else if (key === 'unfifo_pipe_issues' || key === 'unfifo_coil_issues') {
-      if (!hasPermission(auth, 'viewUnfifo')) {
+      if (
+        !hasPermission(auth, 'canUploadPipe') &&
+        !hasPermission(auth, 'canUploadCoil') &&
+        !hasPermission(auth, 'canManageCapacity') &&
+        !hasPermission(auth, 'canManageUsers') &&
+        auth.user.role !== 'admin'
+      ) {
         return NextResponse.json(
-          { success: false, error: 'Akses ditolak untuk mengubah catatan UNFIFO.' },
+          { success: false, error: 'Akses ditolak: Anda tidak memiliki izin untuk mengubah catatan UNFIFO.' },
           { status: 403 }
         );
       }
@@ -281,6 +287,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, message: 'Saved setting' });
   } catch (error) {
     console.error('Settings POST error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to save settings' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Gagal menyimpan pengaturan.' }, { status: 500 });
   }
 }

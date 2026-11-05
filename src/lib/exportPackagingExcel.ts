@@ -4,6 +4,7 @@ import {
   getStandarBuffer,
   getPackagingBufferStatus
 } from './packagingMaster';
+import { sanitizeFormulaValue } from './sanitizeFormula';
 
 /**
  * Export Check Sheet Stock Packaging Internal to styled Excel (.xlsx)
@@ -242,12 +243,12 @@ export async function exportPackagingCheckSheet(
     row.getCell(2).alignment = { vertical: 'middle', horizontal: 'center' };
 
     // Col C (3): Customer
-    row.getCell(3).value = item.customer;
+    row.getCell(3).value = sanitizeFormulaValue(item.customer);
     row.getCell(3).alignment = { vertical: 'middle', horizontal: 'left' };
     row.getCell(3).font = { name: 'Arial', size: 9.5, bold: true };
 
     // Col D (4): Type Box (Green Bold)
-    row.getCell(4).value = item.type;
+    row.getCell(4).value = sanitizeFormulaValue(item.type);
     row.getCell(4).alignment = { vertical: 'middle', horizontal: 'left' };
     row.getCell(4).font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF059669' } };
 
@@ -311,7 +312,7 @@ export async function exportPackagingCheckSheet(
     if (status === 'SESUAI') {
       countSesuai++;
       const cell = row.getCell(11);
-      cell.value = '=';
+      cell.value = 'Pas';
       cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF000000' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: STATUS_YELLOW } };
     }
@@ -355,7 +356,7 @@ export async function exportPackagingCheckSheet(
     }
 
     // Col Q (17): Keterangan
-    row.getCell(17).value = item.keterangan || '-';
+    row.getCell(17).value = sanitizeFormulaValue(item.keterangan || '-');
     row.getCell(17).alignment = { vertical: 'middle', horizontal: 'left' };
     row.getCell(17).font = { name: 'Arial', size: 9, color: { argb: 'FF475569' } };
 

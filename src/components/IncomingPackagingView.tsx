@@ -43,7 +43,8 @@ import {
   CheckCircle2,
   Box,
   Settings2,
-  ArrowLeft
+  ArrowLeft,
+  BarChart3
 } from 'lucide-react';
 
 interface IncomingPackagingViewProps {
@@ -56,6 +57,7 @@ interface IncomingPackagingViewProps {
   onUpdateMasterData?: (newMaster: Record<string, string[]>) => Promise<void> | void;
   onDataUpdate?: (newData: IncomingPackagingItem[]) => void;
   onOpenBufferSettings?: () => void;
+  onNavigateToWeekly?: (subTabId?: string) => void;
 }
 
 // Helpers for robust date normalization
@@ -133,7 +135,8 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
   masterData,
   onUpdateMasterData,
   onDataUpdate,
-  onOpenBufferSettings
+  onOpenBufferSettings,
+  onNavigateToWeekly,
 }) => {
   const [items, setItems] = useState<IncomingPackagingItem[]>(data);
   const [searchQuery, setSearchQuery] = useState('');
@@ -744,6 +747,18 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
             <Download className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
             <span>Export</span>
           </button>
+
+          {onNavigateToWeekly && (
+            <button
+              type="button"
+              onClick={() => onNavigateToWeekly('packaging')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0 font-sans"
+              title="Lihat Analisis Mingguan untuk Packaging"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+              <span>Analisa Mingguan</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -77,6 +77,7 @@ interface NCProgressViewProps {
   canEdit?: boolean;
   isCustomizing?: boolean;
   onDataUpdate?: (newData: NCProgressTransaction[]) => void;
+  onNavigateToWeekly?: (subTabId?: string) => void;
 }
 
 type SubTabType = 'in_nc' | 'out_repair' | 'in_prime' | 'reject_repair';
@@ -122,7 +123,8 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
   isAdmin = false,
   canEdit = true,
   isCustomizing = false,
-  onDataUpdate
+  onDataUpdate,
+  onNavigateToWeekly,
 }) => {
   const [transactions, setTransactions] = useState<NCProgressTransaction[]>(data);
   const [activeSubTab, setActiveSubTab] = useState<SubTabType>('in_nc');
@@ -294,9 +296,12 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
 
   // Dynamic filter lists
   const gudangList = useMemo(() => {
-    return Array.from(
+    const list = Array.from(
       new Set(cleanTransactions.map((t) => normalizeGudang(t.storageLocation)).filter(Boolean))
     ).sort();
+    return list.length > 0
+      ? list
+      : ['Gd.01', 'Gd.02', 'Gd.03', 'Gd.04', 'Gd.05', 'Gd.06', 'Gd.07', 'Gd.08', 'Gd.09', 'Gd.10', 'Gd.11', 'Gd.12', 'Gd.13', 'Gd.14'];
   }, [cleanTransactions]);
 
   // Filtered Raw Transactions
@@ -710,22 +715,28 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
     ];
 
     const datasets = datasetConfigs.map((cfg, dIdx) => {
-      const isFilterActive = !!activeChartFilter;
+      const isFilterActive = !!activeChartFilter || selectedGudang !== 'ALL';
       const bgColors = labels.map((l) => {
         if (!isFilterActive) return cfg.baseColor;
-        const isSelected = activeChartFilter.gudang === l && activeChartFilter.datasetIndex === dIdx;
+        const isSelected = activeChartFilter
+          ? (activeChartFilter.gudang === l && activeChartFilter.datasetIndex === dIdx)
+          : selectedGudang === l;
         return isSelected ? cfg.baseColor : `${cfg.baseColor}38`;
       });
 
       const borderColors = labels.map((l) => {
         if (!isFilterActive) return 'transparent';
-        const isSelected = activeChartFilter.gudang === l && activeChartFilter.datasetIndex === dIdx;
+        const isSelected = activeChartFilter
+          ? (activeChartFilter.gudang === l && activeChartFilter.datasetIndex === dIdx)
+          : selectedGudang === l;
         return isSelected ? '#0f172a' : 'transparent';
       });
 
       const borderWidths = labels.map((l) => {
         if (!isFilterActive) return 0;
-        const isSelected = activeChartFilter.gudang === l && activeChartFilter.datasetIndex === dIdx;
+        const isSelected = activeChartFilter
+          ? (activeChartFilter.gudang === l && activeChartFilter.datasetIndex === dIdx)
+          : selectedGudang === l;
         return isSelected ? 2 : 0;
       });
 
@@ -745,7 +756,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       labels,
       datasets
     };
-  }, [pipeFilteredTransactions, activeChartFilter]);
+  }, [pipeFilteredTransactions, activeChartFilter, selectedGudang]);
 
   const handleResetChartFilter = () => {
     setActiveChartFilter(null);
@@ -825,6 +836,10 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
     let totalInPrimeQty = 0;
 
     pipeFilteredTransactions.forEach((tx) => {
+      if (selectedGudang !== 'ALL') {
+        const g = normalizeGudang(tx.storageLocation);
+        if (g !== selectedGudang && tx.storageLocation !== selectedGudang) return;
+      }
       const ton = (tx.quantity || tx.kgGI || tx.kgGR || 0) / 1000;
       const qty = tx.qtyInUnOfEntry || 0;
       if (tx.transactionType === 'IN_NC') {
@@ -942,7 +957,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
       chartDataTon,
       chartDataQty
     };
-  }, [pipeFilteredTransactions]);
+  }, [pipeFilteredTransactions, selectedGudang]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
@@ -956,13 +971,56 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
             <h1 className="text-base font-bold text-white font-sans tracking-tight">
               Monitoring Progres NC & Repair
             </h1>
-            <p className="text-xs text-emerald-300/90 font-normal mt-0.5">
-              Tracking pergerakan material NC, repair, dan prime antar gudang
-            </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 ml-auto">
+          {/* Quick Filter by Gudang */}
+          <div className="flex items-center gap-1.5 bg-emerald-950/70 px-2.5 py-1 rounded-lg border border-emerald-700/60 text-xs shadow-2xs">
+            <Building2 className="h-3.5 w-3.5 text-emerald-300 shrink-0" />
+            <span className="text-emerald-300/80 text-[11px] font-medium hidden sm:inline">Gudang:</span>
+            <select
+              value={selectedGudang}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedGudang(val);
+                if (activeChartFilter) {
+                  if (val === 'ALL') {
+                    setActiveChartFilter(null);
+                  } else {
+                    setActiveChartFilter({ ...activeChartFilter, gudang: val });
+                  }
+                }
+              }}
+              title="Filter Berdasarkan Gudang"
+              aria-label="Filter Berdasarkan Gudang"
+              className={cn(
+                "bg-transparent text-xs font-semibold focus:outline-none cursor-pointer pr-1 transition-colors",
+                selectedGudang !== 'ALL' ? "text-amber-300 font-bold" : "text-white"
+              )}
+            >
+              <option value="ALL" className="bg-emerald-950 text-white">Semua Gudang</option>
+              {gudangList.map((g) => (
+                <option key={g} value={g} className="bg-emerald-950 text-white">
+                  {g}
+                </option>
+              ))}
+            </select>
+            {selectedGudang !== 'ALL' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGudang('ALL');
+                  if (activeChartFilter) setActiveChartFilter(null);
+                }}
+                title="Reset filter gudang"
+                className="text-emerald-400 hover:text-white p-0.5 rounded cursor-pointer transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
           {/* Quick Segment Filter LT / ST */}
           <div className="flex items-center bg-emerald-950/70 p-0.5 rounded-lg border border-emerald-700/60 text-xs shadow-2xs">
             <button
@@ -1014,6 +1072,18 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
             <Download className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Ekspor Excel</span>
           </button>
+
+          {onNavigateToWeekly && (
+            <button
+              type="button"
+              onClick={() => onNavigateToWeekly('nc_progress')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+              title="Lihat Analisis Mingguan untuk Progres NC & Repair"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+              <span>Analisa Mingguan</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1027,7 +1097,7 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                 key={card.id}
                 id={card.id}
                 title="Progres Mutasi NC per Gudang"
-                subtitle="Perbandingan pergerakan material NC, repair, dan prime (Ton)"
+                subtitle={selectedGudang !== 'ALL' ? `Fokus ${selectedGudang} • Klik batang untuk drilldown` : "Perbandingan pergerakan material NC, repair, dan prime (Ton)"}
                 icon={BarChart3}
                 width={card.width}
                 isCustomizing={isCustomizing}
@@ -1138,7 +1208,8 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
               <CustomizableCard
                 key={card.id}
                 id={card.id}
-                title="Total Akumulasi"
+                title={selectedGudang !== 'ALL' ? `Total Akumulasi (${selectedGudang})` : "Total Akumulasi"}
+                subtitle={selectedGudang !== 'ALL' ? `Khusus ${selectedGudang} • Klik untuk putar (Ton ⇄ Pcs)` : "Klik untuk memutar tampilan (Ton ⇄ Pcs)"}
                 icon={PieChart}
                 width={card.width}
                 isCustomizing={isCustomizing}

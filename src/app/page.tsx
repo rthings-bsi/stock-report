@@ -164,6 +164,7 @@ export default function Home() {
     return selectedSnapshotKey.replace('snap_', '');
   }, [selectedSnapshotKey, lastUpdated]);
   const [activeTab, setActiveTab] = useState<TabType>('capacity');
+  const [activeWeeklySubTab, setActiveWeeklySubTab] = useState<string>('overview');
   const [selectedGudangFilter, setSelectedGudangFilter] = useState<string>('ALL');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
@@ -290,6 +291,13 @@ export default function Home() {
     } catch {}
   };
 
+  const handleNavigateToWeekly = useCallback((subTabId?: string) => {
+    if (subTabId) {
+      setActiveWeeklySubTab(subTabId);
+    }
+    handleSelectTab('weekly_analytics');
+  }, []);
+
   // Sesi diverifikasi ke server (cookie HttpOnly), bukan dipercaya dari localStorage.
   useEffect(() => {
     let cancelled = false;
@@ -336,9 +344,24 @@ export default function Home() {
     setCurrentUser(null);
     setIsCustomizingLayout(false);
     try {
-      sessionStorage.removeItem('spindo_auth_session');
-      localStorage.removeItem('spindo_auth_remember');
-      localStorage.removeItem('spindo_auth_user');
+      const keysToClear = [
+        'spindo_auth_session',
+        'spindo_auth_remember',
+        'spindo_auth_user',
+        'spindo_warehouse_saved_state',
+        'spindo_selected_snapshot_key',
+        'spindo_users_list',
+        'spindo_custom_roles',
+        'spindo_packaging_buffer_stock',
+        'spindo_packaging_master_cache',
+        'spindo_audit_pkg_cache',
+        'spindo_nc_progress_data',
+        'spindo_unfifo_pipe_issues',
+        'spindo_unfifo_coil_issues',
+        'spindo_warehouse_capacity_config',
+      ];
+      keysToClear.forEach((k) => localStorage.removeItem(k));
+      sessionStorage.clear();
     } catch {}
   };
 
@@ -2089,6 +2112,7 @@ export default function Home() {
                 onSelectGudang={setSelectedGudangFilter}
                 customerBreakdown={customerBreakdown}
                 isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
+                onNavigateToWeekly={handleNavigateToWeekly}
               />
             )}
 
@@ -2098,6 +2122,7 @@ export default function Home() {
                 pipeData={unfifoPipeData}
                 pipeCapacities={pipeCapacities}
                 isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
+                onNavigateToWeekly={handleNavigateToWeekly}
               />
             )}
 
@@ -2105,6 +2130,7 @@ export default function Home() {
               <CoilStripView
                 data={coilStripData}
                 isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
+                onNavigateToWeekly={handleNavigateToWeekly}
               />
             )}
 
@@ -2114,6 +2140,7 @@ export default function Home() {
                 ncItems={ncItems}
                 pipeCapacities={pipeCapacities}
                 isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
+                onNavigateToWeekly={handleNavigateToWeekly}
               />
             )}
 
@@ -2122,6 +2149,7 @@ export default function Home() {
                 data={ncProgressData}
                 isAdmin={currentUser?.role === 'admin' || canUploadSAP}
                 canEdit={canEditProgressNC}
+                onNavigateToWeekly={handleNavigateToWeekly}
                 onDataUpdate={async (newData) => {
                   setNcProgressData(newData);
                   setIsCustomData(true);
@@ -2293,6 +2321,7 @@ export default function Home() {
                 coilData={unfifoCoilData}
                 pipeData={unfifoPipeData}
                 isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
+                onNavigateToWeekly={handleNavigateToWeekly}
               />
             )}
 
@@ -2306,12 +2335,29 @@ export default function Home() {
                     loadSnapshotByKey(`snap_${newDate}`);
                   }
                 }}
+                onNavigateToWeekly={handleNavigateToWeekly}
               />
             )}
 
             {activeTab === 'weekly_analytics' && (currentUser.role === 'admin' || userPermissions.viewWeeklyAnalytics !== false) && (
               <WeeklyAnalyticsView
                 onOpenUploadModal={() => setIsUploadOpen(true)}
+                pipeCapacities={pipeCapacities}
+                fastSlowData={fastSlowData}
+                coilStripData={coilStripData}
+                ncWarehouseData={ncWarehouseData}
+                ncItems={ncItems}
+                ncProgressData={ncProgressData}
+                looSTData={looSTData}
+                looLTData={looLTData}
+                unfifoPipeData={unfifoPipeData}
+                unfifoCoilData={unfifoCoilData}
+                damagedPackagingData={damagedPackagingData}
+                incomingPackagingData={incomingPackagingData}
+                capacityConfig={capacityConfig}
+                packagingBufferConfig={packagingBufferConfig}
+                activeWeeklySubTab={activeWeeklySubTab}
+                onWeeklySubTabChange={(tab) => setActiveWeeklySubTab(tab)}
               />
             )}
 
@@ -2321,6 +2367,7 @@ export default function Home() {
                 ltData={looLTData}
                 pipeCapacities={pipeCapacities}
                 isCustomizing={canCustomizeLayout ? isCustomizingLayout : false}
+                onNavigateToWeekly={handleNavigateToWeekly}
               />
             )}
 
@@ -2328,6 +2375,7 @@ export default function Home() {
               <DamagedPackagingView
                 data={damagedPackagingData}
                 isCustomizing={canEditDamagedPkg ? isCustomizingLayout : false}
+                onNavigateToWeekly={handleNavigateToWeekly}
                 onDataUpdate={async (newData) => {
                   setDamagedPackagingData(newData);
                   setIsCustomData(true);
@@ -2384,6 +2432,7 @@ export default function Home() {
                   setIncomingPackagingData(newData);
                   setIsCustomData(true);
                 }}
+                onNavigateToWeekly={handleNavigateToWeekly}
               />
             )}
 

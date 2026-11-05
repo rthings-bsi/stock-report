@@ -179,16 +179,22 @@ export function isSameOrigin(request: Request): boolean {
   if (!origin) return true;
 
   const allowedHosts = new Set<string>();
-  const forwardedHost = request.headers.get('x-forwarded-host');
-  if (forwardedHost) allowedHosts.add(forwardedHost.split(',')[0].trim());
   const host = request.headers.get('host');
-  if (host) allowedHosts.add(host);
+  if (host) allowedHosts.add(host.trim().toLowerCase());
   try {
-    allowedHosts.add(new URL(request.url).host);
+    allowedHosts.add(new URL(request.url).host.toLowerCase());
   } catch {}
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
+  if (appUrl) {
+    try {
+      allowedHosts.add(new URL(appUrl).host.toLowerCase());
+    } catch {}
+  }
+
   try {
-    return allowedHosts.has(new URL(origin).host);
+    const originHost = new URL(origin).host.toLowerCase();
+    return allowedHosts.has(originHost);
   } catch {
     return false;
   }
@@ -361,20 +367,27 @@ export async function requirePermission(
   return result;
 }
 
-export function hashPassword(plain: string): string {
-  return bcrypt.hashSync(plain, 12);
+export async function hashPassword(plain: string): Promise<string> {
+  return await bcrypt.hash(plain, 12);
 }
 
-export function verifyPassword(plain: string, stored: string): boolean {
+export async function verifyPassword(plain: string, stored: string): Promise<boolean> {
   if (!plain || !stored) return false;
   if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
     try {
-      return bcrypt.compareSync(plain, stored);
+      return await bcrypt.compare(plain, stored);
     } catch {
       return false;
     }
   }
-  return plain === stored;
+  // Constant-time compare untuk legacy plaintext sebelum ter-upgrade ke bcrypt
+  try {
+    const a = Buffer.from(plain);
+    const b = Buffer.from(stored);
+    return a.length === b.length && timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 function getUsersFilePath(): string {
@@ -423,12 +436,12 @@ export async function verifyCredentials(
         .maybeSingle();
 
       if (user) {
-        if (!verifyPassword(password, user.password)) return null;
+        if (!(await verifyPassword(password, user.password))) return null;
 
         if (!String(user.password).startsWith('$2')) {
           await supabase
             .from('users')
-            .update({ password: hashPassword(password) })
+            .update({ password: await hashPassword(password) })
             .eq('id', user.id);
         }
 
@@ -454,11 +467,11 @@ export async function verifyCredentials(
         .get(cleanUsername) as any;
 
       if (user) {
-        if (!verifyPassword(password, user.password)) return null;
+        if (!(await verifyPassword(password, user.password))) return null;
 
         if (!String(user.password).startsWith('$2')) {
           db.prepare('UPDATE users SET password = ? WHERE id = ?').run(
-            hashPassword(password),
+            await hashPassword(password),
             user.id
           );
         }
@@ -481,10 +494,10 @@ export async function verifyCredentials(
     (u) => u.username.trim().toLowerCase() === cleanUsername.toLowerCase()
   );
   if (!user) return null;
-  if (!verifyPassword(password, user.password || '')) return null;
+  if (!(await verifyPassword(password, user.password || ''))) return null;
 
   if (user.password && !user.password.startsWith('$2')) {
-    user.password = hashPassword(password);
+    user.password = await hashPassword(password);
     writeUsersToJson(users);
   }
 

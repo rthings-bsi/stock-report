@@ -9,44 +9,15 @@ import {
   sessionCookie,
   verifyCredentials,
 } from '@/lib/auth-server';
+import { authRateLimiter } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS = 8;
-
-const attempts = new Map<string, { count: number; resetAt: number }>();
-
-function clientKey(request: Request, username: string): string {
+function getClientIp(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for');
-  const ip = forwarded?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'local';
-  return `${ip}:${username.trim().toLowerCase()}`;
-}
-
-function isRateLimited(key: string): boolean {
-  const entry = attempts.get(key);
-  if (!entry) return false;
-  if (Date.now() > entry.resetAt) {
-    attempts.delete(key);
-    return false;
-  }
-  return entry.count >= MAX_ATTEMPTS;
-}
-
-function recordFailure(key: string) {
-  const now = Date.now();
-  const entry = attempts.get(key);
-  if (!entry || now > entry.resetAt) {
-    attempts.set(key, { count: 1, resetAt: now + WINDOW_MS });
-    return;
-  }
-  entry.count += 1;
-}
-
-function clearFailures(key: string) {
-  attempts.delete(key);
+  return forwarded?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'local';
 }
 
 export async function POST(request: Request) {
@@ -80,24 +51,29 @@ export async function POST(request: Request) {
     );
   }
 
-  const key = clientKey(request, username);
-  if (isRateLimited(key)) {
+  const ip = getClientIp(request);
+  const userKey = `user:${username.toLowerCase()}`;
+  const ipKey = `ip:${ip}`;
+
+  if (authRateLimiter.isLimited(userKey) || authRateLimiter.isLimited(ipKey)) {
     return NextResponse.json(
-      { success: false, error: 'Terlalu banyak percobaan login. Coba lagi dalam 15 menit.' },
+      { success: false, error: 'Terlalu banyak percobaan login gagal. Coba lagi dalam 15 menit.' },
       { status: 429 }
     );
   }
 
   const user = await verifyCredentials(username, password);
   if (!user) {
-    recordFailure(key);
+    authRateLimiter.recordFailure(userKey);
+    authRateLimiter.recordFailure(ipKey);
     return NextResponse.json(
       { success: false, error: 'Username atau password tidak sesuai.' },
       { status: 401 }
     );
   }
 
-  clearFailures(key);
+  authRateLimiter.clear(userKey);
+  authRateLimiter.clear(ipKey);
 
   const permissions = await getRolePermissions(user.role);
 

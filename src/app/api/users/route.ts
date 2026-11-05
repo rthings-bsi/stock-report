@@ -89,13 +89,9 @@ export async function GET(request: Request) {
     }));
     return NextResponse.json({ success: true, users: safeUsers });
   } catch (error) {
+    console.error('Failed to get users:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: `Gagal mengambil data user: ${
-          error instanceof Error ? error.message : JSON.stringify(error)
-        }`,
-      },
+      { success: false, error: 'Gagal memuat data pengguna.' },
       { status: 500 }
     );
   }
@@ -124,8 +120,42 @@ export async function POST(request: Request) {
     const cleanDept = department ? department.trim() : 'Warehouse Staff';
     const cleanUnit = unit ? unit.trim() : 'Unit 5 - Spindo';
 
+    if (password && password.trim() !== '' && password.trim().length < 8) {
+      return NextResponse.json(
+        { success: false, error: 'Password minimal 8 karakter.' },
+        { status: 400 }
+      );
+    }
+
     if (isSupabaseConfigured && supabase) {
       if (id || action === 'update') {
+        let targetUser: any = null;
+        if (id) {
+          const { data } = await supabase.from('users').select('id, username, role').eq('id', id).maybeSingle();
+          targetUser = data;
+        } else {
+          const { data } = await supabase.from('users').select('id, username, role').eq('username', cleanUsername).maybeSingle();
+          targetUser = data;
+        }
+
+        if (targetUser) {
+          if (targetUser.username === 'admin' && auth.user.username !== 'admin') {
+            return NextResponse.json(
+              { success: false, error: 'Hanya akun master "admin" yang dapat mengubah data atau password admin.' },
+              { status: 403 }
+            );
+          }
+          if (targetUser.role === 'admin' && cleanRole !== 'admin') {
+            const { count } = await supabase.from('users').select('id', { count: 'exact' }).eq('role', 'admin');
+            if (count && count <= 1) {
+              return NextResponse.json(
+                { success: false, error: 'Tidak dapat mengubah role. Sistem harus memiliki minimal 1 Administrator.' },
+                { status: 403 }
+              );
+            }
+          }
+        }
+
         const payload: any = {
           username: cleanUsername,
           name: cleanName,
@@ -135,16 +165,10 @@ export async function POST(request: Request) {
           updated_at: new Date().toISOString(),
         };
         if (password && password.trim() !== '') {
-          payload.password = hashPassword(password.trim());
+          payload.password = await hashPassword(password.trim());
         }
 
-        let targetId = id;
-        if (!targetId) {
-          targetId = (
-            await supabase.from('users').select('id').eq('username', cleanUsername).single()
-          ).data?.id;
-        }
-
+        const targetId = targetUser?.id || id;
         const { error } = await supabase.from('users').update(payload).eq('id', targetId);
         if (error) throw error;
         return NextResponse.json({ success: true, message: 'Data user berhasil diperbarui.' });
@@ -171,7 +195,7 @@ export async function POST(request: Request) {
       const { error } = await supabase.from('users').insert([
         {
           username: cleanUsername,
-          password: hashPassword(password.trim()),
+          password: await hashPassword(password.trim()),
           name: cleanName,
           role: cleanRole,
           department: cleanDept,
@@ -185,13 +209,33 @@ export async function POST(request: Request) {
     if (db && typeof db.prepare === 'function') {
       try {
         if (id || action === 'update') {
-          const targetId =
-            id ||
-            (
-              db
-                .prepare('SELECT id FROM users WHERE LOWER(username) = ?')
-                .get(cleanUsername) as any
-            )?.id;
+          const targetUser = id
+            ? (db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(id) as any)
+            : (db
+                .prepare('SELECT id, username, role FROM users WHERE LOWER(username) = ?')
+                .get(cleanUsername) as any);
+
+          if (targetUser) {
+            if (targetUser.username === 'admin' && auth.user.username !== 'admin') {
+              return NextResponse.json(
+                { success: false, error: 'Hanya akun master "admin" yang dapat mengubah data atau password admin.' },
+                { status: 403 }
+              );
+            }
+            if (targetUser.role === 'admin' && cleanRole !== 'admin') {
+              const adminCount = db
+                .prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'")
+                .get() as any;
+              if (adminCount.count <= 1) {
+                return NextResponse.json(
+                  { success: false, error: 'Tidak dapat mengubah role. Sistem harus memiliki minimal 1 Administrator.' },
+                  { status: 403 }
+                );
+              }
+            }
+          }
+
+          const targetId = targetUser?.id || id;
           if (password && password.trim() !== '') {
             db.prepare(
               `UPDATE users SET username=?, name=?, role=?, department=?, unit=?, password=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
@@ -201,7 +245,7 @@ export async function POST(request: Request) {
               cleanRole,
               cleanDept,
               cleanUnit,
-              hashPassword(password.trim()),
+              await hashPassword(password.trim()),
               targetId
             );
           } else {
@@ -228,7 +272,7 @@ export async function POST(request: Request) {
           `INSERT INTO users (username, password, name, role, department, unit) VALUES (?, ?, ?, ?, ?, ?)`
         ).run(
           cleanUsername,
-          hashPassword(password.trim()),
+          await hashPassword(password.trim()),
           cleanName,
           cleanRole,
           cleanDept,
@@ -251,6 +295,23 @@ export async function POST(request: Request) {
           { status: 404 }
         );
       }
+      const targetUser = users[idx];
+      if (targetUser.username === 'admin' && auth.user.username !== 'admin') {
+        return NextResponse.json(
+          { success: false, error: 'Hanya akun master "admin" yang dapat mengubah data atau password admin.' },
+          { status: 403 }
+        );
+      }
+      if (targetUser.role === 'admin' && cleanRole !== 'admin') {
+        const adminCount = users.filter((u) => u.role === 'admin').length;
+        if (adminCount <= 1) {
+          return NextResponse.json(
+            { success: false, error: 'Tidak dapat mengubah role. Sistem harus memiliki minimal 1 Administrator.' },
+            { status: 403 }
+          );
+        }
+      }
+
       users[idx] = {
         ...users[idx],
         username: cleanUsername,
@@ -261,7 +322,7 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       };
       if (password && password.trim() !== '') {
-        users[idx].password = hashPassword(password.trim());
+        users[idx].password = await hashPassword(password.trim());
       }
       writeUsersToJson(users);
       return NextResponse.json({ success: true, message: 'Data user berhasil diperbarui.' });
@@ -283,7 +344,7 @@ export async function POST(request: Request) {
     const newUser: StoredAccount = {
       id: Date.now(),
       username: cleanUsername,
-      password: hashPassword(password.trim()),
+      password: await hashPassword(password.trim()),
       name: cleanName,
       role: cleanRole,
       department: cleanDept,
@@ -296,13 +357,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, message: 'User baru berhasil ditambahkan.' });
   } catch (error) {
+    console.error('Failed to process user:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: `Gagal memproses data user: ${
-          error instanceof Error ? error.message : JSON.stringify(error)
-        }`,
-      },
+      { success: false, error: 'Gagal memproses data pengguna.' },
       { status: 500 }
     );
   }
@@ -442,13 +499,9 @@ export async function DELETE(request: Request) {
       message: `User "${userToDelete.username}" berhasil dihapus.`,
     });
   } catch (error) {
+    console.error('Failed to delete user:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: `Gagal menghapus user: ${
-          error instanceof Error ? error.message : JSON.stringify(error)
-        }`,
-      },
+      { success: false, error: 'Gagal menghapus pengguna.' },
       { status: 500 }
     );
   }

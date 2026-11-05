@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { NCProgressTransaction, NCProgressPipelineItem, NCProgressSummary } from '../types/warehouse';
 import { formatExcelDate, formatExcelTime, parseMaterialUkuran } from './parseNCProgress';
 import { getPipeType } from './parser';
+import { sanitizeTableData } from './sanitizeFormula';
 
 export function exportNCProgressToExcel(
   transactions: NCProgressTransaction[],
@@ -12,7 +13,7 @@ export function exportNCProgressToExcel(
   const wb = XLSX.utils.book_new();
 
   // 1. Sheet Ringkasan & Tracking Alur
-  const trackingRows = pipeline.map((item, idx) => ({
+  const trackingRows = sanitizeTableData(pipeline.map((item, idx) => ({
     'No': idx + 1,
     'Status': item.status,
     'No NCR': item.ncrNumber || '-',
@@ -40,13 +41,13 @@ export function exportNCProgressToExcel(
     'Reject / DG (KG)': item.kgReject,
     'Recovery Rate (%)': `${item.recoveryRate.toFixed(1)}%`,
     'Tgl Update Terakhir': formatExcelDate(item.lastDate) || '-'
-  }));
+  })));
 
   const wsTracking = XLSX.utils.json_to_sheet(trackingRows);
   XLSX.utils.book_append_sheet(wb, wsTracking, 'Tracking Alur NC');
 
   // 2. Sheet IN NC (MVT 309)
-  const inNCRows = transactions
+  const inNCRows = sanitizeTableData(transactions
     .filter((t) => t.transactionType === 'IN_NC')
     .map((t, idx) => ({
       'No': idx + 1,
@@ -69,13 +70,13 @@ export function exportNCProgressToExcel(
       'User': t.userName,
       'Unloading Point': t.unloadingPoint || '-',
       'Sales Order': t.salesOrder || '-'
-    }));
+    })));
 
   const wsInNC = XLSX.utils.json_to_sheet(inNCRows);
   XLSX.utils.book_append_sheet(wb, wsInNC, 'IN NC (MVT 309)');
 
   // 3. Sheet OUT Repair (MVT 261 & Return 262)
-  const outRepairRows = transactions
+  const outRepairRows = sanitizeTableData(transactions
     .filter((t) => t.transactionType === 'OUT_REPAIR' || t.transactionType === 'OUT_REPAIR_RETURN')
     .map((t, idx) => ({
       'No': idx + 1,
@@ -97,13 +98,13 @@ export function exportNCProgressToExcel(
       'Mat. Document': t.materialDocument,
       'User': t.userName,
       'Unloading Point': t.unloadingPoint || '-'
-    }));
+    })));
 
   const wsOutRepair = XLSX.utils.json_to_sheet(outRepairRows);
   XLSX.utils.book_append_sheet(wb, wsOutRepair, 'OUT Repair (MVT 261 & 262)');
 
   // 4. Sheet IN OK Prime (MVT 101 REP)
-  const inPrimeRows = transactions
+  const inPrimeRows = sanitizeTableData(transactions
     .filter((t) => t.transactionType === 'IN_OK_PRIME')
     .map((t, idx) => ({
       'No': idx + 1,
@@ -124,13 +125,13 @@ export function exportNCProgressToExcel(
       'Mat. Document': t.materialDocument,
       'User': t.userName,
       'Sales Order': t.salesOrder || '-'
-    }));
+    })));
 
   const wsInPrime = XLSX.utils.json_to_sheet(inPrimeRows);
   XLSX.utils.book_append_sheet(wb, wsInPrime, 'IN OK Prime (MVT 101)');
 
   // 5. Sheet Reject / DG Repair (Hasil Rumus MVT 261 - 262 - 101)
-  const rejectRows = pipeline
+  const rejectRows = sanitizeTableData(pipeline
     .filter((item) => {
       const hasRepairActivity =
         (item.qty261 ?? 0) > 0 ||
@@ -168,13 +169,13 @@ export function exportNCProgressToExcel(
       'Status': item.status,
       'Recovery Rate (%)': `${item.recoveryRate.toFixed(1)}%`,
       'Tgl Terakhir': formatExcelDate(item.lastDate) || '-'
-    }));
+    })));
 
   const wsReject = XLSX.utils.json_to_sheet(rejectRows);
   XLSX.utils.book_append_sheet(wb, wsReject, 'Reject - DG Repair');
 
   // 6. Sheet Raw Log
-  const allRows = transactions.map((t, idx) => ({
+  const allRows = sanitizeTableData(transactions.map((t, idx) => ({
     'No': idx + 1,
     'Tipe': t.transactionType,
     'Entry Date': formatExcelDate(t.entryDate),
@@ -199,7 +200,7 @@ export function exportNCProgressToExcel(
     'Text / NCR': t.text,
     'Unloading Point': t.unloadingPoint,
     'Sales Order': t.salesOrder
-  }));
+  })));
 
   const wsAll = XLSX.utils.json_to_sheet(allRows);
   XLSX.utils.book_append_sheet(wb, wsAll, 'Raw Transaksi SAP');

@@ -5,6 +5,7 @@ import {
   AuditSLocSummary,
 } from '@/types/warehouse';
 import { calculateAuditSLocGudangRecap } from './parseAuditSLoc';
+import { sanitizeTableData } from './sanitizeFormula';
 
 export async function exportAuditSLocToExcel(
   items: AuditSLocItem[],
@@ -45,28 +46,28 @@ export async function exportAuditSLocToExcel(
   });
 
   // Sheet 1: Semua Data (14 Kolom SAP + Status & Selisih)
-  const allRows = items.map(mapItemToRow);
+  const allRows = sanitizeTableData(items.map(mapItemToRow));
   const wsAll = XLSX.utils.json_to_sheet(allRows);
   XLSX.utils.book_append_sheet(wb, wsAll, 'Semua Data');
 
   // Sheet 2: Sesuai (Diff = 0)
-  const sesuaiRows = items.filter((i) => i.status === 'SESUAI').map(mapItemToRow);
+  const sesuaiRows = sanitizeTableData(items.filter((i) => i.status === 'SESUAI').map(mapItemToRow));
   const wsSesuai = XLSX.utils.json_to_sheet(sesuaiRows);
   XLSX.utils.book_append_sheet(wb, wsSesuai, 'Sesuai');
 
   // Sheet 3: Selisih Minus (-)
-  const minusRows = items.filter((i) => i.status === 'SELISIH_MINUS').map(mapItemToRow);
+  const minusRows = sanitizeTableData(items.filter((i) => i.status === 'SELISIH_MINUS').map(mapItemToRow));
   const wsMinus = XLSX.utils.json_to_sheet(minusRows);
   XLSX.utils.book_append_sheet(wb, wsMinus, 'Selisih Minus (-)');
 
   // Sheet 4: Selisih Plus (+)
-  const plusRows = items.filter((i) => i.status === 'SELISIH_PLUS').map(mapItemToRow);
+  const plusRows = sanitizeTableData(items.filter((i) => i.status === 'SELISIH_PLUS').map(mapItemToRow));
   const wsPlus = XLSX.utils.json_to_sheet(plusRows);
   XLSX.utils.book_append_sheet(wb, wsPlus, 'Selisih Plus (+)');
 
   // Sheet 5: Rekap per Gudang
   const recap = customGudangRecap || calculateAuditSLocGudangRecap(items);
-  const recapRows = recap.map((r) => ({
+  const recapRows = sanitizeTableData(recap.map((r) => ({
     'Gudang': r.gudang,
     'Total Item': r.itemCount,
     'Item Sesuai': r.matchingCount,
@@ -79,7 +80,7 @@ export async function exportAuditSLocToExcel(
     'Stock SAP (Ton)': Number(r.sapTon.toFixed(2)),
     'Actual (Ton)': Number(r.actualTon.toFixed(2)),
     'Selisih Ton': Number(r.varianceTon.toFixed(2))
-  }));
+  })));
   const wsRecap = XLSX.utils.json_to_sheet(recapRows);
   XLSX.utils.book_append_sheet(wb, wsRecap, 'Rekap per Gudang');
 

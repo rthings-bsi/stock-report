@@ -25,6 +25,7 @@ interface PipeCapacityViewProps {
   onSelectGudang?: (gudang: string) => void;
   customerBreakdown?: Record<string, CustomerBreakdownItem[]>;
   isCustomizing?: boolean;
+  onNavigateToWeekly?: (subTabId?: string) => void;
 }
 
 interface CardState {
@@ -43,7 +44,8 @@ const DEFAULT_CARDS: CardState[] = [
 export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
   data,
   customerBreakdown = {},
-  isCustomizing = false
+  isCustomizing = false,
+  onNavigateToWeekly,
 }) => {
   const [activeGudangFilter, setActiveGudangFilter] = useState<string>('ALL');
   const [custSortKey, setCustSortKey] = useState<'customer' | 'qty' | 'tonase'>('tonase');
@@ -271,6 +273,17 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
             Stock Warehouse vs Kapasitas (Pipa)
           </h1>
         </div>
+        {onNavigateToWeekly && (
+          <button
+            type="button"
+            onClick={() => onNavigateToWeekly('capacity')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+            title="Lihat Analisis Mingguan untuk Stok Pipa & Kapasitas"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+            <span>Analisa Mingguan</span>
+          </button>
+        )}
       </div>
 
       {/* CUSTOMIZABLE CARDS GRID */}

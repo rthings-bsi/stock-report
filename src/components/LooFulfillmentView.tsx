@@ -37,6 +37,7 @@ interface LooFulfillmentViewProps {
   ltData?: LooComparisonItem[];
   pipeCapacities?: WarehousePipeCapacity[];
   isCustomizing?: boolean;
+  onNavigateToWeekly?: (subTabId?: string) => void;
 }
 
 interface CardState {
@@ -71,7 +72,8 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
   stData = [],
   ltData = [],
   pipeCapacities = [],
-  isCustomizing = false
+  isCustomizing = false,
+  onNavigateToWeekly,
 }) => {
   const [selectedGudang, setSelectedGudang] = useState<string>('ALL');
   const [selectedCustomer, setSelectedCustomer] = useState<string>('ALL');
@@ -965,6 +967,18 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
               className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
             >
               Reset Filter
+            </button>
+          )}
+
+          {onNavigateToWeekly && (
+            <button
+              type="button"
+              onClick={() => onNavigateToWeekly('loo')}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+              title="Lihat Analisis Mingguan untuk Stock Pipa vs LOO"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+              <span>Analisa Mingguan</span>
             </button>
           )}
         </div>

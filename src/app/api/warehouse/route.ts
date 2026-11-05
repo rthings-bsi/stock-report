@@ -92,8 +92,27 @@ function parseJsonSafe(val: any, fallback: any = []) {
   return val ?? fallback;
 }
 
+const ALLOWED_SNAPSHOT_COLUMNS = new Set([
+  'pipe_capacities',
+  'fast_slow_data',
+  'coil_strip_data',
+  'nc_warehouse_data',
+  'nc_items',
+  'loo_st_data',
+  'loo_lt_data',
+  'unfifo_data',
+  'unfifo_coil_data',
+  'unfifo_pipe_data',
+  'damaged_packaging_data',
+  'incoming_packaging_data',
+  'nc_progress_data',
+  'sto_data',
+  'audit_sloc_data',
+  'customer_breakdown',
+]);
+
 function getLatestNonEmptySqliteCol(db: any, colName: string, minLength = 5): any {
-  if (!db) return null;
+  if (!db || !ALLOWED_SNAPSHOT_COLUMNS.has(colName)) return null;
   try {
     const r = db.prepare(`
       SELECT ${colName} FROM warehouse_snapshots
@@ -121,6 +140,15 @@ export async function GET(request: Request) {
     const includeAuditSLoc = searchParams.get('include_audit_sloc') === 'true';
 
     // Handler on-demand module STO (dipanggil saat membuka tab Stock Opname)
+    if (moduleParam === 'sto' || stoHistory) {
+      if (auth.user.role !== 'admin' && !hasPermission(auth, 'viewSTO')) {
+        return NextResponse.json(
+          { success: false, error: 'Akses ditolak: Anda tidak memiliki izin untuk melihat modul Stock Opname (STO).' },
+          { status: 403 }
+        );
+      }
+    }
+
     if (moduleParam === 'sto') {
       const db = getLocalDb();
       if (db) {
@@ -242,6 +270,15 @@ export async function GET(request: Request) {
     }
 
     // Handler on-demand module Audit SLoc (dipanggil saat membuka tab Audit SLoc / 14 Kolom SAP)
+    if (moduleParam === 'audit_sloc' || auditSLocHistory) {
+      if (auth.user.role !== 'admin' && !hasPermission(auth, 'viewAuditSLoc')) {
+        return NextResponse.json(
+          { success: false, error: 'Akses ditolak: Anda tidak memiliki izin untuk melihat modul Audit SLoc.' },
+          { status: 403 }
+        );
+      }
+    }
+
     if (moduleParam === 'audit_sloc') {
       const db = getLocalDb();
       if (db) {
@@ -909,14 +946,21 @@ export async function POST(request: Request) {
     };
 
     if (categories.length > 0) {
+      // Validasi whitelist ketat terhadap kategori yang dikirim
+      const hasInvalidCategory = categories.some((c) => !categoryPermissions[c]);
+      if (hasInvalidCategory) {
+        return NextResponse.json(
+          { success: false, error: 'Kategori upload tidak valid atau tidak terdaftar.' },
+          { status: 400 }
+        );
+      }
+
       const denied = categories.some(
-        (category) =>
-          categoryPermissions[category] &&
-          !hasPermission(auth, categoryPermissions[category])
+        (category) => !hasPermission(auth, categoryPermissions[category])
       );
       if (denied) {
         return NextResponse.json(
-          { success: false, error: 'Akses ditolak untuk salah satu kategori upload.' },
+          { success: false, error: 'Akses ditolak: Anda tidak memiliki izin untuk salah satu kategori upload.' },
           { status: 403 }
         );
       }
@@ -1625,7 +1669,25 @@ export async function DELETE(request: Request) {
       });
     }
 
-    // Jika tanpa parameter key/date: Reset semua snapshot ke data awal (perilaku lama)
+    // Jika tanpa parameter key/date: Wajibkan konfirmasi eksplisit & hanya boleh dilakukan oleh Administrator
+    const confirm = searchParams.get('confirm');
+    if (confirm !== 'PERMANENT_WIPE_ALL_SNAPSHOTS') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Parameter "key" atau "date" wajib disertakan. Untuk reset total seluruh data gudang, sertakan konfirmasi confirm=PERMANENT_WIPE_ALL_SNAPSHOTS.',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (auth.user.role !== 'admin') {
+      return NextResponse.json(
+        { success: false, error: 'Akses ditolak: Hanya Administrator utama yang berhak melakukan reset total seluruh snapshot gudang.' },
+        { status: 403 }
+      );
+    }
+
     if (db) {
       db.prepare('DELETE FROM warehouse_snapshots').run();
       const normDb = getNormDb();

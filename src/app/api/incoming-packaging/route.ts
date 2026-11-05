@@ -77,6 +77,13 @@ export async function GET(request: Request) {
   const auth = await requireAuth(request);
   if (!isAuthContext(auth)) return auth;
 
+  if (auth.user.role !== 'admin' && !hasPermission(auth, 'viewIncomingPkg')) {
+    return NextResponse.json(
+      { success: false, error: 'Akses ditolak: Anda tidak memiliki izin untuk melihat modul Incoming Packaging.' },
+      { status: 403 }
+    );
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
@@ -338,6 +345,29 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const confirm = searchParams.get('confirm');
+
+    // Jika id tidak disertakan (mencoba menghapus seluruh data), wajibkan konfirmasi eksplisit & izin admin
+    if (!id) {
+      if (confirm !== 'CONFIRM_WIPE_ALL_INCOMING_PKG') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Parameter "id" wajib disertakan. Untuk reset seluruh data incoming packaging, sertakan confirm=CONFIRM_WIPE_ALL_INCOMING_PKG.',
+          },
+          { status: 400 }
+        );
+      }
+      if (auth.user.role !== 'admin' && !hasPermission(auth, 'canManageUsers')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Akses ditolak: Hanya Administrator yang berhak mereset seluruh data incoming packaging.',
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -399,7 +429,7 @@ export async function DELETE(request: Request) {
   } catch (error: unknown) {
     console.error('Failed to delete incoming packaging item:', error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: 'Terjadi kesalahan pada server saat menghapus data incoming packaging.' },
       { status: 500 }
     );
   }

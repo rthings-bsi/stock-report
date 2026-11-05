@@ -21,20 +21,24 @@ export function formatTon(
   if (val === undefined || val === null || isNaN(val)) {
     return zeroAsDash ? '-' : (0).toLocaleString('id-ID', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + (showUnit ? ' Ton' : '');
   }
-  if (val === 0 && zeroAsDash) {
+  // Bersihkan floating point error yang sangat kecil (misal: 0.00000000001) menjadi 0 murni
+  const numericVal = Math.abs(val) < 0.0005 ? 0 : val;
+  if (numericVal === 0 && zeroAsDash) {
     return '-';
   }
 
-  // Jika nilai sangat kecil (contoh: 0.005 Ton atau -0.005 Ton), naikkan desimal agar tidak tampil 0,00 atau 0,0
+  // Jika nilai sangat kecil (contoh: 0.005 Ton tapi > 0.0005), naikkan desimal hanya jika decimals tidak ditentukan secara spesifik
   let effectiveDecimals = decimals;
-  const absVal = Math.abs(val);
-  if (absVal > 0 && absVal < 0.01) {
-    effectiveDecimals = 3;
-  } else if (absVal > 0 && absVal < 0.1 && decimals === 1) {
-    effectiveDecimals = 2;
+  const absVal = Math.abs(numericVal);
+  if (options?.decimals === undefined) {
+    if (absVal > 0.0005 && absVal < 0.01) {
+      effectiveDecimals = 3;
+    } else if (absVal >= 0.01 && absVal < 0.1) {
+      effectiveDecimals = 2;
+    }
   }
 
-  const formatted = val.toLocaleString('id-ID', {
+  const formatted = numericVal.toLocaleString('id-ID', {
     minimumFractionDigits: effectiveDecimals,
     maximumFractionDigits: effectiveDecimals,
   });

@@ -320,7 +320,7 @@ if (typeof window === 'undefined' && !process.env.VERCEL && process.env.NEXT_RUN
             } else {
               replacement = randomBytes(18).toString('base64url');
               console.warn(
-                `[SECURITY] Password default terdeteksi untuk user "${user.username}". Password acak baru: ${replacement}`
+                `[SECURITY] Password default terdeteksi untuk user "${user.username}". Akun telah direset ke password acak baru yang aman.`
               );
             }
 

@@ -42,6 +42,7 @@ interface UnfifoViewProps {
   coilData?: UnfifoCoilItem[];
   pipeData?: UnfifoPipeItem[];
   isCustomizing?: boolean;
+  onNavigateToWeekly?: (subTabId?: string) => void;
 }
 
 interface CardState {
@@ -73,7 +74,8 @@ const ISSUE_PRESETS = [
 export const UnfifoView: React.FC<UnfifoViewProps> = ({
   coilData = [],
   pipeData = [],
-  isCustomizing = false
+  isCustomizing = false,
+  onNavigateToWeekly,
 }) => {
   const [activeTab, setActiveTab] = useState<'pipe' | 'coil'>('pipe');
   const [selectedPipeGudang, setSelectedPipeGudang] = useState<string>('ALL');
@@ -1018,6 +1020,18 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
             >
               <RotateCcw className="h-3 w-3" />
               <span>Reset Filter</span>
+            </button>
+          )}
+
+          {onNavigateToWeekly && (
+            <button
+              type="button"
+              onClick={() => onNavigateToWeekly('unfifo')}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+              title="Lihat Analisis Mingguan untuk Deviasi UNFIFO"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+              <span>Analisa Mingguan</span>
             </button>
           )}
         </div>

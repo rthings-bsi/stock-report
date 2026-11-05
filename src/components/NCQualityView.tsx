@@ -26,7 +26,8 @@ import {
   X,
   Search,
   Copy,
-  ExternalLink
+  ExternalLink,
+  BarChart3
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 import { tooltipStyle } from '@/lib/chartTheme';
@@ -39,6 +40,7 @@ interface NCQualityViewProps {
   ncItems: PipeNCItem[];
   pipeCapacities?: WarehousePipeCapacity[];
   isCustomizing?: boolean;
+  onNavigateToWeekly?: (subTabId?: string) => void;
 }
 
 interface CardState {
@@ -58,7 +60,8 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
   ncWarehouseData = [],
   ncItems = [],
   pipeCapacities = [],
-  isCustomizing = false
+  isCustomizing = false,
+  onNavigateToWeekly,
 }) => {
   const [selectedGudang, setSelectedGudang] = useState<string>('ALL');
   const [selectedPipeType, setSelectedPipeType] = useState<'ALL' | 'LT' | 'ST'>('ALL');
@@ -1529,6 +1532,18 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
               className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
             >
               Reset Filter
+            </button>
+          )}
+
+          {onNavigateToWeekly && (
+            <button
+              type="button"
+              onClick={() => onNavigateToWeekly('nc_stock')}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+              title="Lihat Analisis Mingguan untuk Stock NC"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+              <span>Analisa Mingguan</span>
             </button>
           )}
         </div>

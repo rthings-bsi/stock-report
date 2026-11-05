@@ -33,6 +33,7 @@ interface DamagedPackagingViewProps {
   data?: DamagedPackagingItem[];
   isCustomizing?: boolean;
   onDataUpdate?: (newData: DamagedPackagingItem[]) => void;
+  onNavigateToWeekly?: (subTabId?: string) => void;
 }
 
 interface CardState {
@@ -59,7 +60,8 @@ const DEFECT_COLOR_MAP: Record<string, string> = {
 export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
   data = [],
   isCustomizing = false,
-  onDataUpdate
+  onDataUpdate,
+  onNavigateToWeekly,
 }) => {
   const [items, setItems] = useState<DamagedPackagingItem[]>(data);
   const [cards, setCards] = useState<CardState[]>(DEFAULT_CARDS);
@@ -460,6 +462,17 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
             Data Temuan Packaging Rusak (NG)
           </h1>
         </div>
+        {onNavigateToWeekly && (
+          <button
+            type="button"
+            onClick={() => onNavigateToWeekly('packaging')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+            title="Lihat Analisis Mingguan untuk Packaging"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+            <span>Analisa Mingguan</span>
+          </button>
+        )}
       </div>
 
       {/* FILTER & SEARCH CONTROLS */}

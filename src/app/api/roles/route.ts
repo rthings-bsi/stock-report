@@ -91,9 +91,10 @@ export async function GET(request: Request) {
     const roles = readRolesFromJson();
     return NextResponse.json({ success: true, roles });
   } catch (error) {
+    console.error('Failed to get roles:', error);
     return NextResponse.json({
       success: false,
-      error: `Gagal mengambil data roles: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+      error: 'Gagal memuat data peran (roles).',
       fallback: PRESET_ROLES
     }, { status: 500 });
   }
@@ -119,11 +120,24 @@ export async function POST(request: Request) {
     const cleanColor = color || 'slate';
     const permsJson = permissions || {};
 
+    // Proteksi role bawaan sistem dari modifikasi atau duplikasi
+    if (cleanKey === 'admin' || cleanKey === 'staff') {
+      return NextResponse.json(
+        { success: false, error: `Role bawaan sistem ("${cleanKey}") tidak dapat diubah atau ditimpa.` },
+        { status: 403 }
+      );
+    }
+
     if (isSupabaseConfigured && supabase) {
       if (id || action === 'update') {
+        const targetId = id || (await supabase.from('roles').select('id, is_system').eq('key', cleanKey).single()).data?.id;
+        const targetRole = (await supabase.from('roles').select('id, key, is_system').eq('id', targetId).maybeSingle()).data;
+        if (targetRole?.is_system) {
+          return NextResponse.json({ success: false, error: 'Role bawaan sistem tidak dapat diubah izin dasarnya.' }, { status: 403 });
+        }
         const { error } = await supabase.from('roles').update({
           name: cleanName, description: cleanDesc, color: cleanColor, permissions: permsJson, updated_at: new Date().toISOString()
-        }).eq('id', id || (await supabase.from('roles').select('id').eq('key', cleanKey).single()).data?.id);
+        }).eq('id', targetId);
         if (error) throw error;
         return NextResponse.json({ success: true, message: `Role "${cleanName}" berhasil diperbarui.`, role: { key: cleanKey, name: cleanName, permissions: permsJson } });
       }
@@ -141,8 +155,14 @@ export async function POST(request: Request) {
     if (db && typeof db.prepare === 'function') {
       try {
         if (id || action === 'update') {
-          let targetId = id;
-          if (!targetId) targetId = (db.prepare('SELECT id FROM roles WHERE LOWER(key) = ?').get(cleanKey) as any)?.id;
+          let targetRole = id
+            ? (db.prepare('SELECT id, key, is_system FROM roles WHERE id = ?').get(id) as any)
+            : (db.prepare('SELECT id, key, is_system FROM roles WHERE LOWER(key) = ?').get(cleanKey) as any);
+
+          if (targetRole?.is_system) {
+            return NextResponse.json({ success: false, error: 'Role bawaan sistem tidak dapat diubah izin dasarnya.' }, { status: 403 });
+          }
+          const targetId = targetRole?.id || id;
           db.prepare(`UPDATE roles SET name=?, description=?, color=?, permissions=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(cleanName, cleanDesc, cleanColor, JSON.stringify(permsJson), targetId);
           return NextResponse.json({ success: true, message: `Role "${cleanName}" berhasil diperbarui.`, role: { key: cleanKey, name: cleanName, permissions: permsJson } });
         }
@@ -163,6 +183,9 @@ export async function POST(request: Request) {
       const idx = roles.findIndex(r => (id && r.id === id) || r.key.toLowerCase() === cleanKey);
       if (idx === -1) {
         return NextResponse.json({ success: false, error: 'Role tidak ditemukan.' }, { status: 404 });
+      }
+      if (roles[idx].isSystem || roles[idx].key === 'admin' || roles[idx].key === 'staff') {
+        return NextResponse.json({ success: false, error: 'Role bawaan sistem tidak dapat diubah izin dasarnya.' }, { status: 403 });
       }
       roles[idx] = {
         ...roles[idx],
@@ -204,7 +227,8 @@ export async function POST(request: Request) {
       role: { key: cleanKey, name: cleanName, permissions: permsJson }
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: `Gagal memproses data role: ${error instanceof Error ? error.message : JSON.stringify(error)}` }, { status: 500 });
+    console.error('Failed to process role:', error);
+    return NextResponse.json({ success: false, error: 'Gagal memproses data peran.' }, { status: 500 });
   }
 }
 
@@ -272,6 +296,7 @@ export async function DELETE(request: Request) {
     writeRolesToJson(filtered);
     return NextResponse.json({ success: true, message: `Role "${roleToDelete.name}" berhasil dihapus.` });
   } catch (error) {
-    return NextResponse.json({ success: false, error: `Gagal menghapus role: ${error instanceof Error ? error.message : JSON.stringify(error)}` }, { status: 500 });
+    console.error('Failed to delete role:', error);
+    return NextResponse.json({ success: false, error: 'Gagal menghapus peran.' }, { status: 500 });
   }
 }

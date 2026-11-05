@@ -31,6 +31,9 @@ interface UploadItemRowProps {
   isPackaging?: boolean;
 }
 
+const MAX_UPLOAD_SIZE = 25 * 1024 * 1024; // 25 MB
+const ALLOWED_UPLOAD_EXTS = ['.xlsx', '.xls', '.csv', '.tsv', '.txt'];
+
 const UploadItemRow: React.FC<UploadItemRowProps> = ({
   canUpload,
   title,
@@ -41,6 +44,25 @@ const UploadItemRow: React.FC<UploadItemRowProps> = ({
   isPackaging = false
 }) => {
   if (!canUpload) return null;
+
+  const handleSelectFile = (selected: File | null) => {
+    if (!selected) {
+      onFileChange(null);
+      return;
+    }
+    const ext = '.' + selected.name.split('.').pop()?.toLowerCase();
+    if (!ALLOWED_UPLOAD_EXTS.includes(ext)) {
+      alert(`Format file "${selected.name}" tidak didukung. Harap pilih file .xlsx, .xls, .csv, .tsv, atau .txt.`);
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
+    if (selected.size > MAX_UPLOAD_SIZE) {
+      alert(`Ukuran file "${selected.name}" (${(selected.size / (1024 * 1024)).toFixed(1)} MB) melebihi batas maksimal 25 MB.`);
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
+    onFileChange(selected);
+  };
 
   return (
     <div
@@ -82,7 +104,7 @@ const UploadItemRow: React.FC<UploadItemRowProps> = ({
           type="file"
           accept=".xlsx, .xls, .csv, .txt, .tsv"
           className="hidden"
-          onChange={(e) => onFileChange(e.target.files?.[0] || null)}
+          onChange={(e) => handleSelectFile(e.target.files?.[0] || null)}
         />
 
         {file ? (
