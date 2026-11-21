@@ -1584,12 +1584,6 @@ export default function Home() {
                           <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-[#d0d784]" : "text-[#787470]")} strokeWidth={isActive ? 2.2 : 1.9} />
                           <span className="truncate leading-normal">{item.label}</span>
                         </div>
-                        <span className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
-                          isActive ? "bg-white/15 text-white border-white/25" : "border-[#b9c372] border-dashed bg-[#d0d784]/15 text-[#5e682f]"
-                        )}>
-                          Input
-                        </span>
                       </button>
                     );
                   })}
@@ -1617,9 +1611,6 @@ export default function Home() {
                         <Upload className="h-4 w-4 text-[#006041] shrink-0" strokeWidth={2} />
                         <span className="truncate leading-normal">Upload Raw Data SAP</span>
                       </div>
-                      <span className="text-[10px] font-bold bg-[#e7f0ee] text-[#006041] px-2 py-0.5 rounded-full shrink-0">
-                        Excel
-                      </span>
                     </button>
                   )}
 
@@ -1641,12 +1632,6 @@ export default function Home() {
                         <SlidersHorizontal className={cn("h-4 w-4 shrink-0", activeTab === 'capacity_settings' ? "text-[#d0d784]" : "text-[#787470]")} strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.9} />
                         <span className="truncate leading-normal">Master Kapasitas</span>
                       </div>
-                      <span className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
-                        activeTab === 'capacity_settings' ? "bg-white/15 text-white border-white/25" : "bg-[#f4f2ef] text-[#59575c] border-[#e6e2db]"
-                      )}>
-                        Master
-                      </span>
                     </button>
                   )}
 
@@ -1668,12 +1653,6 @@ export default function Home() {
                         <Users className={cn("h-4 w-4 shrink-0", activeTab === 'users' ? "text-[#d0d784]" : "text-[#787470]")} strokeWidth={activeTab === 'users' ? 2.2 : 1.9} />
                         <span className="truncate leading-normal">Kelola Pengguna</span>
                       </div>
-                      <span className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
-                        activeTab === 'users' ? "bg-white/15 text-white border-white/25" : "bg-[#f4f2ef] text-[#59575c] border-[#e6e2db]"
-                      )}>
-                        RBAC
-                      </span>
                     </button>
                   )}
                 </div>
@@ -1719,7 +1698,7 @@ export default function Home() {
         >
           {isSidebarOpen ? (
             /* FULL SIDEBAR (w-66) */
-            <div className="rounded-[22px] border border-[#e8e4dd] bg-white p-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-4 sticky top-[116px]">
+            <div className="rounded-[22px] border border-[#e8e4dd] bg-white p-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-4 sticky top-[90px]">
 
               {/* Sidebar Header */}
               <div className="flex items-center justify-between px-2.5 pb-2.5 border-b border-[#efece6]">
@@ -1811,14 +1790,6 @@ export default function Home() {
                               {item.label}
                             </span>
                           </div>
-                          <span className={cn(
-                            "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
-                            isActive
-                              ? "bg-white/15 text-white border-white/25"
-                              : "border-[#b9c372] border-dashed bg-[#d0d784]/15 text-[#5e682f]"
-                          )}>
-                            Input
-                          </span>
                         </button>
                       );
                     })}
@@ -1843,9 +1814,6 @@ export default function Home() {
                           <Upload className="h-4 w-4 text-[#8c8882] group-hover:text-[#006041] shrink-0 transition-colors" strokeWidth={1.9} />
                           <span className="truncate leading-normal">Upload Raw Data SAP</span>
                         </div>
-                        <span className="text-[10px] font-bold bg-[#e7f0ee] text-[#006041] px-2 py-0.5 rounded-full shrink-0">
-                          Excel
-                        </span>
                       </button>
                     )}
 
@@ -1865,12 +1833,6 @@ export default function Home() {
                           <SlidersHorizontal className={cn("h-4 w-4 shrink-0 transition-colors", activeTab === 'capacity_settings' ? "text-[#d0d784]" : "text-[#8c8882] group-hover:text-[#006041]")} strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.9} />
                           <span className="truncate leading-normal">Master Kapasitas</span>
                         </div>
-                        <span className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
-                          activeTab === 'capacity_settings' ? "bg-white/15 text-white border-white/25" : "bg-[#f4f2ef] text-[#59575c] border-[#e6e2db]"
-                        )}>
-                          Master
-                        </span>
                       </button>
                     )}
 
@@ -1890,12 +1852,6 @@ export default function Home() {
                           <Users className={cn("h-4 w-4 shrink-0 transition-colors", activeTab === 'users' ? "text-[#d0d784]" : "text-[#8c8882] group-hover:text-[#006041]")} strokeWidth={activeTab === 'users' ? 2.2 : 1.9} />
                           <span className="truncate leading-normal">Kelola Pengguna</span>
                         </div>
-                        <span className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
-                          activeTab === 'users' ? "bg-white/15 text-white border-white/25" : "bg-[#f4f2ef] text-[#59575c] border-[#e6e2db]"
-                        )}>
-                          RBAC
-                        </span>
                       </button>
                     )}
                   </div>
@@ -1931,7 +1887,7 @@ export default function Home() {
             </div>
           ) : (
             /* COMPACT ICON RAIL (w-15) */
-            <div className="rounded-[22px] border border-[#e8e4dd] bg-white p-2.5 shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col items-center gap-2 sticky top-[116px]">
+            <div className="rounded-[22px] border border-[#e8e4dd] bg-white p-2.5 shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col items-center gap-2 sticky top-[90px]">
               {/* Expand Toggle */}
               <button
                 type="button"

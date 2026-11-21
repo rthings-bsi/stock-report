@@ -382,96 +382,90 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                       </div>
 
                       {highestWarehouse && (() => {
-                    const pct = highestWarehouse.persenTerisi;
-                    const boxStyles =
-                      pct > 100
-                        ? 'border-red-300/80 bg-gradient-to-br from-red-50/90 via-red-50/40 to-white'
-                        : pct > 90
-                        ? 'border-rose-200/90 bg-gradient-to-br from-rose-50/90 via-rose-50/40 to-white'
-                        : pct > 80
-                        ? 'border-amber-200/90 bg-gradient-to-br from-amber-50/90 via-amber-50/40 to-white'
-                        : 'border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 via-emerald-50/40 to-white';
-                    const headerText =
-                      pct > 90
-                        ? 'text-rose-950'
-                        : pct > 80
-                        ? 'text-amber-950'
-                        : 'text-emerald-950';
-                    const subText =
-                      pct > 90
-                        ? 'text-rose-700'
-                        : pct > 80
-                        ? 'text-amber-700'
-                        : 'text-emerald-700';
-                    const tagBg =
-                      pct > 100
-                        ? 'bg-rose-600 text-white shadow-xs'
-                        : pct > 90
-                        ? 'bg-rose-600 text-white shadow-xs'
-                        : pct > 80
-                        ? 'bg-amber-500 text-slate-950 shadow-xs'
-                        : 'bg-emerald-600 text-white shadow-xs';
-                    const tagLabel =
-                      pct > 100
-                        ? 'OVERCAPACITY'
-                        : pct > 90
-                        ? 'KRITIS'
-                        : pct > 80
-                        ? 'PRIORITAS'
-                        : 'NORMAL';
+                        const pct = highestWarehouse.persenTerisi;
+                        const statusPill =
+                          pct > 90
+                            ? 'bg-rose-50 text-rose-700 border-rose-200/80'
+                            : pct > 80
+                            ? 'bg-amber-50 text-amber-800 border-amber-200/80'
+                            : 'bg-[#e7f0ee] text-[#006041] border-[#006041]/20';
+                        const dotColor =
+                          pct > 90
+                            ? 'bg-rose-500'
+                            : pct > 80
+                            ? 'bg-amber-500'
+                            : 'bg-[#006041]';
+                        const tagLabel =
+                          pct > 100
+                            ? 'OVERCAPACITY'
+                            : pct > 90
+                            ? 'KRITIS'
+                            : pct > 80
+                            ? 'PRIORITAS'
+                            : 'NORMAL';
 
-                    return (
-                      <div className={`rounded-xl border ${boxStyles} p-3 shadow-xs relative overflow-hidden`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Terisi Tertinggi</span>
-                          <span className={`rounded-full ${tagBg} px-2 py-0.5 text-[9px] font-bold tracking-wide flex items-center gap-1`}>
-                            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                            {tagLabel}
+                        return (
+                          <div className="pt-3.5 border-t border-[#efece6] flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#787470] block">
+                                Terisi Tertinggi
+                              </span>
+                              <p className="mt-0.5 text-sm font-extrabold tracking-tight text-[#1a4034]">
+                                {highestWarehouse.gudang}{' '}
+                                <span className="font-tabular text-[#006041]">
+                                  ({formatPercent(highestWarehouse.persenTerisi)})
+                                </span>
+                              </p>
+                              <p className="text-[11px] text-[#787470] font-tabular mt-0.5">
+                                Stock {formatTon(highestWarehouse.stock, { showUnit: true })} / Kapasitas{' '}
+                                {formatTon(highestWarehouse.kapasitas, { showUnit: true })}
+                              </p>
+                            </div>
+                            <span
+                              className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold tracking-wide inline-flex items-center gap-1.5 shrink-0 ${statusPill}`}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+                              {tagLabel}
+                            </span>
+                          </div>
+                        );
+                      })()}
+
+                      <div className="grid grid-cols-3 divide-x divide-[#efece6] pt-3 border-t border-[#efece6]">
+                        <div className="pr-2 text-left">
+                          <span className="text-[9.5px] font-bold uppercase tracking-[0.1em] text-[#787470] block">
+                            Kapasitas
                           </span>
+                          <p className="text-xs font-extrabold text-[#1a4034] mt-0.5 font-tabular whitespace-nowrap">
+                            {formatTon(totalKapasitas)} T
+                          </p>
                         </div>
-                        <p className={`mt-1 text-sm font-bold tracking-tight ${headerText}`}>
-                          {highestWarehouse.gudang} ({formatPercent(highestWarehouse.persenTerisi)})
-                        </p>
-                        <p className={`text-[11px] ${subText} font-medium mt-0.5`}>
-                          Stock {formatTon(highestWarehouse.stock, { showUnit: true })} / Kapasitas {formatTon(highestWarehouse.kapasitas, { showUnit: true })}
-                        </p>
+                        <div className="px-2 text-center">
+                          <span className="text-[9.5px] font-bold uppercase tracking-[0.1em] text-[#787470] block">
+                            Stock
+                          </span>
+                          <p className="text-xs font-extrabold text-[#006041] mt-0.5 font-tabular whitespace-nowrap">
+                            {formatTon(totalStock)} T
+                          </p>
+                        </div>
+                        <div className="pl-2 text-right">
+                          <span className="text-[9.5px] font-bold uppercase tracking-[0.1em] text-[#787470] block">
+                            % Terisi
+                          </span>
+                          <p
+                            className={`text-xs font-extrabold font-tabular mt-0.5 whitespace-nowrap ${
+                              avgPersen > 90
+                                ? 'text-rose-600'
+                                : avgPersen > 80
+                                ? 'text-amber-700'
+                                : 'text-[#006041]'
+                            }`}
+                          >
+                            {formatPercent(avgPersen)}
+                          </p>
+                        </div>
                       </div>
-                    );
-                  })()}
-
-                  <div className="grid grid-cols-3 gap-2.5">
-                    <div className="rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-slate-100/40 p-2.5 text-center shadow-2xs hover:border-slate-300 transition-colors">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block">Kapasitas</span>
-                      <p className="text-xs font-bold text-slate-900 mt-1 font-mono">{formatTon(totalKapasitas)}</p>
                     </div>
-                    <div className="rounded-xl border border-emerald-200/80 bg-gradient-to-b from-emerald-50/80 to-emerald-100/30 p-2.5 text-center shadow-2xs hover:border-emerald-300 transition-colors">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 block">Stock</span>
-                      <p className="text-xs font-bold text-emerald-950 mt-1 font-mono">{formatTon(totalStock)}</p>
-                    </div>
-                    <div className={`rounded-xl border ${
-                      avgPersen > 90
-                        ? 'border-red-200/80 bg-gradient-to-b from-red-50/80 to-red-100/30 hover:border-red-300'
-                        : avgPersen > 80
-                        ? 'border-amber-200/80 bg-gradient-to-b from-amber-50/80 to-amber-100/30 hover:border-amber-300'
-                        : 'border-emerald-200/80 bg-gradient-to-b from-emerald-50/80 to-emerald-100/30 hover:border-emerald-300'
-                    } p-2.5 text-center shadow-2xs transition-colors`}>
-                      <span className={`text-[9px] font-bold uppercase tracking-wider ${
-                        avgPersen > 90
-                          ? 'text-red-800'
-                          : avgPersen > 80
-                          ? 'text-amber-800'
-                          : 'text-emerald-800'
-                      } block`}>% Terisi</span>
-                      <p className={`text-xs font-bold font-mono ${
-                        avgPersen > 90
-                          ? 'text-red-950'
-                          : avgPersen > 80
-                          ? 'text-amber-950'
-                          : 'text-emerald-950'
-                      } mt-1`}>{formatPercent(avgPersen)}</p>
-                    </div>
-                  </div>
-                </div>
                   );
                 }}
               </CustomizableCard>

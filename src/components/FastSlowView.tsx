@@ -21,20 +21,17 @@ import {
   Calendar,
   X,
   Search,
-  ChevronDown,
   RotateCcw,
   BarChart3
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 import {
   MenuBanner,
+  BannerSelect,
   BANNER_PRIMARY_BTN,
   BANNER_RESET_BTN,
   BANNER_SEGMENT_WRAP,
   BANNER_SEGMENT_BTN,
-  BANNER_SELECT_WRAP,
-  BANNER_SELECT_CLS,
-  BANNER_SELECT_OPT_CLS,
 } from './MenuBanner';
 import { tooltipStyle } from '@/lib/chartTheme';
 import { moveCard, resizeCard } from '@/lib/cardLayout';
@@ -1559,25 +1556,16 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
           })}
         </div>
 
-        <div className={BANNER_SELECT_WRAP}>
-          <Warehouse className="h-3.5 w-3.5 text-[#d0d784] shrink-0" />
-          <select
-            value={selectedGudang}
-            onChange={(e) => setSelectedGudang(e.target.value)}
-            className={BANNER_SELECT_CLS}
-            title="Filter Gudang"
-          >
-            <option value="ALL" className={BANNER_SELECT_OPT_CLS}>
-              Semua Gudang ({data.length})
-            </option>
-            {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
-              <option key={g} value={g} className={BANNER_SELECT_OPT_CLS}>
-                {g}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="h-3.5 w-3.5 text-[#d4e5e0] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+        <BannerSelect
+          value={selectedGudang}
+          onChange={setSelectedGudang}
+          icon={Warehouse}
+          title="Filter Gudang"
+          options={[
+            { value: 'ALL', label: `Semua Gudang (${data.length})` },
+            ...availableGudangs.filter((g) => g !== 'ALL').map((g) => ({ value: g, label: g })),
+          ]}
+        />
 
         {(selectedGudang !== 'ALL' || selectedProcessType !== 'ALL') && (
           <button

@@ -27,20 +27,17 @@ import {
   Search,
   Copy,
   ExternalLink,
-  ChevronDown,
   RotateCcw,
   BarChart3
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 import {
   MenuBanner,
+  BannerSelect,
   BANNER_PRIMARY_BTN,
   BANNER_RESET_BTN,
   BANNER_SEGMENT_WRAP,
   BANNER_SEGMENT_BTN,
-  BANNER_SELECT_WRAP,
-  BANNER_SELECT_CLS,
-  BANNER_SELECT_OPT_CLS,
 } from './MenuBanner';
 import { tooltipStyle } from '@/lib/chartTheme';
 import { moveCard, resizeCard } from '@/lib/cardLayout';
@@ -1483,25 +1480,16 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
           })}
         </div>
 
-        <div className={BANNER_SELECT_WRAP}>
-          <Warehouse className="h-3.5 w-3.5 text-[#d0d784] shrink-0" />
-          <select
-            value={selectedGudang}
-            onChange={(e) => setSelectedGudang(e.target.value)}
-            className={BANNER_SELECT_CLS}
-            title="Filter Gudang"
-          >
-            <option value="ALL" className={BANNER_SELECT_OPT_CLS}>
-              Semua Gudang ({availableGudangs.filter((g) => g !== 'ALL').length})
-            </option>
-            {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
-              <option key={g} value={g} className={BANNER_SELECT_OPT_CLS}>
-                {g}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="h-3.5 w-3.5 text-[#d4e5e0] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+        <BannerSelect
+          value={selectedGudang}
+          onChange={setSelectedGudang}
+          icon={Warehouse}
+          title="Filter Gudang"
+          options={[
+            { value: 'ALL', label: `Semua Gudang (${availableGudangs.filter((g) => g !== 'ALL').length})` },
+            ...availableGudangs.filter((g) => g !== 'ALL').map((g) => ({ value: g, label: g })),
+          ]}
+        />
 
         {(selectedGudang !== 'ALL' || selectedPipeType !== 'ALL') && (
           <button
@@ -1696,74 +1684,74 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                   }
                 >
                   {(expanded) => (
-                    <div className={cn("flex flex-col justify-between font-mono p-1", expanded ? "flex-1 h-full max-w-2xl mx-auto w-full space-y-6 justify-center" : "h-full space-y-3")}>
+                    <div className={cn("flex flex-col justify-between p-1", expanded ? "flex-1 h-full max-w-2xl mx-auto w-full space-y-6 justify-center" : "h-full space-y-3")}>
                       <div className={cn("flex items-center justify-center relative my-auto min-w-0", expanded ? "h-72 sm:h-80" : "h-40 sm:h-44")}>
                         <Doughnut data={donutData} options={donutOptions} />
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                          <span className={cn("font-bold font-mono text-slate-900 tracking-tight", expanded ? "text-3xl sm:text-4xl" : "text-2xl")}>
+                          <span className={cn("font-extrabold font-tabular text-[#1a4034] tracking-tight", expanded ? "text-3xl sm:text-4xl" : "text-2xl")}>
                             {formatTon(donutTotal, { decimals: 2 })}
                           </span>
-                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                          <span className="text-[10px] font-bold text-[#787470] uppercase tracking-widest mt-0.5">
                             TOTAL TON
                           </span>
                         </div>
                       </div>
 
-                      {/* Breakdown Pills List */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-3 border-t border-slate-100 mt-2 shrink-0">
-                        <div
-                          onClick={() => {
-                            setSelectedNCModalGrade('ALL');
-                            setModalGudangFilter(selectedGudang);
-                            setModalPipeTypeFilter(selectedPipeType);
-                          }}
-                          className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-emerald-50/80 transition-colors"
-                          title="Klik untuk melihat data stock"
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                            <span className="text-[11px] font-medium text-slate-600 truncate">PRIME ({formatPercent(donutPrimePct)})</span>
-                          </div>
-                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                            {formatTon(donutPrime, { decimals: 2 })}
-                          </span>
-                        </div>
-
-                        <div
-                          onClick={() => {
-                            setSelectedNCModalGrade('Grade E');
-                            setModalGudangFilter(selectedGudang);
-                            setModalPipeTypeFilter(selectedPipeType);
-                          }}
-                          className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-rose-50/80 transition-colors"
-                          title="Klik untuk melihat daftar stock Grade E & Remark No NC"
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
-                            <span className="text-[11px] font-medium text-slate-600 truncate">Grade E ({formatPercent(donutGradeEPct)})</span>
-                          </div>
-                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                            {formatTon(donutGradeE, { decimals: 2 })}
-                          </span>
-                        </div>
-
-                        <div
-                          onClick={() => {
-                            setSelectedNCModalGrade('Grade C');
-                            setModalGudangFilter(selectedGudang);
-                            setModalPipeTypeFilter(selectedPipeType);
-                          }}
-                          className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 cursor-pointer hover:bg-amber-50/80 transition-colors"
-                          title="Klik untuk melihat daftar stock Grade C & Remark No NC"
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                            <span className="text-[11px] font-medium text-slate-600 truncate">Grade C ({formatPercent(donutGradeCPct)})</span>
-                          </div>
-                          <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                            {formatTon(donutGradeC, { decimals: 2 })}
-                          </span>
-                        </div>
+                      {/* Clean Flat Breakdown Rows */}
+                      <div className="divide-y divide-[#efece6] border-t border-[#efece6] pt-1 shrink-0">
+                        {(
+                          [
+                            {
+                              label: 'PRIME',
+                              pct: donutPrimePct,
+                              val: donutPrime,
+                              dot: 'bg-[#006041]',
+                              grade: 'ALL' as const,
+                              title: 'Klik untuk melihat data stock',
+                            },
+                            {
+                              label: 'Grade E',
+                              pct: donutGradeEPct,
+                              val: donutGradeE,
+                              dot: 'bg-rose-500',
+                              grade: 'Grade E' as const,
+                              title: 'Klik untuk melihat daftar stock Grade E & Remark No NC',
+                            },
+                            {
+                              label: 'Grade C',
+                              pct: donutGradeCPct,
+                              val: donutGradeC,
+                              dot: 'bg-amber-500',
+                              grade: 'Grade C' as const,
+                              title: 'Klik untuk melihat daftar stock Grade C & Remark No NC',
+                            },
+                          ]
+                        ).map((row) => (
+                          <button
+                            key={row.label}
+                            type="button"
+                            onClick={() => {
+                              setSelectedNCModalGrade(row.grade);
+                              setModalGudangFilter(selectedGudang);
+                              setModalPipeTypeFilter(selectedPipeType);
+                            }}
+                            title={row.title}
+                            className="w-full flex items-center justify-between gap-2 py-2 px-1.5 -mx-1.5 rounded-lg hover:bg-[#faf8f5] transition-colors cursor-pointer text-left"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={cn('h-2 w-2 rounded-full shrink-0', row.dot)} />
+                              <span className="text-xs font-semibold text-[#222126]">
+                                {row.label}
+                              </span>
+                              <span className="text-[11px] font-tabular text-[#787470]">
+                                ({formatPercent(row.pct)})
+                              </span>
+                            </div>
+                            <span className="text-xs font-tabular font-extrabold text-[#1a4034] whitespace-nowrap shrink-0">
+                              {formatTon(row.val, { decimals: 2 })} T
+                            </span>
+                          </button>
+                        ))}
                       </div>
 
                       <button
@@ -1773,9 +1761,9 @@ export const NCQualityView: React.FC<NCQualityViewProps> = ({
                           setModalGudangFilter(selectedGudang);
                           setModalPipeTypeFilter(selectedPipeType);
                         }}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md bg-slate-100 hover:bg-emerald-50 hover:text-emerald-950 text-slate-700 text-xs font-bold border border-slate-300 hover:border-emerald-400 transition-all cursor-pointer shadow-2xs font-mono shrink-0"
+                        className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3.5 rounded-full bg-[#faf8f5] hover:bg-[#e7f0ee] text-[#1a4034] hover:text-[#006041] text-xs font-bold border border-[#e6e2db] hover:border-[#006041]/30 transition-colors cursor-pointer shrink-0"
                       >
-                        <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                        <ShieldAlert className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                         <span>Lihat Detail Stock NC &amp; No NC ({filteredItems.length} Item)</span>
                       </button>
                     </div>

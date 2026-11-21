@@ -330,10 +330,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="text-xs font-extrabold tracking-[0.12em] text-[#006041] uppercase">
                 SPINDO 5
               </span>
-              <span className="hidden lg:inline-flex fore-dashed-pill items-center gap-1.5 px-2.5 py-0.5 text-[10.5px] font-bold">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#006041]" />
-                <span>Unit 5 Karawang</span>
-              </span>
             </div>
           </div>
 
@@ -673,39 +669,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Fore Coffee Signature Espresso Roast Strip (#765b51) — Contextual Live/Archive/Edit Status */}
-      <div className="w-full bg-[#765b51] text-white px-3 sm:px-6 lg:px-8 py-1.5 flex items-center justify-center gap-2.5 text-[11.5px] font-semibold">
-        <span className="truncate">
-          {isCustomizingLayout
-            ? 'Mode Kustomisasi Layout Aktif — Atur lebar & urutan kartu sesuai kebutuhan.'
-            : selectedSnapshotKey !== 'latest'
-            ? `Menampilkan Arsip Snapshot Tanggal ${activeDateLabel}`
-            : `SPINDO Unit 5 Karawang • Pembaruan Terakhir: ${lastUpdated}`}
-        </span>
-        {isCustomizingLayout && onToggleCustomizeLayout ? (
-          <button
-            type="button"
-            onClick={onToggleCustomizeLayout}
-            className="inline-flex items-center px-3 py-0.5 rounded-full bg-white text-[#765b51] hover:bg-[#f4f2ef] text-[11px] font-bold transition-colors cursor-pointer shrink-0"
-          >
-            Selesai
-          </button>
-        ) : selectedSnapshotKey !== 'latest' ? (
-          <button
-            type="button"
-            onClick={() => onSelectSnapshot('latest')}
-            className="inline-flex items-center px-3 py-0.5 rounded-full bg-white text-[#765b51] hover:bg-[#f4f2ef] text-[11px] font-bold transition-colors cursor-pointer shrink-0"
-          >
-            Data Terkini
-          </button>
-        ) : (
-          <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white text-[#765b51] text-[10.5px] font-bold shrink-0">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#006041]" />
-            Aktif
-          </span>
-        )}
       </div>
 
       {/* Modal Password Konfirmasi Reset ke Data Awal (Mounted via Portal) */}

@@ -62,11 +62,9 @@ import { cn, formatTon, formatQty, formatPercent } from '@/lib/utils';
 import { tooltipStyleStrong } from '@/lib/chartTheme';
 import {
   MenuBanner,
+  BannerSelect,
   BANNER_PRIMARY_BTN,
   BANNER_ICON_BTN,
-  BANNER_SELECT_WRAP,
-  BANNER_SELECT_CLS,
-  BANNER_SELECT_OPT_CLS,
 } from './MenuBanner';
 import {
   WarehousePipeCapacity,
@@ -180,8 +178,36 @@ function TableCardContainer({
   }
 
   return (
-    <div className={cn('rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden', className)}>
+    <div className={cn('fore-card overflow-hidden', className)}>
       {children}
+    </div>
+  );
+}
+
+function WeeklyMetricStrip({
+  items,
+}: {
+  items: { label: string; value: React.ReactNode; unit?: string; valueClassName?: string }[];
+}) {
+  return (
+    <div className="fore-card overflow-hidden">
+      <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#efece6]">
+        {items.map((item) => (
+          <div key={item.label} className="px-4 py-3.5">
+            <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#787470] block truncate">
+              {item.label}
+            </span>
+            <div className="mt-1 flex items-baseline gap-1.5 whitespace-nowrap">
+              <span className={cn('text-xl font-extrabold font-tabular tracking-tight text-[#1a4034]', item.valueClassName)}>
+                {item.value}
+              </span>
+              {item.unit && (
+                <span className="text-xs font-semibold text-[#787470]">{item.unit}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -693,26 +719,15 @@ export default function WeeklyAnalyticsView({
         icon={BarChart3}
         watermark="mingguan"
       >
-        <div className={BANNER_SELECT_WRAP}>
-          <Calendar className="w-3.5 h-3.5 text-[#d0d784] shrink-0" />
-          <select
-            value={selectedWeekId}
-            onChange={(e) => handleWeekChange(e.target.value)}
-            disabled={isLoading || availableWeeks.length === 0}
-            className={BANNER_SELECT_CLS}
-            title="Pilih pekan analisa"
-          >
-            {availableWeeks.map((w) => (
-              <option key={w.id} value={w.id} className={BANNER_SELECT_OPT_CLS}>
-                {w.label}
-              </option>
-            ))}
-            {availableWeeks.length === 0 && (
-              <option value="" className={BANNER_SELECT_OPT_CLS}>Belum Ada Data Pekan</option>
-            )}
-          </select>
-          <ChevronDown className="w-3.5 h-3.5 text-[#d4e5e0] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+        <BannerSelect
+          value={selectedWeekId}
+          onChange={handleWeekChange}
+          icon={Calendar}
+          disabled={isLoading || availableWeeks.length === 0}
+          placeholder="Belum Ada Data Pekan"
+          title="Pilih pekan analisa"
+          options={availableWeeks.map((w) => ({ value: w.id, label: w.label }))}
+        />
 
         <button
           type="button"
@@ -758,97 +773,117 @@ export default function WeeklyAnalyticsView({
           {/* 2. TOP KPI COCKPIT LEDGER (5 Core Operational Pillars) */}
           <div className="fore-card overflow-hidden">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-[#efece6]">
-              {/* Cockpit Card 1: Handling MB51 */}
-              <div className="p-3.5 sm:p-4 flex flex-col justify-between hover:bg-slate-50/50 transition-colors">
+              {/* Cockpit 1: Handling MB51 */}
+              <div className="p-4 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500">Handling MB51</span>
-                    <span className="text-[10.5px] font-bold font-mono px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200/60">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#787470] truncate">
+                      Handling MB51
+                    </span>
+                    <span className="text-[10px] font-bold font-tabular whitespace-nowrap shrink-0 px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200/70">
                       {(report?.productivitySummary?.totalTransaksi ?? 0).toLocaleString('id-ID')} Tx
                     </span>
                   </div>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 tracking-tight tabular-nums">
+                  <div className="mt-1.5 flex items-baseline gap-1 whitespace-nowrap">
+                    <span className="text-2xl font-extrabold font-tabular text-[#1a4034] tracking-tight">
                       {formatTon((report?.productivitySummary?.totalTonase ?? 0) / 1000, { decimals: 1 })}
                     </span>
-                    <span className="text-xs font-semibold text-slate-400">Ton</span>
+                    <span className="text-xs font-semibold text-[#787470]">Ton</span>
                   </div>
                 </div>
-                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                  <span>Efisiensi</span>
-                  <strong className="text-emerald-700 font-bold">
+                <div className="mt-3 pt-2 border-t border-[#efece6] flex items-center justify-between gap-2 text-[11px] whitespace-nowrap">
+                  <span className="text-[#787470] font-medium">Efisiensi</span>
+                  <strong className="text-[#006041] font-extrabold font-tabular">
                     {(report?.productivitySummary?.avgKgPerMan ?? 0).toLocaleString('id-ID')} Kg/Man
                   </strong>
                 </div>
               </div>
 
-              {/* Cockpit Card 2: Net Pergerakan Stok Pipa */}
-              <div className="p-3.5 sm:p-4 flex flex-col justify-between hover:bg-slate-50/50 transition-colors">
+              {/* Cockpit 2: Delta Stok Pipa */}
+              <div className="p-4 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500">Delta Stok Pipa</span>
-                    <span className="text-[10.5px] font-bold font-mono px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                      {capacityMetrics.avgOcc}% Okupansi
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#787470] truncate">
+                      Delta Stok Pipa
+                    </span>
+                    <span className="text-[10px] font-bold font-tabular whitespace-nowrap shrink-0 px-2 py-0.5 rounded-full bg-[#e7f0ee] text-[#006041] border border-[#006041]/15">
+                      {capacityMetrics.avgOcc}% Isi
                     </span>
                   </div>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className={cn(
-                      'text-xl sm:text-2xl font-bold font-mono tracking-tight tabular-nums',
-                      Math.abs(capacityMetrics.totalDelta) < 50 ? 'text-slate-900' : capacityMetrics.totalDelta > 0 ? 'text-emerald-700' : 'text-rose-600'
-                    )}>
+                  <div className="mt-1.5 flex items-baseline gap-1 whitespace-nowrap">
+                    <span
+                      className={cn(
+                        'text-2xl font-extrabold font-tabular tracking-tight',
+                        Math.abs(capacityMetrics.totalDelta) < 50
+                          ? 'text-[#1a4034]'
+                          : capacityMetrics.totalDelta > 0
+                          ? 'text-[#006041]'
+                          : 'text-rose-600'
+                      )}
+                    >
                       {(() => {
                         const dTon = Math.round((capacityMetrics.totalDelta / 1000) * 10) / 10;
                         if (Math.abs(dTon) < 0.05) return '0,0';
                         return `${dTon > 0 ? '+' : ''}${dTon.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
                       })()}
                     </span>
-                    <span className="text-xs font-semibold text-slate-400">Ton</span>
+                    <span className="text-xs font-semibold text-[#787470]">Ton</span>
                   </div>
                 </div>
-                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                  <span>Stok Akhir</span>
-                  <strong className="text-slate-800 font-bold">
-                    {formatTon(capacityMetrics.totalStock / 1000, { decimals: 1 })} Ton
+                <div className="mt-3 pt-2 border-t border-[#efece6] flex items-center justify-between gap-2 text-[11px] whitespace-nowrap">
+                  <span className="text-[#787470] font-medium">Stok Akhir</span>
+                  <strong className="text-[#1a4034] font-extrabold font-tabular">
+                    {formatTon(capacityMetrics.totalStock / 1000, { decimals: 1 })} T
                   </strong>
                 </div>
               </div>
 
-              {/* Cockpit Card 3: Stok Coil & Strip */}
-              <div className="p-3.5 sm:p-4 flex flex-col justify-between hover:bg-slate-50/50 transition-colors">
+              {/* Cockpit 3: Stok Coil & Strip */}
+              <div className="p-4 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500">Stok Coil &amp; Strip</span>
-                    <span className="text-[10.5px] font-bold font-mono px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/60">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#787470] truncate">
+                      Coil &amp; Strip
+                    </span>
+                    <span className="text-[10px] font-bold font-tabular whitespace-nowrap shrink-0 px-2 py-0.5 rounded-full bg-[#f4f2ef] text-[#59575c] border border-[#e6e2db]">
                       {coilStripMetrics.totalQty.toLocaleString('id-ID')} Roll
                     </span>
                   </div>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 tracking-tight tabular-nums">
+                  <div className="mt-1.5 flex items-baseline gap-1 whitespace-nowrap">
+                    <span className="text-2xl font-extrabold font-tabular text-[#1a4034] tracking-tight">
                       {formatTon(coilStripMetrics.totalTon, { decimals: 1 })}
                     </span>
-                    <span className="text-xs font-semibold text-slate-400">Ton</span>
+                    <span className="text-xs font-semibold text-[#787470]">Ton</span>
                   </div>
                 </div>
-                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                  <span>Mutasi Pekan Ini</span>
-                  <strong className={cn(
-                    'font-bold',
-                    Math.abs(coilStripMetrics.deltaTon) < 50 ? 'text-slate-700' : coilStripMetrics.deltaTon > 0 ? 'text-emerald-700' : 'text-rose-600'
-                  )}>
+                <div className="mt-3 pt-2 border-t border-[#efece6] flex items-center justify-between gap-2 text-[11px] whitespace-nowrap">
+                  <span className="text-[#787470] font-medium">Mutasi</span>
+                  <strong
+                    className={cn(
+                      'font-extrabold font-tabular',
+                      Math.abs(coilStripMetrics.deltaTon) < 50
+                        ? 'text-[#1a4034]'
+                        : coilStripMetrics.deltaTon > 0
+                        ? 'text-[#006041]'
+                        : 'text-rose-600'
+                    )}
+                  >
                     {(() => {
                       const dTon = Math.round((coilStripMetrics.deltaTon / 1000) * 10) / 10;
-                      if (Math.abs(dTon) < 0.05) return '0,0 Ton';
-                      return `${dTon > 0 ? '+' : ''}${dTon.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Ton`;
+                      if (Math.abs(dTon) < 0.05) return '0,0 T';
+                      return `${dTon > 0 ? '+' : ''}${dTon.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} T`;
                     })()}
                   </strong>
                 </div>
               </div>
 
-              {/* Cockpit Card 4: NC Recovery Rate */}
-              <div className="p-3.5 sm:p-4 flex flex-col justify-between hover:bg-slate-50/50 transition-colors">
+              {/* Cockpit 4: NC Recovery Rate */}
+              <div className="p-4 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500">NC Recovery Rate</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#787470] truncate">
+                      NC Recovery
+                    </span>
                     {(() => {
                       const total309 = report?.ncSummary?.total309Qty ?? 0;
                       const total261 = report?.ncSummary?.netRepairIssuedQty ?? 0;
@@ -857,158 +892,164 @@ export default function WeeklyAnalyticsView({
 
                       if (!hasNC) {
                         return (
-                          <span className="text-[10.5px] font-bold font-mono px-2 py-0.5 rounded-md border bg-slate-100 text-slate-600 border-slate-200/60">
-                            Nihil Kasus
+                          <span className="text-[10px] font-bold whitespace-nowrap shrink-0 px-2 py-0.5 rounded-full bg-[#f4f2ef] text-[#59575c] border border-[#e6e2db]">
+                            Nihil
                           </span>
                         );
                       }
                       if (recRate >= 85) {
                         return (
-                          <span className="text-[10.5px] font-bold font-mono px-2 py-0.5 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-200/60">
-                            Target Tercapai
+                          <span className="text-[10px] font-bold whitespace-nowrap shrink-0 px-2 py-0.5 rounded-full bg-[#e7f0ee] text-[#006041] border border-[#006041]/15">
+                            Optimal
                           </span>
                         );
                       }
                       return (
-                        <span className="text-[10.5px] font-bold font-mono px-2 py-0.5 rounded-md border bg-amber-50 text-amber-700 border-amber-200/60">
-                          Perlu Optimasi
+                        <span className="text-[10px] font-bold whitespace-nowrap shrink-0 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80">
+                          Optimasi
                         </span>
                       );
                     })()}
                   </div>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 tracking-tight tabular-nums">
+                  <div className="mt-1.5 flex items-baseline gap-1 whitespace-nowrap">
+                    <span className="text-2xl font-extrabold font-tabular text-[#1a4034] tracking-tight">
                       {report?.ncSummary?.recoveryRate ?? 0}
                     </span>
-                    <span className="text-xs font-semibold text-slate-400">%</span>
+                    <span className="text-xs font-semibold text-[#787470]">%</span>
                   </div>
                 </div>
-                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                  <span>Antrean Sisa</span>
-                  <strong className="text-amber-700 font-bold">
-                    {formatTon((report?.ncSummary?.netOutstandingKg ?? 0) / 1000, { decimals: 1 })} Ton
+                <div className="mt-3 pt-2 border-t border-[#efece6] flex items-center justify-between gap-2 text-[11px] whitespace-nowrap">
+                  <span className="text-[#787470] font-medium">Antrean Sisa</span>
+                  <strong className="text-amber-700 font-extrabold font-tabular">
+                    {formatTon((report?.ncSummary?.netOutstandingKg ?? 0) / 1000, { decimals: 1 })} T
                   </strong>
                 </div>
               </div>
 
-              {/* Cockpit Card 5: Pemenuhan LOO */}
-              <div className="p-3.5 sm:p-4 flex flex-col justify-between hover:bg-slate-50/50 transition-colors">
+              {/* Cockpit 5: Pemenuhan LOO */}
+              <div className="p-4 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500">Pemenuhan LOO</span>
-                    <span className={cn(
-                      'text-[10.5px] font-bold font-mono px-2 py-0.5 rounded-md border',
-                      looMetrics.totalLooTon === 0
-                        ? 'bg-slate-100 text-slate-600 border-slate-200/60'
-                        : looMetrics.fulfillmentRate >= 90
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
-                        : 'bg-amber-50 text-amber-700 border-amber-200/60'
-                    )}>
-                      {looMetrics.totalLooTon === 0 ? 'Nihil Order' : looMetrics.fulfillmentRate >= 90 ? 'Optimal' : 'Kurang'}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#787470] truncate">
+                      Pemenuhan LOO
+                    </span>
+                    <span
+                      className={cn(
+                        'text-[10px] font-bold whitespace-nowrap shrink-0 px-2 py-0.5 rounded-full border',
+                        looMetrics.totalLooTon === 0
+                          ? 'bg-[#f4f2ef] text-[#59575c] border-[#e6e2db]'
+                          : looMetrics.fulfillmentRate >= 90
+                          ? 'bg-[#e7f0ee] text-[#006041] border-[#006041]/15'
+                          : 'bg-amber-50 text-amber-800 border-amber-200/80'
+                      )}
+                    >
+                      {looMetrics.totalLooTon === 0 ? 'Nihil' : looMetrics.fulfillmentRate >= 90 ? 'Optimal' : 'Kurang'}
                     </span>
                   </div>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 tracking-tight tabular-nums">
+                  <div className="mt-1.5 flex items-baseline gap-1 whitespace-nowrap">
+                    <span className="text-2xl font-extrabold font-tabular text-[#1a4034] tracking-tight">
                       {looMetrics.totalLooTon > 0 ? looMetrics.fulfillmentRate : 100}
                     </span>
-                    <span className="text-xs font-semibold text-slate-400">%</span>
+                    <span className="text-xs font-semibold text-[#787470]">%</span>
                   </div>
                 </div>
-                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                  <span>Total Order LOO</span>
-                  <strong className="text-slate-800 font-bold">
-                    {formatTon(looMetrics.totalLooTon, { decimals: 1 })} Ton
+                <div className="mt-3 pt-2 border-t border-[#efece6] flex items-center justify-between gap-2 text-[11px] whitespace-nowrap">
+                  <span className="text-[#787470] font-medium">Order LOO</span>
+                  <strong className="text-[#1a4034] font-extrabold font-tabular">
+                    {formatTon(looMetrics.totalLooTon, { decimals: 1 })} T
                   </strong>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 3. SUB-TAB DROPDOWN NAVIGATION (Fore Organic Dropdown) */}
-          <div ref={subTabMenuRef} className="fore-card p-2.5 sm:p-3 flex items-center gap-3 relative z-30">
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#59575c] pl-1.5 shrink-0">
-              <Filter className="w-3.5 h-3.5 text-[#006041]" />
-              Modul Analisis
-            </span>
-            <div className="relative w-full sm:w-[400px]">
-              <button
-                type="button"
-                onClick={() => setIsSubTabMenuOpen((prev) => !prev)}
-                aria-haspopup="listbox"
-                aria-expanded={isSubTabMenuOpen}
-                className={cn(
-                  'w-full flex items-center justify-between gap-3 px-3.5 py-2 rounded-full border text-left transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#006041]/25',
-                  isSubTabMenuOpen
-                    ? 'bg-white border-[#006041] shadow-[0_8px_20px_-10px_rgba(0,96,65,0.35)]'
-                    : 'bg-[#faf8f5] border-[#e6e2db] hover:border-[#006041]/40 hover:bg-[#e7f0ee]/60'
-                )}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="w-7 h-7 rounded-full bg-[#006041] text-[#d0d784] flex items-center justify-center shrink-0">
-                    <ActiveSubTabIcon className="w-3.5 h-3.5" />
-                  </span>
-                  <span className="text-xs sm:text-sm font-bold text-[#222126] truncate">
-                    {activeSubTabItem.label}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] sm:text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#e7f0ee] text-[#006041] border border-[#006041]/15">
-                    {activeSubTabItem.badge}
-                  </span>
-                  <ChevronDown
-                    className={cn(
-                      'w-4 h-4 text-[#59575c] transition-transform duration-150',
-                      isSubTabMenuOpen && 'rotate-180 text-[#006041]'
-                    )}
-                  />
-                </div>
-              </button>
-
-              {isSubTabMenuOpen && (
-                <div
-                  role="listbox"
-                  aria-label="Pilih Modul Analisis Mingguan"
-                  className="absolute left-0 right-0 sm:right-auto sm:w-[420px] top-full mt-2 max-h-[380px] overflow-y-auto rounded-[20px] bg-white border border-[#e6e2db] shadow-[0_18px_40px_-12px_rgba(34,33,38,0.18)] p-1.5 z-50 space-y-1"
+          {/* 3. SUB-TAB DROPDOWN TOOLBAR (Borderless, No Extra Card Wrapper) */}
+          <div ref={subTabMenuRef} className="flex flex-wrap items-center justify-between gap-3 pt-0.5 relative z-30">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[#787470] shrink-0">
+                <Filter className="w-3.5 h-3.5 text-[#006041]" />
+                Modul Analisis
+              </span>
+              <div className="relative w-full sm:w-[390px]">
+                <button
+                  type="button"
+                  onClick={() => setIsSubTabMenuOpen((prev) => !prev)}
+                  aria-haspopup="listbox"
+                  aria-expanded={isSubTabMenuOpen}
+                  className={cn(
+                    'w-full flex items-center justify-between gap-3 px-3.5 py-2 rounded-full border text-left transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#006041]/25 shadow-[0_2px_10px_rgba(0,0,0,0.04)]',
+                    isSubTabMenuOpen
+                      ? 'bg-white border-[#006041] shadow-[0_8px_20px_-10px_rgba(0,96,65,0.35)]'
+                      : 'bg-white border-[#e6e2db] hover:border-[#006041]/45'
+                  )}
                 >
-                  {SUB_TABS.map((tab) => {
-                    const Icon = tab.icon;
-                    const isActive = activeSubTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        role="option"
-                        aria-selected={isActive}
-                        onClick={() => handleSelectSubTab(tab.id as WeeklySubTab)}
-                        className={cn(
-                          'w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-[14px] text-xs transition-all duration-100 cursor-pointer text-left',
-                          isActive
-                            ? 'bg-[#006041] text-white font-bold shadow-[0_4px_12px_-4px_rgba(0,96,65,0.4)]'
-                            : 'text-[#222126] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold'
-                        )}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-[#d0d784]' : 'text-[#8c8882]')} />
-                          <span className="truncate">{tab.label}</span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span
-                            className={cn(
-                              'text-[10px] font-mono px-2 py-0.5 rounded-full font-bold',
-                              isActive
-                                ? 'bg-white/15 text-white border border-white/20'
-                                : 'bg-[#faf8f5] text-[#59575c] border border-[#e6e2db]'
-                            )}
-                          >
-                            {tab.badge}
-                          </span>
-                          <Check className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-[#d0d784] opacity-100' : 'opacity-0')} />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="w-7 h-7 rounded-full bg-[#006041] text-[#d0d784] flex items-center justify-center shrink-0">
+                      <ActiveSubTabIcon className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="text-xs sm:text-sm font-bold text-[#222126] truncate">
+                      {activeSubTabItem.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] sm:text-[11px] font-tabular font-bold px-2.5 py-0.5 rounded-full bg-[#e7f0ee] text-[#006041] border border-[#006041]/15">
+                      {activeSubTabItem.badge}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        'w-4 h-4 text-[#59575c] transition-transform duration-150',
+                        isSubTabMenuOpen && 'rotate-180 text-[#006041]'
+                      )}
+                    />
+                  </div>
+                </button>
+
+                {isSubTabMenuOpen && (
+                  <div
+                    role="listbox"
+                    aria-label="Pilih Modul Analisis Mingguan"
+                    className="absolute left-0 right-0 sm:right-auto sm:w-[410px] top-full mt-2 max-h-[380px] overflow-y-auto rounded-[20px] bg-white border border-[#e6e2db] shadow-[0_18px_40px_-12px_rgba(34,33,38,0.18)] p-1.5 z-50 space-y-1"
+                  >
+                    {SUB_TABS.map((tab) => {
+                      const Icon = tab.icon;
+                      const isActive = activeSubTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          role="option"
+                          aria-selected={isActive}
+                          onClick={() => handleSelectSubTab(tab.id as WeeklySubTab)}
+                          className={cn(
+                            'w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-[14px] text-xs transition-all duration-100 cursor-pointer text-left',
+                            isActive
+                              ? 'bg-[#006041] text-white font-bold shadow-[0_4px_12px_-4px_rgba(0,96,65,0.4)]'
+                              : 'text-[#222126] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold'
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-[#d0d784]' : 'text-[#8c8882]')} />
+                            <span className="truncate">{tab.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span
+                              className={cn(
+                                'text-[10px] font-tabular px-2 py-0.5 rounded-full font-bold',
+                                isActive
+                                  ? 'bg-white/15 text-white border border-white/20'
+                                  : 'bg-[#faf8f5] text-[#59575c] border border-[#e6e2db]'
+                              )}
+                            >
+                              {tab.badge}
+                            </span>
+                            <Check className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-[#d0d784] opacity-100' : 'opacity-0')} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1017,329 +1058,292 @@ export default function WeeklyAnalyticsView({
           {/* ========================================================================= */}
           {activeSubTab === 'overview' && (
             <div className="space-y-4">
-              {/* Dual Column: Tren Pemulihan NC & Performa Shift MB51 */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Tren NC Harian */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-                  <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
-                        Tren Pemulihan NC Harian
-                      </h3>
-                      <p className="text-[11px] text-slate-500">
-                        NC Masuk (309) vs Kirim Repair (261) vs Selesai Prime (101)
-                      </p>
+              {/* Unified Split Card: Tren Pemulihan NC & Performa Shift MB51 */}
+              <div className="fore-card overflow-hidden">
+                <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-[#efece6]">
+                  {/* Tren NC Harian */}
+                  <div className="p-4 sm:p-5">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-extrabold text-[#1a4034] tracking-tight">
+                          Tren Pemulihan NC Harian
+                        </h3>
+                        <p className="text-[11px] text-[#787470] mt-0.5">
+                          NC Masuk (309) vs Kirim Repair (261) vs Selesai Prime (101)
+                        </p>
+                      </div>
+                      <span className="text-[10.5px] font-bold font-tabular whitespace-nowrap shrink-0 px-2.5 py-0.5 rounded-full bg-[#f4f2ef] text-[#59575c] border border-[#e6e2db]">
+                        7 Hari Siklus
+                      </span>
                     </div>
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono">
-                      7 Hari Siklus
-                    </span>
-                  </div>
-                  <div className="p-4 h-64">
-                    <Bar
-                      data={ncDailyChartData}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: {
-                            position: 'bottom',
-                            labels: {
-                              boxWidth: 10,
-                              boxHeight: 10,
-                              font: { size: 10, weight: 'bold' as const },
-                              color: '#475569',
+                    <div className="h-60">
+                      <Bar
+                        data={ncDailyChartData}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              position: 'bottom',
+                              labels: {
+                                boxWidth: 10,
+                                boxHeight: 10,
+                                font: { size: 10.5, weight: 600 },
+                                color: '#59575c',
+                              },
                             },
+                            tooltip: { ...tooltipStyleStrong },
                           },
-                          tooltip: { ...tooltipStyleStrong },
-                        },
-                        scales: {
-                          x: { grid: { display: false }, ticks: { font: { family: 'ui-monospace, monospace', size: 10 } } },
-                          y: { grid: { color: '#f1f5f9' }, ticks: { font: { family: 'ui-monospace, monospace', size: 10 }, callback: (v) => `${v} T` } },
-                        },
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Performa Shift MB51 */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-                  <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
-                        Volume Handling per Shift MB51
-                      </h3>
-                      <p className="text-[11px] text-slate-500">
-                        Distribusi beban kerja penanganan material Shift 1, Shift 2, & Shift 3
-                      </p>
+                          scales: {
+                            x: { grid: { display: false }, ticks: { font: { size: 10.5 }, color: '#59575c' } },
+                            y: { grid: { color: '#efece6' }, ticks: { font: { size: 10.5 }, color: '#787470', callback: (v) => `${v} T` } },
+                          },
+                        }}
+                      />
                     </div>
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono">
-                      Akumulasi
-                    </span>
                   </div>
-                  <div className="p-4 h-64">
-                    <Bar
-                      data={shiftChartData}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: { display: false },
-                          tooltip: { ...tooltipStyleStrong },
-                        },
-                        scales: {
-                          x: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' as const } } },
-                          y: { grid: { color: '#f1f5f9' }, ticks: { font: { family: 'ui-monospace, monospace', size: 10 }, callback: (v) => `${v} T` } },
-                        },
-                      }}
-                    />
+
+                  {/* Performa Shift MB51 */}
+                  <div className="p-4 sm:p-5">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-extrabold text-[#1a4034] tracking-tight">
+                          Volume Handling per Shift MB51
+                        </h3>
+                        <p className="text-[11px] text-[#787470] mt-0.5">
+                          Distribusi beban kerja penanganan material Shift 1, Shift 2, &amp; Shift 3
+                        </p>
+                      </div>
+                      <span className="text-[10.5px] font-bold whitespace-nowrap shrink-0 px-2.5 py-0.5 rounded-full bg-[#f4f2ef] text-[#59575c] border border-[#e6e2db]">
+                        Akumulasi
+                      </span>
+                    </div>
+                    <div className="h-60">
+                      <Bar
+                        data={shiftChartData}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: { display: false },
+                            tooltip: { ...tooltipStyleStrong },
+                          },
+                          scales: {
+                            x: { grid: { display: false }, ticks: { font: { size: 10.5, weight: 600 }, color: '#59575c' } },
+                            y: { grid: { color: '#efece6' }, ticks: { font: { size: 10.5 }, color: '#787470', callback: (v) => `${v} T` } },
+                          },
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Multi-Module Quick Health Matrix (Peta Status 9 Modul Operasional) */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-                <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 rounded-lg bg-emerald-100 text-emerald-800">
+              {/* Flat Hairline Matrix: Matriks Status 9 Modul Operasional (Zero Inner Cards) */}
+              <div className="fore-card overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-[#efece6] flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-full bg-[#e7f0ee] text-[#006041] flex items-center justify-center shrink-0">
                       <SlidersHorizontal className="w-4 h-4" />
                     </div>
                     <div>
-                      <h2 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                      <h2 className="text-sm font-extrabold text-[#1a4034] tracking-tight">
                         Matriks Status 9 Modul Operasional
                       </h2>
-                      <p className="text-[11px] text-slate-500">
-                        Peta kesehatan menyeluruh dan shortcut navigasi langsung ke modul terkait
+                      <p className="text-[11px] text-[#787470]">
+                        Klik baris modul untuk membuka rincian analisis
                       </p>
                     </div>
                   </div>
-                  <span className="text-[11px] font-mono text-slate-500 font-semibold">Klik kartu untuk detail</span>
                 </div>
 
-                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {/* Module 1: Stock Pipa vs Kapasitas */}
-                  <div
-                    onClick={() => handleSelectSubTab('capacity')}
-                    className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer bg-slate-50/40 hover:bg-white flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Building2 className="w-3.5 h-3.5 text-emerald-700" />
-                        Stock Pipa vs Kapasitas
-                      </span>
-                      <span className={cn(
-                        'text-[10px] font-bold font-mono px-1.5 py-0.2 rounded',
-                        capacityMetrics.avgOcc > 85 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                      )}>
-                        {capacityMetrics.avgOcc}%
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium">
-                      Stok Akhir <strong className="font-mono text-slate-900">{formatTon(capacityMetrics.totalStock / 1000, { decimals: 1 })} T</strong> (Net: {capacityMetrics.totalDelta >= 0 ? '+' : ''}{formatTon(capacityMetrics.totalDelta / 1000, { decimals: 1 })} T)
-                    </p>
-                  </div>
-
-                  {/* Module 2: Fast vs Slow Moving */}
-                  <div
-                    onClick={() => handleSelectSubTab('fastslow')}
-                    className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer bg-slate-50/40 hover:bg-white flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
-                        Fast vs Slow Moving
-                      </span>
-                      <span className="text-[10px] font-bold font-mono px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
-                        {fastSlowMetrics.slowRatio}% Slow
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium">
-                      Slow Moving <strong className="font-mono text-amber-700">{formatTon(fastSlowMetrics.totalSlow, { decimals: 0 })} Ton</strong> ({fastSlowMetrics.slowAbove6.toLocaleString('id-ID')} T &gt;6 bln)
-                    </p>
-                  </div>
-
-                  {/* Module 3: Coil & Strip */}
-                  <div
-                    onClick={() => handleSelectSubTab('coilstrip')}
-                    className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer bg-slate-50/40 hover:bg-white flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Boxes className="w-3.5 h-3.5 text-sky-600" />
-                        Coil &amp; Strip
-                      </span>
-                      <span className="text-[10px] font-bold font-mono px-1.5 py-0.2 rounded bg-sky-100 text-sky-800">
-                        {coilStripMetrics.occ}% Area
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium">
-                      Stok Total <strong className="font-mono text-slate-900">{formatTon(coilStripMetrics.totalTon, { decimals: 0 })} Ton</strong> ({coilStripMetrics.totalQty} Roll)
-                    </p>
-                  </div>
-
-                  {/* Module 4: Stock NC */}
-                  <div
-                    onClick={() => handleSelectSubTab('nc_stock')}
-                    className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer bg-slate-50/40 hover:bg-white flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-                        Stock NC
-                      </span>
-                      <span className="text-[10px] font-bold font-mono px-1.5 py-0.2 rounded bg-rose-100 text-rose-800">
-                        {ncStockMetrics.ncRatio}% Pipa
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium">
-                      Tertahan <strong className="font-mono text-rose-700">{formatTon(ncStockMetrics.totalNC, { decimals: 1 })} T</strong> (E: {formatTon(ncStockMetrics.totalGradeE, { decimals: 1 })} T, C: {formatTon(ncStockMetrics.totalGradeC, { decimals: 1 })} T)
-                    </p>
-                  </div>
-
-                  {/* Module 5: Progres NC & Repair */}
-                  <div
-                    onClick={() => handleSelectSubTab('nc_progress')}
-                    className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer bg-slate-50/40 hover:bg-white flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <GitFork className="w-3.5 h-3.5 text-emerald-600" />
-                        Progres NC &amp; Repair
-                      </span>
-                      <span className={cn(
-                        'text-[10px] font-bold font-mono px-1.5 py-0.2 rounded',
-                        (report?.ncSummary?.recoveryRate ?? 0) >= 85 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                      )}>
-                        {report?.ncSummary?.recoveryRate ?? 0}% Recovery
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium">
-                      Selesai Prime <strong className="font-mono text-emerald-700">{formatTon((report?.ncSummary?.total101Kg ?? 0) / 1000, { decimals: 1 })} T</strong> | Sisa: {formatTon((report?.ncSummary?.netOutstandingKg ?? 0) / 1000, { decimals: 1 })} T
-                    </p>
-                  </div>
-
-                  {/* Module 6: Stock Pipa vs LOO */}
-                  <div
-                    onClick={() => handleSelectSubTab('loo')}
-                    className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer bg-slate-50/40 hover:bg-white flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-blue-600" />
-                        Stock Pipa vs LOO
-                      </span>
-                      <span className="text-[10px] font-bold font-mono px-1.5 py-0.2 rounded bg-blue-100 text-blue-800">
-                        {looMetrics.fulfillmentRate}%
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium">
-                      Order <strong className="font-mono text-slate-900">{formatTon(looMetrics.totalLooTon, { decimals: 1 })} T</strong> | Defisit: <span className="text-rose-600 font-mono font-bold">{formatTon(looMetrics.totalKurangTon, { decimals: 1 })} T</span>
-                    </p>
-                  </div>
-
-                  {/* Module 7: UNFIFO */}
-                  <div
-                    onClick={() => handleSelectSubTab('unfifo')}
-                    className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer bg-slate-50/40 hover:bg-white flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        UNFIFO
-                      </span>
-                      <span className="text-[10px] font-bold font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-800">
-                        {unfifoMetrics.totalCases} Kasus
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium">
-                      Kepatuhan FIFO <strong className="font-mono text-emerald-700">{unfifoMetrics.complianceScore}%</strong> (Pipa: {unfifoMetrics.pipeCount}, Coil: {unfifoMetrics.coilCount})
-                    </p>
-                  </div>
-
-                  {/* Module 8: Packaging (RTP & Rusak) */}
-                  <div
-                    onClick={() => handleSelectSubTab('packaging')}
-                    className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer bg-slate-50/40 hover:bg-white flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <PackageCheck className="w-3.5 h-3.5 text-emerald-700" />
-                        Packaging (RTP &amp; Rusak)
-                      </span>
-                      <span className={cn(
-                        'text-[10px] font-bold font-mono px-1.5 py-0.2 rounded',
-                        packagingMetrics.defisitCount > 0 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                      )}>
-                        {packagingMetrics.defisitCount} Defisit
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium">
-                      Aktual <strong className="font-mono text-slate-900">{packagingMetrics.totalStockBox.toLocaleString('id-ID')} Box</strong> | NG: {packagingMetrics.damagedCount} Box
-                    </p>
-                  </div>
-
-                  {/* Module 9: Produktivitas Gudang (MB51) */}
-                  <div
-                    onClick={() => handleSelectSubTab('productivity')}
-                    className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer bg-slate-50/40 hover:bg-white flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-sky-700" />
-                        Produktivitas Gudang (MB51)
-                      </span>
-                      <span className="text-[10px] font-bold font-mono px-1.5 py-0.2 rounded bg-sky-100 text-sky-800">
-                        {report?.productivitySummary?.avgTxPerMan ?? 0} Tx/Man
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium">
-                      Beban <strong className="font-mono text-slate-900">{formatTon((report?.productivitySummary?.totalTonase ?? 0) / 1000, { decimals: 1 })} Ton</strong> | {report?.productivitySummary?.totalHeadcountDays ?? 0} Man Days
-                    </p>
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 bg-[#efece6] gap-[1px]">
+                  {(
+                    [
+                      {
+                        tab: 'capacity' as WeeklySubTab,
+                        title: 'Stock Pipa vs Kapasitas',
+                        icon: Building2,
+                        iconCls: 'text-[#006041]',
+                        badge: `${capacityMetrics.avgOcc}%`,
+                        badgeCls: capacityMetrics.avgOcc > 85 ? 'bg-amber-50 text-amber-800 border-amber-200/80' : 'bg-[#e7f0ee] text-[#006041] border-[#006041]/15',
+                        detail: (
+                          <>
+                            Stok Akhir <strong className="font-tabular text-[#1a4034]">{formatTon(capacityMetrics.totalStock / 1000, { decimals: 1 })} T</strong> (Net: {capacityMetrics.totalDelta >= 0 ? '+' : ''}{formatTon(capacityMetrics.totalDelta / 1000, { decimals: 1 })} T)
+                          </>
+                        ),
+                      },
+                      {
+                        tab: 'fastslow' as WeeklySubTab,
+                        title: 'Fast vs Slow Moving',
+                        icon: TrendingUp,
+                        iconCls: 'text-amber-600',
+                        badge: `${fastSlowMetrics.slowRatio}% Slow`,
+                        badgeCls: 'bg-amber-50 text-amber-800 border-amber-200/80',
+                        detail: (
+                          <>
+                            Slow Moving <strong className="font-tabular text-amber-700">{formatTon(fastSlowMetrics.totalSlow, { decimals: 0 })} Ton</strong> ({fastSlowMetrics.slowAbove6.toLocaleString('id-ID')} T &gt;6 bln)
+                          </>
+                        ),
+                      },
+                      {
+                        tab: 'coilstrip' as WeeklySubTab,
+                        title: 'Coil & Strip',
+                        icon: Boxes,
+                        iconCls: 'text-sky-600',
+                        badge: `${coilStripMetrics.occ}% Area`,
+                        badgeCls: 'bg-sky-50 text-sky-700 border-sky-200/80',
+                        detail: (
+                          <>
+                            Stok Total <strong className="font-tabular text-[#1a4034]">{formatTon(coilStripMetrics.totalTon, { decimals: 0 })} Ton</strong> ({coilStripMetrics.totalQty} Roll)
+                          </>
+                        ),
+                      },
+                      {
+                        tab: 'nc_stock' as WeeklySubTab,
+                        title: 'Stock NC',
+                        icon: ShieldAlert,
+                        iconCls: 'text-rose-600',
+                        badge: `${ncStockMetrics.ncRatio}% Pipa`,
+                        badgeCls: 'bg-rose-50 text-rose-700 border-rose-200/80',
+                        detail: (
+                          <>
+                            Tertahan <strong className="font-tabular text-rose-700">{formatTon(ncStockMetrics.totalNC, { decimals: 1 })} T</strong> (E: {formatTon(ncStockMetrics.totalGradeE, { decimals: 1 })} T, C: {formatTon(ncStockMetrics.totalGradeC, { decimals: 1 })} T)
+                          </>
+                        ),
+                      },
+                      {
+                        tab: 'nc_progress' as WeeklySubTab,
+                        title: 'Progres NC & Repair',
+                        icon: GitFork,
+                        iconCls: 'text-[#006041]',
+                        badge: `${report?.ncSummary?.recoveryRate ?? 0}% Recovery`,
+                        badgeCls: (report?.ncSummary?.recoveryRate ?? 0) >= 85 ? 'bg-[#e7f0ee] text-[#006041] border-[#006041]/15' : 'bg-amber-50 text-amber-800 border-amber-200/80',
+                        detail: (
+                          <>
+                            Selesai Prime <strong className="font-tabular text-[#006041]">{formatTon((report?.ncSummary?.total101Kg ?? 0) / 1000, { decimals: 1 })} T</strong> · Sisa {formatTon((report?.ncSummary?.netOutstandingKg ?? 0) / 1000, { decimals: 1 })} T
+                          </>
+                        ),
+                      },
+                      {
+                        tab: 'loo' as WeeklySubTab,
+                        title: 'Stock Pipa vs LOO',
+                        icon: FileText,
+                        iconCls: 'text-blue-600',
+                        badge: `${looMetrics.fulfillmentRate}%`,
+                        badgeCls: 'bg-blue-50 text-blue-700 border-blue-200/80',
+                        detail: (
+                          <>
+                            Order <strong className="font-tabular text-[#1a4034]">{formatTon(looMetrics.totalLooTon, { decimals: 1 })} T</strong> · Defisit <span className="text-rose-600 font-tabular font-bold">{formatTon(looMetrics.totalKurangTon, { decimals: 1 })} T</span>
+                          </>
+                        ),
+                      },
+                      {
+                        tab: 'unfifo' as WeeklySubTab,
+                        title: 'UNFIFO',
+                        icon: Clock,
+                        iconCls: 'text-amber-600',
+                        badge: `${unfifoMetrics.totalCases} Kasus`,
+                        badgeCls: 'bg-[#f4f2ef] text-[#59575c] border-[#e6e2db]',
+                        detail: (
+                          <>
+                            Kepatuhan FIFO <strong className="font-tabular text-[#006041]">{unfifoMetrics.complianceScore}%</strong> (Pipa: {unfifoMetrics.pipeCount}, Coil: {unfifoMetrics.coilCount})
+                          </>
+                        ),
+                      },
+                      {
+                        tab: 'packaging' as WeeklySubTab,
+                        title: 'Packaging (RTP & Rusak)',
+                        icon: PackageCheck,
+                        iconCls: 'text-[#006041]',
+                        badge: `${packagingMetrics.defisitCount} Defisit`,
+                        badgeCls: packagingMetrics.defisitCount > 0 ? 'bg-rose-50 text-rose-700 border-rose-200/80' : 'bg-[#e7f0ee] text-[#006041] border-[#006041]/15',
+                        detail: (
+                          <>
+                            Aktual <strong className="font-tabular text-[#1a4034]">{packagingMetrics.totalStockBox.toLocaleString('id-ID')} Box</strong> · NG {packagingMetrics.damagedCount} Box
+                          </>
+                        ),
+                      },
+                      {
+                        tab: 'productivity' as WeeklySubTab,
+                        title: 'Produktivitas Gudang (MB51)',
+                        icon: Users,
+                        iconCls: 'text-sky-700',
+                        badge: `${report?.productivitySummary?.avgTxPerMan ?? 0} Tx/Man`,
+                        badgeCls: 'bg-sky-50 text-sky-700 border-sky-200/80',
+                        detail: (
+                          <>
+                            Beban <strong className="font-tabular text-[#1a4034]">{formatTon((report?.productivitySummary?.totalTonase ?? 0) / 1000, { decimals: 1 })} Ton</strong> · {report?.productivitySummary?.totalHeadcountDays ?? 0} Man Days
+                          </>
+                        ),
+                      },
+                    ]
+                  ).map((mod) => {
+                    const ModIcon = mod.icon;
+                    return (
+                      <button
+                        key={mod.tab}
+                        type="button"
+                        onClick={() => handleSelectSubTab(mod.tab)}
+                        className="bg-white hover:bg-[#faf8f5] p-4 text-left flex flex-col justify-between gap-1.5 transition-colors cursor-pointer group"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-[#1a4034] group-hover:text-[#006041] flex items-center gap-1.5 min-w-0 truncate">
+                            <ModIcon className={cn('w-3.5 h-3.5 shrink-0', mod.iconCls)} />
+                            <span className="truncate">{mod.title}</span>
+                          </span>
+                          <span className={cn('text-[10px] font-bold font-tabular px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0', mod.badgeCls)}>
+                            {mod.badge}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#59575c] font-medium leading-snug">
+                          {mod.detail}
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Executive Insights Highlights Card */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-                <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 rounded-lg bg-emerald-100 text-emerald-800">
+              {/* Clean Flat Editorial Insights List (Zero Nested Cards) */}
+              <div className="fore-card overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-[#efece6] flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-full bg-[#e7f0ee] text-[#006041] flex items-center justify-center shrink-0">
                       <Award className="w-4 h-4" />
                     </div>
                     <div>
-                      <h2 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                      <h2 className="text-sm font-extrabold text-[#1a4034] tracking-tight">
                         Poin Evaluasi &amp; Rekomendasi Cerdas
                       </h2>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[11px] text-[#787470]">
                         Sintesis analitik performa operasional pekan {report?.period?.label ?? 'Aktif'}
                       </p>
                     </div>
                   </div>
-                  <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                  <span className="text-[10.5px] font-tabular font-bold px-2.5 py-0.5 rounded-full bg-[#f4f2ef] text-[#59575c] border border-[#e6e2db]">
                     {report?.period?.startDate} s/d {report?.period?.endDate}
                   </span>
                 </div>
 
-                <div className="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {(report?.keyInsights && report.keyInsights.length > 0) ? (
-                    report.keyInsights.map((insight, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3.5 bg-slate-50/70 hover:bg-slate-50 border border-slate-200/70 rounded-xl flex items-start gap-3 transition-colors"
-                      >
-                        <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200/60 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold font-mono">
+                {(report?.keyInsights && report.keyInsights.length > 0) ? (
+                  <ol className="divide-y divide-[#efece6]">
+                    {report.keyInsights.map((insight, idx) => (
+                      <li key={idx} className="px-5 py-3 flex items-start gap-3 hover:bg-[#faf8f5]/70 transition-colors">
+                        <span className="w-6 h-6 rounded-full bg-[#e7f0ee] text-[#006041] flex items-center justify-center shrink-0 mt-0.5 text-[11px] font-extrabold font-tabular">
                           {idx + 1}
-                        </div>
-                        <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
+                        </span>
+                        <p className="text-xs sm:text-[13px] text-[#3d3c42] leading-relaxed font-medium">
                           {insight}
                         </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-slate-500 italic p-3 col-span-2 text-center">
-                      Belum ada cukup data aktivitas pada pekan ini untuk menghasilkan kesimpulan otomatis.
-                    </p>
-                  )}
-                </div>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="text-xs text-[#787470] italic py-6 px-5 text-center">
+                    Belum ada cukup data aktivitas pada pekan ini untuk menghasilkan kesimpulan otomatis.
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -1349,47 +1353,28 @@ export default function WeeklyAnalyticsView({
           {/* ========================================================================= */}
           {activeSubTab === 'capacity' && (
             <div className="space-y-4">
-              {/* Metric bar */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Kapasitas Pabrik</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{formatTon(capacityMetrics.totalCap / 1000, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Stok Akhir Pipa</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{formatTon(capacityMetrics.totalStock / 1000, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Delta Pergerakan Stok</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className={cn('text-xl font-bold font-mono', capacityMetrics.totalDelta >= 0 ? 'text-emerald-700' : 'text-rose-600')}>
-                      {capacityMetrics.totalDelta >= 0 ? '+' : ''}{formatTon(capacityMetrics.totalDelta / 1000, { decimals: 1 })}
-                    </span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Rata-rata Okupansi</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{capacityMetrics.avgOcc}</span>
-                    <span className="text-xs text-slate-400 font-semibold">%</span>
-                  </div>
-                </div>
-              </div>
+              {/* Unified Metric Ledger */}
+              <WeeklyMetricStrip
+                items={[
+                  { label: 'Total Kapasitas Pabrik', value: formatTon(capacityMetrics.totalCap / 1000, { decimals: 1 }), unit: 'Ton' },
+                  { label: 'Stok Akhir Pipa', value: formatTon(capacityMetrics.totalStock / 1000, { decimals: 1 }), unit: 'Ton' },
+                  {
+                    label: 'Delta Pergerakan Stok',
+                    value: `${capacityMetrics.totalDelta >= 0 ? '+' : ''}${formatTon(capacityMetrics.totalDelta / 1000, { decimals: 1 })}`,
+                    unit: 'Ton',
+                    valueClassName: capacityMetrics.totalDelta >= 0 ? 'text-[#006041]' : 'text-rose-600',
+                  },
+                  { label: 'Rata-rata Okupansi', value: capacityMetrics.avgOcc, unit: '%' },
+                ]}
+              />
 
               {/* Chart Kapasitas vs Stok */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-                <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+              <div className="fore-card overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-[#efece6] flex items-center justify-between">
+                  <h3 className="text-sm font-extrabold text-[#1a4034] tracking-tight">
                     Perbandingan Kapasitas Maksimal vs Stok Akhir per Gudang
                   </h3>
-                  <span className="text-[11px] font-mono text-slate-600 font-semibold">10 Gudang Pipa</span>
+                  <span className="text-[10.5px] font-tabular font-bold px-2.5 py-0.5 rounded-full bg-[#f4f2ef] text-[#59575c] border border-[#e6e2db]">10 Gudang Pipa</span>
                 </div>
                 <div className="p-4 h-64">
                   <Bar
@@ -1482,68 +1467,48 @@ export default function WeeklyAnalyticsView({
           {/* ========================================================================= */}
           {activeSubTab === 'fastslow' && (
             <div className="space-y-4">
-              {/* Metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Stok Teranalisis</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{formatTon(fastSlowMetrics.totalStok, { decimals: 0 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Fast Moving (Aktif)</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-emerald-700">{formatTon(fastSlowMetrics.totalFast, { decimals: 0 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton ({fastSlowMetrics.fastRatio}%)</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Slow Moving (PASM)</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-amber-700">{formatTon(fastSlowMetrics.totalSlow, { decimals: 0 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton ({fastSlowMetrics.slowRatio}%)</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Aging Kritis &gt;6 Bulan</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-rose-700">{formatTon(fastSlowMetrics.slowAbove6, { decimals: 0 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton</span>
-                  </div>
-                </div>
-              </div>
+              {/* Unified Metric Ledger */}
+              <WeeklyMetricStrip
+                items={[
+                  { label: 'Total Stok Teranalisis', value: formatTon(fastSlowMetrics.totalStok, { decimals: 0 }), unit: 'Ton' },
+                  { label: 'Fast Moving (Aktif)', value: formatTon(fastSlowMetrics.totalFast, { decimals: 0 }), unit: `Ton (${fastSlowMetrics.fastRatio}%)`, valueClassName: 'text-[#006041]' },
+                  { label: 'Slow Moving (PASM)', value: formatTon(fastSlowMetrics.totalSlow, { decimals: 0 }), unit: `Ton (${fastSlowMetrics.slowRatio}%)`, valueClassName: 'text-amber-700' },
+                  { label: 'Aging Kritis >6 Bulan', value: formatTon(fastSlowMetrics.slowAbove6, { decimals: 0 }), unit: 'Ton', valueClassName: 'text-rose-600' },
+                ]}
+              />
 
-              {/* Chart Komposisi */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 flex flex-col items-center justify-center">
-                  <h4 className="text-xs font-bold text-slate-900 mb-2">Rasio Fast vs Slow Pabrik</h4>
-                  <div className="w-48 h-48 relative">
-                    <Doughnut data={fastSlowDoughnutData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} />
-                  </div>
-                </div>
-                <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 flex flex-col justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900 mb-1">Rekomendasi Penanganan Slow Moving (PASM)</h4>
-                    <p className="text-[11px] text-slate-500 mb-3">Distribusi estimasi aging material slow moving per kategori</p>
-                    <div className="space-y-2">
-                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/60 flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-700">Aging 1–3 Bulan (Waspada Awal)</span>
-                        <span className="font-mono font-bold text-slate-900">{formatTon(fastSlowMetrics.slow1to3, { decimals: 0 })} Ton</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-amber-50/50 border border-amber-200/60 flex items-center justify-between text-xs">
-                        <span className="font-semibold text-amber-900">Aging 3–6 Bulan (Perlu Program Penjualan/Rework)</span>
-                        <span className="font-mono font-bold text-amber-800">{formatTon(fastSlowMetrics.slow3to6, { decimals: 0 })} Ton</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-rose-50/50 border border-rose-200/60 flex items-center justify-between text-xs">
-                        <span className="font-semibold text-rose-900">Aging &gt;6 Bulan (Kritis: Risiko Korosi &amp; Dead Stock)</span>
-                        <span className="font-mono font-bold text-rose-800">{formatTon(fastSlowMetrics.slowAbove6, { decimals: 0 })} Ton</span>
-                      </div>
+              {/* Unified Split Card: Chart Komposisi & Distribusi Aging */}
+              <div className="fore-card overflow-hidden">
+                <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-[#efece6]">
+                  <div className="p-5 flex flex-col items-center justify-center">
+                    <h4 className="text-sm font-extrabold text-[#1a4034] mb-3">Rasio Fast vs Slow Pabrik</h4>
+                    <div className="w-48 h-48 relative">
+                      <Doughnut data={fastSlowDoughnutData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} />
                     </div>
                   </div>
-                  <p className="text-[10.5px] text-slate-400 italic mt-3">
-                    *Strategi: Prioritaskan alokasi stok slow moving untuk order LOO dengan toleransi spek setara.
-                  </p>
+                  <div className="lg:col-span-2 p-5 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-sm font-extrabold text-[#1a4034]">Rekomendasi Penanganan Slow Moving (PASM)</h4>
+                      <p className="text-[11px] text-[#787470] mt-0.5 mb-3">Distribusi estimasi aging material slow moving per kategori</p>
+                      <div className="divide-y divide-[#efece6] border-t border-[#efece6]">
+                        <div className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                          <span className="font-semibold text-[#222126]">Aging 1–3 Bulan (Waspada Awal)</span>
+                          <span className="font-tabular font-extrabold text-[#1a4034] whitespace-nowrap">{formatTon(fastSlowMetrics.slow1to3, { decimals: 0 })} Ton</span>
+                        </div>
+                        <div className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                          <span className="font-semibold text-amber-800">Aging 3–6 Bulan (Perlu Program Penjualan/Rework)</span>
+                          <span className="font-tabular font-extrabold text-amber-700 whitespace-nowrap">{formatTon(fastSlowMetrics.slow3to6, { decimals: 0 })} Ton</span>
+                        </div>
+                        <div className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                          <span className="font-semibold text-rose-700">Aging &gt;6 Bulan (Kritis: Risiko Korosi &amp; Dead Stock)</span>
+                          <span className="font-tabular font-extrabold text-rose-600 whitespace-nowrap">{formatTon(fastSlowMetrics.slowAbove6, { decimals: 0 })} Ton</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[10.5px] text-[#787470] italic mt-3">
+                      *Strategi: Prioritaskan alokasi stok slow moving untuk order LOO dengan toleransi spek setara.
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1606,40 +1571,18 @@ export default function WeeklyAnalyticsView({
           {/* ========================================================================= */}
           {activeSubTab === 'coilstrip' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Bahan Baku Induk</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{formatTon(coilStripMetrics.totalTon, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton ({coilStripMetrics.totalQty} Roll)</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Saldo Induk Coil</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-sky-700">{formatTon(coilStripMetrics.coilTon, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton ({coilStripMetrics.coilQty} Roll)</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Saldo Strip Siap Mill</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-emerald-700">{formatTon(coilStripMetrics.stripTon, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton ({coilStripMetrics.stripQty} Roll)</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Okupansi Area Induk</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{coilStripMetrics.occ}</span>
-                    <span className="text-xs text-slate-400 font-semibold">%</span>
-                  </div>
-                </div>
-              </div>
+              <WeeklyMetricStrip
+                items={[
+                  { label: 'Total Bahan Baku Induk', value: formatTon(coilStripMetrics.totalTon, { decimals: 1 }), unit: `Ton (${coilStripMetrics.totalQty} Roll)` },
+                  { label: 'Saldo Induk Coil', value: formatTon(coilStripMetrics.coilTon, { decimals: 1 }), unit: `Ton (${coilStripMetrics.coilQty} Roll)`, valueClassName: 'text-sky-700' },
+                  { label: 'Saldo Strip Siap Mill', value: formatTon(coilStripMetrics.stripTon, { decimals: 1 }), unit: `Ton (${coilStripMetrics.stripQty} Roll)`, valueClassName: 'text-[#006041]' },
+                  { label: 'Okupansi Area Induk', value: coilStripMetrics.occ, unit: '%' },
+                ]}
+              />
 
               {/* Chart Coil Area */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900 mb-3">Distribusi Bahan Baku per Area Gudang</h4>
+              <div className="fore-card p-5">
+                <h4 className="text-sm font-extrabold text-[#1a4034] mb-3">Distribusi Bahan Baku per Area Gudang</h4>
                 <div className="h-64">
                   <Bar
                     data={coilAreaChartData}
@@ -1709,40 +1652,18 @@ export default function WeeklyAnalyticsView({
           {/* ========================================================================= */}
           {activeSubTab === 'nc_stock' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Pipa NC Karantina</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-rose-700">{formatTon(ncStockMetrics.totalNC, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton ({ncStockMetrics.ncRatio}% stok)</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Grade C (Defect Mutu Ringan)</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-amber-700">{formatTon(ncStockMetrics.totalGradeC, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Grade E (Reject / Karat)</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-rose-700">{formatTon(ncStockMetrics.totalGradeE, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Item NC Tercatat</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{ncStockMetrics.totalItemsCount}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Line Item</span>
-                  </div>
-                </div>
-              </div>
+              <WeeklyMetricStrip
+                items={[
+                  { label: 'Total Pipa NC Karantina', value: formatTon(ncStockMetrics.totalNC, { decimals: 1 }), unit: `Ton (${ncStockMetrics.ncRatio}% stok)`, valueClassName: 'text-rose-600' },
+                  { label: 'Grade C (Defect Mutu Ringan)', value: formatTon(ncStockMetrics.totalGradeC, { decimals: 1 }), unit: 'Ton', valueClassName: 'text-amber-700' },
+                  { label: 'Grade E (Reject / Karat)', value: formatTon(ncStockMetrics.totalGradeE, { decimals: 1 }), unit: 'Ton', valueClassName: 'text-rose-600' },
+                  { label: 'Total Item NC Tercatat', value: ncStockMetrics.totalItemsCount, unit: 'Line Item' },
+                ]}
+              />
 
               {/* Chart Sebaran Prime vs NC */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900 mb-3">Distribusi Mutu Pipa per Gudang (Prime vs Grade C vs Grade E)</h4>
+              <div className="fore-card p-5">
+                <h4 className="text-sm font-extrabold text-[#1a4034] mb-3">Distribusi Mutu Pipa per Gudang (Prime vs Grade C vs Grade E)</h4>
                 <div className="h-64">
                   <Bar
                     data={ncStackedChartData}
@@ -1963,36 +1884,14 @@ export default function WeeklyAnalyticsView({
           {/* ========================================================================= */}
           {activeSubTab === 'loo' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Kebutuhan LOO</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{formatTon(looMetrics.totalLooTon, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton ({looMetrics.count} Order)</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Stok Alokasi Siap Kirim</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-emerald-700">{formatTon(looMetrics.totalStockTon, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Defisit / Kurang Kirim</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-rose-600">{formatTon(looMetrics.totalKurangTon, { decimals: 1 })}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Tingkat Pemenuhan Order</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{looMetrics.fulfillmentRate}</span>
-                    <span className="text-xs text-slate-400 font-semibold">%</span>
-                  </div>
-                </div>
-              </div>
+              <WeeklyMetricStrip
+                items={[
+                  { label: 'Total Kebutuhan LOO', value: formatTon(looMetrics.totalLooTon, { decimals: 1 }), unit: `Ton (${looMetrics.count} Order)` },
+                  { label: 'Stok Alokasi Siap Kirim', value: formatTon(looMetrics.totalStockTon, { decimals: 1 }), unit: 'Ton', valueClassName: 'text-[#006041]' },
+                  { label: 'Defisit / Kurang Kirim', value: formatTon(looMetrics.totalKurangTon, { decimals: 1 }), unit: 'Ton', valueClassName: 'text-rose-600' },
+                  { label: 'Tingkat Pemenuhan Order', value: looMetrics.fulfillmentRate, unit: '%' },
+                ]}
+              />
 
               {/* Table LOO */}
               <TableCardContainer
@@ -2065,36 +1964,14 @@ export default function WeeklyAnalyticsView({
           {/* ========================================================================= */}
           {activeSubTab === 'unfifo' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Kasus UNFIFO</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-rose-700">{unfifoMetrics.totalCases}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Insiden Terdeteksi</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Pelanggaran Pipa</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{unfifoMetrics.pipeCount}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Kasus ({formatTon(unfifoMetrics.pipeTon, { decimals: 1 })} T)</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Pelanggaran Coil / Strip</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{unfifoMetrics.coilCount}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Kasus ({formatTon(unfifoMetrics.coilTon, { decimals: 1 })} T)</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Skor Kepatuhan FIFO</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-emerald-700">{unfifoMetrics.complianceScore}</span>
-                    <span className="text-xs text-slate-400 font-semibold">%</span>
-                  </div>
-                </div>
-              </div>
+              <WeeklyMetricStrip
+                items={[
+                  { label: 'Total Kasus UNFIFO', value: unfifoMetrics.totalCases, unit: 'Insiden', valueClassName: 'text-rose-600' },
+                  { label: 'Pelanggaran Pipa', value: unfifoMetrics.pipeCount, unit: `Kasus (${formatTon(unfifoMetrics.pipeTon, { decimals: 1 })} T)` },
+                  { label: 'Pelanggaran Coil / Strip', value: unfifoMetrics.coilCount, unit: `Kasus (${formatTon(unfifoMetrics.coilTon, { decimals: 1 })} T)` },
+                  { label: 'Skor Kepatuhan FIFO', value: unfifoMetrics.complianceScore, unit: '%', valueClassName: 'text-[#006041]' },
+                ]}
+              />
 
               {/* Table UNFIFO Pipa & Coil */}
               <TableCardContainer
@@ -2176,36 +2053,14 @@ export default function WeeklyAnalyticsView({
           {/* ========================================================================= */}
           {activeSubTab === 'packaging' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Box RTP Beredar</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">{packagingMetrics.totalStockBox.toLocaleString('id-ID')}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Box</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Buffer Surplus (&ge;130%)</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-emerald-700">{packagingMetrics.surplusCount}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Item Customer</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Buffer Defisit (&lt;100%)</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-rose-600">{packagingMetrics.defisitCount}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Customer Defisit</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Box Rusak (NG)</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-amber-700">{packagingMetrics.damagedCount}</span>
-                    <span className="text-xs text-slate-400 font-semibold">Box Teridentifikasi</span>
-                  </div>
-                </div>
-              </div>
+              <WeeklyMetricStrip
+                items={[
+                  { label: 'Total Box RTP Beredar', value: packagingMetrics.totalStockBox.toLocaleString('id-ID'), unit: 'Box' },
+                  { label: 'Buffer Surplus (≥130%)', value: packagingMetrics.surplusCount, unit: 'Customer', valueClassName: 'text-[#006041]' },
+                  { label: 'Buffer Defisit (<100%)', value: packagingMetrics.defisitCount, unit: 'Customer', valueClassName: 'text-rose-600' },
+                  { label: 'Total Box Rusak (NG)', value: packagingMetrics.damagedCount, unit: 'Box', valueClassName: 'text-amber-700' },
+                ]}
+              />
 
               {/* Table Packaging RTP Customer */}
               <TableCardContainer
@@ -2275,44 +2130,14 @@ export default function WeeklyAnalyticsView({
           {/* ========================================================================= */}
           {activeSubTab === 'productivity' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Volume Handling</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">
-                      {formatTon((report?.productivitySummary?.totalTonase ?? 0) / 1000, { decimals: 1 })}
-                    </span>
-                    <span className="text-xs text-slate-400 font-semibold">Ton</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Total Transaksi Ritase</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-sky-700">
-                      {(report?.productivitySummary?.totalTransaksi ?? 0).toLocaleString('id-ID')}
-                    </span>
-                    <span className="text-xs text-slate-400 font-semibold">Tx</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Rata-rata Output per Man</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-emerald-700">
-                      {(report?.productivitySummary?.avgKgPerMan ?? 0).toLocaleString('id-ID')}
-                    </span>
-                    <span className="text-xs text-slate-400 font-semibold">Kg/Man</span>
-                  </div>
-                </div>
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 block">Rata-rata Ritase per Man</span>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono text-slate-900">
-                      {report?.productivitySummary?.avgTxPerMan ?? 0}
-                    </span>
-                    <span className="text-xs text-slate-400 font-semibold">Tx/Man</span>
-                  </div>
-                </div>
-              </div>
+              <WeeklyMetricStrip
+                items={[
+                  { label: 'Total Volume Handling', value: formatTon((report?.productivitySummary?.totalTonase ?? 0) / 1000, { decimals: 1 }), unit: 'Ton' },
+                  { label: 'Total Transaksi Ritase', value: (report?.productivitySummary?.totalTransaksi ?? 0).toLocaleString('id-ID'), unit: 'Tx', valueClassName: 'text-sky-700' },
+                  { label: 'Rata-rata Output per Man', value: (report?.productivitySummary?.avgKgPerMan ?? 0).toLocaleString('id-ID'), unit: 'Kg/Man', valueClassName: 'text-[#006041]' },
+                  { label: 'Rata-rata Ritase per Man', value: report?.productivitySummary?.avgTxPerMan ?? 0, unit: 'Tx/Man' },
+                ]}
+              />
 
               {/* Table Gudang MB51 */}
               <TableCardContainer

@@ -45,7 +45,6 @@ import {
   ArrowUpRight,
   Sparkles,
   GitFork,
-  ChevronDown,
   Info,
   X,
   FileSpreadsheet,
@@ -68,13 +67,11 @@ import {
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 import {
   MenuBanner,
+  BannerSelect,
   BANNER_PRIMARY_BTN,
   BANNER_GLASS_BTN,
   BANNER_SEGMENT_WRAP,
   BANNER_SEGMENT_BTN,
-  BANNER_SELECT_WRAP,
-  BANNER_SELECT_CLS,
-  BANNER_SELECT_OPT_CLS,
 } from './MenuBanner';
 import { tooltipStyle } from '@/lib/chartTheme';
 import { moveCard, resizeCard } from '@/lib/cardLayout';
@@ -976,37 +973,27 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
         icon={GitFork}
         watermark="progres nc"
       >
-        <div className={BANNER_SELECT_WRAP}>
-          <Building2 className="h-3.5 w-3.5 text-[#d0d784] shrink-0" />
-          <select
-            value={selectedGudang}
-            onChange={(e) => {
-              const val = e.target.value;
-              setSelectedGudang(val);
-              if (activeChartFilter) {
-                if (val === 'ALL') {
-                  setActiveChartFilter(null);
-                } else {
-                  setActiveChartFilter({ ...activeChartFilter, gudang: val });
-                }
+        <BannerSelect
+          value={selectedGudang}
+          onChange={(val) => {
+            setSelectedGudang(val);
+            if (activeChartFilter) {
+              if (val === 'ALL') {
+                setActiveChartFilter(null);
+              } else {
+                setActiveChartFilter({ ...activeChartFilter, gudang: val });
               }
-            }}
-            title="Filter Berdasarkan Gudang"
-            aria-label="Filter Berdasarkan Gudang"
-            className={cn(
-              BANNER_SELECT_CLS,
-              selectedGudang !== 'ALL' && 'text-amber-300'
-            )}
-          >
-            <option value="ALL" className={BANNER_SELECT_OPT_CLS}>Semua Gudang</option>
-            {gudangList.map((g) => (
-              <option key={g} value={g} className={BANNER_SELECT_OPT_CLS}>
-                {g}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="h-3.5 w-3.5 text-[#d4e5e0] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+            }
+          }}
+          icon={Building2}
+          title="Filter Berdasarkan Gudang"
+          ariaLabel="Filter Berdasarkan Gudang"
+          highlightSelected={true}
+          options={[
+            { value: 'ALL', label: 'Semua Gudang' },
+            ...gudangList.map((g) => ({ value: g, label: g })),
+          ]}
+        />
 
         <div className={BANNER_SEGMENT_WRAP}>
           {(['ALL', 'LT', 'ST'] as const).map((t) => (
@@ -1230,66 +1217,41 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                             }}
                           />
                           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                            <span className="text-2xl font-extrabold font-tabular text-[#1a4034] tracking-tight">
                               {formatTon(donutChartData.totalTon, { decimals: 2 })}
                             </span>
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                            <span className="text-[10px] font-bold text-[#787470] uppercase tracking-widest mt-0.5">
                               TOTAL TON
                             </span>
                           </div>
                         </div>
 
-                        {/* Breakdown Pills List (Tonase) */}
-                        <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2 shrink-0">
-                          <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100" title="IN NC Grade C (309)">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
-                              <span className="text-[11px] font-medium text-slate-600 truncate">Grade C</span>
+                        {/* Clean Flat Breakdown Grid (Tonase) */}
+                        <div className="grid grid-cols-2 gap-x-5 gap-y-2 pt-3 border-t border-[#efece6] mt-2 shrink-0">
+                          {[
+                            { label: 'Grade C', title: 'IN NC Grade C (309)', dot: 'bg-blue-500', value: formatTon(donutChartData.totalNCInGradeCTon, { decimals: 2 }) },
+                            { label: 'Grade E', title: 'IN NC Grade E (309)', dot: 'bg-yellow-500', value: formatTon(donutChartData.totalNCInGradeETon, { decimals: 2 }) },
+                            { label: 'Repair 261', title: 'Bahan Repair (261)', dot: 'bg-orange-500', value: formatTon(donutChartData.totalOutRepTon, { decimals: 2 }) },
+                            { label: 'Hasil 101', title: 'Hasil Repair Prime (101)', dot: 'bg-emerald-500', value: formatTon(donutChartData.totalInPrimeTon, { decimals: 2 }) },
+                            { label: 'Reject Repair', title: 'Reject Repair (DG)', dot: 'bg-red-500', value: formatTon(donutChartData.totalRejectTon, { decimals: 2 }), span2: true },
+                          ].map((item) => (
+                            <div
+                              key={item.label}
+                              title={item.title}
+                              className={cn(
+                                'flex items-center justify-between gap-2 text-xs',
+                                item.span2 && 'col-span-2 pt-1.5 border-t border-[#efece6]'
+                              )}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className={cn('h-2 w-2 rounded-full shrink-0', item.dot)} />
+                                <span className="font-medium text-[#59575c] truncate">{item.label}</span>
+                              </div>
+                              <span className="font-tabular font-extrabold text-[#1a4034] whitespace-nowrap shrink-0">
+                                {item.value}
+                              </span>
                             </div>
-                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                              {formatTon(donutChartData.totalNCInGradeCTon, { decimals: 2 })}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100" title="IN NC Grade E (309)">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-yellow-500 shrink-0" />
-                              <span className="text-[11px] font-medium text-slate-600 truncate">Grade E</span>
-                            </div>
-                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                              {formatTon(donutChartData.totalNCInGradeETon, { decimals: 2 })}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100" title="Bahan Repair (261)">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
-                              <span className="text-[11px] font-medium text-slate-600 truncate">Repair 261</span>
-                            </div>
-                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                              {formatTon(donutChartData.totalOutRepTon, { decimals: 2 })}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100" title="Hasil Repair Prime (101)">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                              <span className="text-[11px] font-medium text-slate-600 truncate">Hasil 101</span>
-                            </div>
-                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                              {formatTon(donutChartData.totalInPrimeTon, { decimals: 2 })}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 col-span-2" title="Reject Repair (DG)">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
-                              <span className="text-[11px] font-medium text-slate-600 truncate">Reject Repair</span>
-                            </div>
-                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                              {formatTon(donutChartData.totalRejectTon, { decimals: 2 })}
-                            </span>
-                          </div>
+                          ))}
                         </div>
                       </div>
 
@@ -1327,66 +1289,41 @@ export const NCProgressView: React.FC<NCProgressViewProps> = ({
                             }}
                           />
                           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                            <span className="text-2xl font-extrabold font-tabular text-[#1a4034] tracking-tight">
                               {formatQty(donutChartData.totalQty)}
                             </span>
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                            <span className="text-[10px] font-bold text-[#787470] uppercase tracking-widest mt-0.5">
                               TOTAL PCS
                             </span>
                           </div>
                         </div>
 
-                        {/* Breakdown Pills List (Qty) */}
-                        <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 mt-2 shrink-0">
-                          <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100" title="IN NC Grade C (309)">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
-                              <span className="text-[11px] font-medium text-slate-600 truncate">Grade C</span>
+                        {/* Clean Flat Breakdown Grid (Qty) */}
+                        <div className="grid grid-cols-2 gap-x-5 gap-y-2 pt-3 border-t border-[#efece6] mt-2 shrink-0">
+                          {[
+                            { label: 'Grade C', title: 'IN NC Grade C (309)', dot: 'bg-blue-500', value: formatQty(donutChartData.totalNCInGradeCQty) },
+                            { label: 'Grade E', title: 'IN NC Grade E (309)', dot: 'bg-yellow-500', value: formatQty(donutChartData.totalNCInGradeEQty) },
+                            { label: 'Repair 261', title: 'Bahan Repair (261)', dot: 'bg-orange-500', value: formatQty(donutChartData.totalOutRepQty) },
+                            { label: 'Hasil 101', title: 'Hasil Repair Prime (101)', dot: 'bg-emerald-500', value: formatQty(donutChartData.totalInPrimeQty) },
+                            { label: 'Reject Repair', title: 'Reject Repair (DG)', dot: 'bg-red-500', value: formatQty(donutChartData.totalRejectQty), span2: true },
+                          ].map((item) => (
+                            <div
+                              key={item.label}
+                              title={item.title}
+                              className={cn(
+                                'flex items-center justify-between gap-2 text-xs',
+                                item.span2 && 'col-span-2 pt-1.5 border-t border-[#efece6]'
+                              )}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className={cn('h-2 w-2 rounded-full shrink-0', item.dot)} />
+                                <span className="font-medium text-[#59575c] truncate">{item.label}</span>
+                              </div>
+                              <span className="font-tabular font-extrabold text-[#1a4034] whitespace-nowrap shrink-0">
+                                {item.value}
+                              </span>
                             </div>
-                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                              {formatQty(donutChartData.totalNCInGradeCQty)} Pcs
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100" title="IN NC Grade E (309)">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-yellow-500 shrink-0" />
-                              <span className="text-[11px] font-medium text-slate-600 truncate">Grade E</span>
-                            </div>
-                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                              {formatQty(donutChartData.totalNCInGradeEQty)} Pcs
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100" title="Bahan Repair (261)">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
-                              <span className="text-[11px] font-medium text-slate-600 truncate">Repair 261</span>
-                            </div>
-                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                              {formatQty(donutChartData.totalOutRepQty)} Pcs
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100" title="Hasil Repair Prime (101)">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                              <span className="text-[11px] font-medium text-slate-600 truncate">Hasil 101</span>
-                            </div>
-                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                              {formatQty(donutChartData.totalInPrimeQty)} Pcs
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between p-1.5 px-2 rounded-md bg-slate-50/80 border border-slate-100 col-span-2" title="Reject Repair (DG)">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
-                              <span className="text-[11px] font-medium text-slate-600 truncate">Reject Repair</span>
-                            </div>
-                            <span className="text-[11px] font-mono font-bold text-slate-800 ml-1 shrink-0">
-                              {formatQty(donutChartData.totalRejectQty)} Pcs
-                            </span>
-                          </div>
+                          ))}
                         </div>
                       </div>
                     </div>

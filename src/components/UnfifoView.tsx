@@ -12,7 +12,6 @@ import {
   Disc,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   RotateCcw,
   Table2,
   Info,
@@ -35,11 +34,9 @@ import { formatTon, formatQty, cn } from '@/lib/utils';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 import {
   MenuBanner,
+  BannerSelect,
   BANNER_PRIMARY_BTN,
   BANNER_RESET_BTN,
-  BANNER_SELECT_WRAP,
-  BANNER_SELECT_CLS,
-  BANNER_SELECT_OPT_CLS,
 } from './MenuBanner';
 import { tooltipStyle } from '@/lib/chartTheme';
 import { moveCard, resizeCard } from '@/lib/cardLayout';
@@ -975,33 +972,27 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
         icon={Clock}
         watermark="unfifo"
       >
-        <div className={BANNER_SELECT_WRAP}>
-          <Warehouse className="h-3.5 w-3.5 text-[#d0d784] shrink-0" />
-          <select
-            value={activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang}
-            onChange={(e) => {
-              if (activeTab === 'pipe') {
-                handleGudangChange(e.target.value);
-              } else {
-                handleCoilGudangChange(e.target.value);
-              }
-            }}
-            className={BANNER_SELECT_CLS}
-            title="Filter Gudang"
-          >
-            <option value="ALL" className={BANNER_SELECT_OPT_CLS}>
-              Semua Gudang ({activeTab === 'pipe' ? availablePipeGudangs.length - 1 : availableCoilGudangs.length - 1})
-            </option>
-            {(activeTab === 'pipe' ? availablePipeGudangs : availableCoilGudangs)
+        <BannerSelect
+          value={activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang}
+          onChange={(val) => {
+            if (activeTab === 'pipe') {
+              handleGudangChange(val);
+            } else {
+              handleCoilGudangChange(val);
+            }
+          }}
+          icon={Warehouse}
+          title="Filter Gudang"
+          options={[
+            {
+              value: 'ALL',
+              label: `Semua Gudang (${activeTab === 'pipe' ? availablePipeGudangs.length - 1 : availableCoilGudangs.length - 1})`,
+            },
+            ...(activeTab === 'pipe' ? availablePipeGudangs : availableCoilGudangs)
               .filter((g) => g !== 'ALL')
-              .map((g) => (
-                <option key={g} value={g} className={BANNER_SELECT_OPT_CLS}>
-                  {g}
-                </option>
-              ))}
-          </select>
-          <ChevronDown className="h-3.5 w-3.5 text-[#d4e5e0] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+              .map((g) => ({ value: g, label: g })),
+          ]}
+        />
 
         {(activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang) !== 'ALL' && (
           <button

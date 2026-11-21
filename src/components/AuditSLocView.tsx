@@ -2017,10 +2017,10 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                   <>
                     <Doughnut data={donutChartData} options={donutChartOptions} />
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                      <span className="text-xl sm:text-2xl font-extrabold font-tabular text-[#1a4034] tracking-tight">
                         {summary.accuracyRate.toFixed(1)}%
                       </span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                      <span className="text-[10px] font-bold text-[#787470] uppercase tracking-widest mt-0.5">
                         AKURASI
                       </span>
                     </div>
@@ -2028,35 +2028,35 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
                 )}
               </div>
 
-              {/* Breakdown Pills List */}
-              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 mt-2">
-                <div className="flex flex-col items-center justify-center p-2 rounded-xl bg-gradient-to-b from-emerald-50/60 to-emerald-50/20 border border-emerald-100/90 shadow-2xs">
+              {/* Clean Flat 3-Column Breakdown Strip */}
+              <div className="grid grid-cols-3 divide-x divide-[#efece6] pt-3.5 border-t border-[#efece6] mt-2">
+                <div className="flex flex-col items-center justify-center px-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/30 shrink-0" />
-                    <span className="text-[11px] font-semibold text-emerald-800 truncate">Sesuai</span>
+                    <span className="h-2 w-2 rounded-full bg-[#006041] shrink-0" />
+                    <span className="text-[11px] font-semibold text-[#59575c] truncate">Sesuai</span>
                   </div>
-                  <span className="text-xs font-mono font-bold text-emerald-900 mt-1">
-                    {summary.matchingItems}
+                  <span className="text-sm font-extrabold font-tabular text-[#006041] mt-0.5">
+                    {formatQty(summary.matchingItems)}
                   </span>
                 </div>
 
-                <div className="flex flex-col items-center justify-center p-2 rounded-xl bg-gradient-to-b from-rose-50/60 to-rose-50/20 border border-rose-100/90 shadow-2xs">
+                <div className="flex flex-col items-center justify-center px-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-rose-500 shadow-xs shadow-rose-500/30 shrink-0" />
-                    <span className="text-[11px] font-semibold text-rose-800 truncate">Minus (-)</span>
+                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                    <span className="text-[11px] font-semibold text-[#59575c] truncate">Minus (-)</span>
                   </div>
-                  <span className="text-xs font-mono font-bold text-rose-900 mt-1">
-                    {summary.minusItems}
+                  <span className="text-sm font-extrabold font-tabular text-rose-600 mt-0.5">
+                    {formatQty(summary.minusItems)}
                   </span>
                 </div>
 
-                <div className="flex flex-col items-center justify-center p-2 rounded-xl bg-gradient-to-b from-amber-50/60 to-amber-50/20 border border-amber-100/90 shadow-2xs">
+                <div className="flex flex-col items-center justify-center px-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-amber-500 shadow-xs shadow-amber-500/30 shrink-0" />
-                    <span className="text-[11px] font-semibold text-amber-800 truncate">Plus (+)</span>
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-[11px] font-semibold text-[#59575c] truncate">Plus (+)</span>
                   </div>
-                  <span className="text-xs font-mono font-bold text-amber-900 mt-1">
-                    {summary.plusItems}
+                  <span className="text-sm font-extrabold font-tabular text-amber-700 mt-0.5">
+                    {formatQty(summary.plusItems)}
                   </span>
                 </div>
               </div>
