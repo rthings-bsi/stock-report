@@ -21,9 +21,21 @@ import {
   Calendar,
   X,
   Search,
+  ChevronDown,
+  RotateCcw,
   BarChart3
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import {
+  MenuBanner,
+  BANNER_PRIMARY_BTN,
+  BANNER_RESET_BTN,
+  BANNER_SEGMENT_WRAP,
+  BANNER_SEGMENT_BTN,
+  BANNER_SELECT_WRAP,
+  BANNER_SELECT_CLS,
+  BANNER_SELECT_OPT_CLS,
+} from './MenuBanner';
 import { tooltipStyle } from '@/lib/chartTheme';
 import { moveCard, resizeCard } from '@/lib/cardLayout';
 
@@ -1525,90 +1537,74 @@ export const FastSlowView: React.FC<FastSlowViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* Top Banner & Header */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
-            <Clock className="h-4.5 w-4.5" strokeWidth={2.4} />
-          </div>
-          <h1 className="text-base font-bold text-white font-sans tracking-tight">
-            Stock Pipa Fast Moving vs Slow Moving
-          </h1>
+      <MenuBanner
+        title="Stock Pipa Fast Moving vs Slow Moving"
+        icon={Clock}
+        watermark="pergerakan"
+      >
+        <div className={BANNER_SEGMENT_WRAP}>
+          {(['ALL', 'FG', 'WIP'] as const).map((t) => {
+            const isActive = selectedProcessType === t;
+            const label = t === 'ALL' ? 'Semua' : t;
+            return (
+              <button
+                key={`top-process-${t}`}
+                type="button"
+                onClick={() => setSelectedProcessType(t)}
+                className={BANNER_SEGMENT_BTN(isActive)}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* FILTERS */}
-        <div className="flex items-center gap-2.5 flex-wrap font-mono text-xs">
-          {/* PROCESS TYPE FILTER (ALL | FG | WIP) */}
-          <div className="flex items-center gap-1 bg-emerald-950/80 p-1 rounded-lg border border-emerald-700/80">
-            <span className="text-emerald-300 text-[10px] uppercase font-bold px-1.5 font-mono">Slow:</span>
-            {(['ALL', 'FG', 'WIP'] as const).map((t) => {
-              const isActive = selectedProcessType === t;
-              const label = t === 'ALL' ? 'Semua' : t;
-              return (
-                <button
-                  key={`top-process-${t}`}
-                  type="button"
-                  onClick={() => setSelectedProcessType(t)}
-                  className={`px-2.5 py-0.5 text-xs font-bold rounded-md transition-all cursor-pointer font-mono ${
-                    isActive
-                      ? t === 'FG'
-                        ? 'bg-emerald-500 text-slate-950 shadow-2xs font-extrabold'
-                        : t === 'WIP'
-                        ? 'bg-amber-400 text-slate-950 shadow-2xs font-extrabold'
-                        : 'bg-white text-emerald-950 shadow-2xs font-extrabold'
-                      : 'text-emerald-100 hover:text-white hover:bg-emerald-800/60'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* GUDANG SELECTOR */}
-          <div className="flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-700/80">
-            <Warehouse className="h-3.5 w-3.5 text-amber-300 shrink-0" />
-            <span className="text-emerald-300 text-[10px] uppercase font-bold">Gudang:</span>
-            <select
-              value={selectedGudang}
-              onChange={(e) => setSelectedGudang(e.target.value)}
-              className="bg-emerald-900 border border-emerald-700 text-white text-xs font-bold rounded px-1.5 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer"
-            >
-              <option value="ALL">Semua Gudang ({data.length})</option>
-              {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {(selectedGudang !== 'ALL' || selectedProcessType !== 'ALL') && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedGudang('ALL');
-                setSelectedProcessType('ALL');
-              }}
-              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
-            >
-              Reset Filter
-            </button>
-          )}
-
-          {onNavigateToWeekly && (
-            <button
-              type="button"
-              onClick={() => onNavigateToWeekly('fastslow')}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
-              title="Lihat Analisis Mingguan untuk Fast vs Slow Moving"
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
-              <span>Analisa Mingguan</span>
-            </button>
-          )}
+        <div className={BANNER_SELECT_WRAP}>
+          <Warehouse className="h-3.5 w-3.5 text-[#d0d784] shrink-0" />
+          <select
+            value={selectedGudang}
+            onChange={(e) => setSelectedGudang(e.target.value)}
+            className={BANNER_SELECT_CLS}
+            title="Filter Gudang"
+          >
+            <option value="ALL" className={BANNER_SELECT_OPT_CLS}>
+              Semua Gudang ({data.length})
+            </option>
+            {availableGudangs.filter((g) => g !== 'ALL').map((g) => (
+              <option key={g} value={g} className={BANNER_SELECT_OPT_CLS}>
+                {g}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="h-3.5 w-3.5 text-[#d4e5e0] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
-      </div>
+
+        {(selectedGudang !== 'ALL' || selectedProcessType !== 'ALL') && (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedGudang('ALL');
+              setSelectedProcessType('ALL');
+            }}
+            className={BANNER_RESET_BTN}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>Reset Filter</span>
+          </button>
+        )}
+
+        {onNavigateToWeekly && (
+          <button
+            type="button"
+            onClick={() => onNavigateToWeekly('fastslow')}
+            className={BANNER_PRIMARY_BTN}
+            title="Lihat Analisis Mingguan untuk Fast vs Slow Moving"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-[#006041]" />
+            <span>Analisa Mingguan</span>
+          </button>
+        )}
+      </MenuBanner>
 
       {/* CUSTOMIZABLE CARDS GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

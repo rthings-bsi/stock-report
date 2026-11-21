@@ -38,7 +38,6 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Layers,
   Building2,
   MapPin,
   Calendar,
@@ -48,6 +47,8 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import { MenuBanner, BANNER_PRIMARY_BTN } from './MenuBanner';
+import { VarianceKpiGrid } from './VarianceKpiGrid';
 import { tooltipStyleStrong, tooltipStyle } from '@/lib/chartTheme';
 import { moveCard, resizeCard } from '@/lib/cardLayout';
 
@@ -1583,172 +1584,32 @@ export const AuditSLocView: React.FC<AuditSLocViewProps> = ({
 
   return (
     <div className="space-y-4 font-sans text-slate-800 animate-in fade-in duration-200">
-      {/* Top Banner & Header */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
-            <MapPinCheck className="h-4.5 w-4.5" strokeWidth={2.4} />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-white font-sans tracking-tight">
-              Audit SLoc Harian
-            </h1>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 ml-auto">
-          <button
-            type="button"
-            onClick={handleExport}
-            title="Ekspor data ke Excel"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 text-emerald-100 hover:text-white border border-emerald-700 text-xs font-semibold transition-all cursor-pointer shadow-xs"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Export Excel</span>
-          </button>
-        </div>
-      </div>
+      <MenuBanner
+        title="Audit SLoc Harian"
+        icon={MapPinCheck}
+        watermark="audit sloc"
+      >
+        <button
+          type="button"
+          onClick={handleExport}
+          title="Ekspor data ke Excel"
+          className={BANNER_PRIMARY_BTN}
+        >
+          <Download className="h-3.5 w-3.5 text-[#006041]" />
+          <span>Export Excel</span>
+        </button>
+      </MenuBanner>
 
       {/* 2. Top 5 KPI Summary Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {/* Total Item */}
-        <div className="group relative bg-gradient-to-b from-slate-50/80 via-white to-white rounded-2xl p-4 border border-slate-200/90 shadow-xs hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Total Item Audit</span>
-            <div className="p-1.5 rounded-xl bg-slate-100 text-slate-600 border border-slate-200/60 group-hover:scale-110 transition-transform duration-200">
-              <Layers className="h-3.5 w-3.5 text-slate-500" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono tracking-tight text-slate-900">{formatQty(summary.totalItems)}</span>
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold font-mono bg-slate-100 text-slate-600 border border-slate-200/70">100%</span>
-          </div>
-          <div className="w-full bg-slate-100 rounded-full h-1 mt-2.5 overflow-hidden">
-            <div className="bg-slate-400 h-full rounded-full w-full" />
-          </div>
-          <p className="text-[10px] text-slate-400 mt-1.5 truncate">Total record audit SAP</p>
-        </div>
-
-        {/* Sesuai / Akurat */}
-        <div className="group relative bg-gradient-to-b from-emerald-50/70 via-emerald-50/20 to-white rounded-2xl p-4 border border-emerald-200/90 shadow-xs hover:shadow-md hover:border-emerald-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-emerald-700 text-xs font-medium">
-            <span>Sesuai (Akurat)</span>
-            <div className="p-1.5 rounded-xl bg-emerald-100 text-emerald-700 border border-emerald-200/80 group-hover:scale-110 transition-transform duration-200">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono tracking-tight text-emerald-700">{formatQty(summary.matchingItems)}</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-100 text-emerald-800 border border-emerald-300/80 shadow-2xs">
-              {summary.accuracyRate.toFixed(1)}%
-            </span>
-          </div>
-          <div className="w-full bg-emerald-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
-            <div
-              className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.max(0, summary.accuracyRate))}%` }}
-            />
-          </div>
-          <p className="text-[10px] text-emerald-600/80 mt-1.5 truncate">Selisih = 0 (SAP Final = Actual Final)</p>
-        </div>
-
-        {/* Selisih Minus */}
-        <div className="group relative bg-gradient-to-b from-rose-50/70 via-rose-50/20 to-white rounded-2xl p-4 border border-rose-200/90 shadow-xs hover:shadow-md hover:border-rose-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-rose-700 text-xs font-medium">
-            <span>Selisih Minus (-)</span>
-            <div className="p-1.5 rounded-xl bg-rose-100 text-rose-700 border border-rose-200/80 group-hover:scale-110 transition-transform duration-200">
-              <MinusCircle className="h-3.5 w-3.5 text-rose-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono tracking-tight text-rose-700">{formatQty(summary.minusItems)}</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-rose-100 text-rose-800 border border-rose-300/80 shadow-2xs">
-              -{formatTon(summary.totalMinusTon)} T
-            </span>
-          </div>
-          <div className="w-full bg-rose-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
-            <div
-              className="bg-rose-500 h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${summary.totalItems > 0 ? Math.min(100, (summary.minusItems / summary.totalItems) * 100) : 0}%`,
-              }}
-            />
-          </div>
-          <p className="text-[10px] text-rose-600/80 mt-1.5 truncate">Defisit (Actual Final &lt; SAP Final)</p>
-        </div>
-
-        {/* Selisih Plus */}
-        <div className="group relative bg-gradient-to-b from-amber-50/70 via-amber-50/20 to-white rounded-2xl p-4 border border-amber-200/90 shadow-xs hover:shadow-md hover:border-amber-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-amber-800 text-xs font-medium">
-            <span>Selisih Plus (+)</span>
-            <div className="p-1.5 rounded-xl bg-amber-100 text-amber-800 border border-amber-200/80 group-hover:scale-110 transition-transform duration-200">
-              <PlusCircle className="h-3.5 w-3.5 text-amber-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono tracking-tight text-amber-700">{formatQty(summary.plusItems)}</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-amber-100 text-amber-800 border border-amber-300/80 shadow-2xs">
-              +{formatTon(summary.totalPlusTon)} T
-            </span>
-          </div>
-          <div className="w-full bg-amber-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
-            <div
-              className="bg-amber-500 h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${summary.totalItems > 0 ? Math.min(100, (summary.plusItems / summary.totalItems) * 100) : 0}%`,
-              }}
-            />
-          </div>
-          <p className="text-[10px] text-amber-700/80 mt-1.5 truncate">Surplus (Actual Final &gt; SAP Final)</p>
-        </div>
-
-        {/* Net Variance */}
-        <div className="col-span-2 sm:col-span-1 group relative bg-gradient-to-b from-slate-50/90 via-white to-white rounded-2xl p-4 border border-slate-200/90 shadow-xs hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-600 text-xs font-medium">
-            <span>Net Variance</span>
-            <div className="p-1.5 rounded-xl bg-slate-100 text-slate-600 border border-slate-200/60 group-hover:scale-110 transition-transform duration-200">
-              <Scale className="h-3.5 w-3.5 text-slate-500" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span
-              className={cn(
-                'text-2xl font-bold font-mono tracking-tight',
-                summary.netVarianceTon < -0.01
-                  ? 'text-rose-700'
-                  : summary.netVarianceTon > 0.01
-                  ? 'text-amber-700'
-                  : 'text-emerald-700'
-              )}
-            >
-              {summary.netVarianceTon >= 0 ? '+' : ''}
-              {formatTon(summary.netVarianceTon)} T
-            </span>
-            <span
-              className={cn(
-                'px-2 py-0.5 rounded-full text-[11px] font-bold font-mono border shadow-2xs',
-                summary.netVarianceQty < 0
-                  ? 'bg-rose-100 text-rose-800 border-rose-300/80'
-                  : summary.netVarianceQty > 0
-                  ? 'bg-amber-100 text-amber-800 border-amber-300/80'
-                  : 'bg-emerald-100 text-emerald-800 border-emerald-300/80'
-              )}
-            >
-              {summary.netVarianceQty >= 0 ? '+' : ''}
-              {formatQty(summary.netVarianceQty)} Pcs
-            </span>
-          </div>
-          <div className="w-full bg-slate-100 rounded-full h-1 mt-2.5 overflow-hidden">
-            <div
-              className={cn(
-                'h-full rounded-full transition-all duration-500',
-                summary.netVarianceTon < 0 ? 'bg-rose-500 w-1/2' : summary.netVarianceTon > 0 ? 'bg-amber-500 w-1/2' : 'bg-emerald-500 w-full'
-              )}
-            />
-          </div>
-          <p className="text-[10px] text-slate-500 mt-1.5 truncate">Netto tonase selisih fisik vs SAP</p>
-        </div>
-      </div>
+      <VarianceKpiGrid
+        summary={summary}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        totalLabel="Total Item Audit"
+        totalDescription="Record audit SAP"
+        netDescription="Selisih fisik vs SAP"
+        pcsUnit="Pcs"
+      />
 
       {/* 3. Customizable Cards Grid (6 Widgets) */}
       <div className="grid grid-cols-12 gap-4">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -60,6 +60,14 @@ import {
 import { exportWeeklyAnalyticsToExcel } from '@/lib/exportWeeklyExcel';
 import { cn, formatTon, formatQty, formatPercent } from '@/lib/utils';
 import { tooltipStyleStrong } from '@/lib/chartTheme';
+import {
+  MenuBanner,
+  BANNER_PRIMARY_BTN,
+  BANNER_ICON_BTN,
+  BANNER_SELECT_WRAP,
+  BANNER_SELECT_CLS,
+  BANNER_SELECT_OPT_CLS,
+} from './MenuBanner';
 import {
   WarehousePipeCapacity,
   FastSlowPipe,
@@ -204,6 +212,8 @@ export default function WeeklyAnalyticsView({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<WeeklySubTab>(() => normalizeWeeklySubTab(activeWeeklySubTab));
+  const [isSubTabMenuOpen, setIsSubTabMenuOpen] = useState<boolean>(false);
+  const subTabMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (activeWeeklySubTab) {
@@ -211,8 +221,32 @@ export default function WeeklyAnalyticsView({
     }
   }, [activeWeeklySubTab]);
 
+  useEffect(() => {
+    if (!isSubTabMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (subTabMenuRef.current && !subTabMenuRef.current.contains(event.target as Node)) {
+        setIsSubTabMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsSubTabMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isSubTabMenuOpen]);
+
   const handleSelectSubTab = (tabId: WeeklySubTab) => {
     setActiveSubTab(tabId);
+    setIsSubTabMenuOpen(false);
     onWeeklySubTabChange?.(tabId);
   };
   const [fullscreenTable, setFullscreenTable] = useState<string | null>(null);
@@ -640,6 +674,9 @@ export default function WeeklyAnalyticsView({
     { id: 'productivity', label: 'Produktivitas Gudang', icon: Users, badge: `${formatTon((report?.productivitySummary?.totalTonase ?? 0) / 1000, { decimals: 0 })} Ton` },
   ] as const;
 
+  const activeSubTabItem = SUB_TABS.find((tab) => tab.id === activeSubTab) ?? SUB_TABS[0];
+  const ActiveSubTabIcon = activeSubTabItem.icon;
+
   return (
     <div className="space-y-3.5 pb-12">
       {/* Toast Notifikasi */}
@@ -650,63 +687,54 @@ export default function WeeklyAnalyticsView({
         </div>
       )}
 
-      {/* 1. TOP BANNER HEADER (Design System Spindo Deep Pine Green) */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200 shadow-2xs">
-            <BarChart3 className="h-4.5 w-4.5" strokeWidth={2.4} />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-white font-sans tracking-tight">
-              Analisis Mingguan
-            </h1>
-          </div>
+      {/* 1. TOP BANNER HEADER */}
+      <MenuBanner
+        title="Analisis Mingguan"
+        icon={BarChart3}
+        watermark="mingguan"
+      >
+        <div className={BANNER_SELECT_WRAP}>
+          <Calendar className="w-3.5 h-3.5 text-[#d0d784] shrink-0" />
+          <select
+            value={selectedWeekId}
+            onChange={(e) => handleWeekChange(e.target.value)}
+            disabled={isLoading || availableWeeks.length === 0}
+            className={BANNER_SELECT_CLS}
+            title="Pilih pekan analisa"
+          >
+            {availableWeeks.map((w) => (
+              <option key={w.id} value={w.id} className={BANNER_SELECT_OPT_CLS}>
+                {w.label}
+              </option>
+            ))}
+            {availableWeeks.length === 0 && (
+              <option value="" className={BANNER_SELECT_OPT_CLS}>Belum Ada Data Pekan</option>
+            )}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 text-[#d4e5e0] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          {/* Week Selector Dropdown */}
-          <div className="relative">
-            <select
-              value={selectedWeekId}
-              onChange={(e) => handleWeekChange(e.target.value)}
-              disabled={isLoading || availableWeeks.length === 0}
-              className="text-xs font-semibold text-emerald-100 bg-emerald-800/90 hover:bg-emerald-700/90 border border-emerald-700/80 rounded-xl px-3 py-1.5 appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-400/30 cursor-pointer shadow-2xs pr-8 transition-colors disabled:opacity-50"
-              title="Pilih pekan analisa"
-            >
-              {availableWeeks.map((w) => (
-                <option key={w.id} value={w.id} className="text-slate-900 bg-white font-sans">
-                  {w.label}
-                </option>
-              ))}
-              {availableWeeks.length === 0 && (
-                <option value="" className="text-slate-900 bg-white">Belum Ada Data Pekan</option>
-              )}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-emerald-300 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
+        <button
+          type="button"
+          onClick={() => fetchWeeklyData(selectedWeekId)}
+          disabled={isLoading}
+          title="Segarkan data analisis"
+          className={BANNER_ICON_BTN}
+        >
+          <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
+        </button>
 
-          {/* Refresh Button */}
-          <button
-            onClick={() => fetchWeeklyData(selectedWeekId)}
-            disabled={isLoading}
-            title="Segarkan data analisis"
-            className="p-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700/90 text-emerald-100 border border-emerald-700/80 transition-colors disabled:opacity-40 cursor-pointer"
-          >
-            <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
-          </button>
-
-          {/* Export Excel Button */}
-          <button
-            onClick={handleExportExcel}
-            disabled={isLoading || !report}
-            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700/90 text-emerald-100 font-semibold text-xs transition-colors border border-emerald-700/80 disabled:opacity-40 cursor-pointer shadow-2xs"
-            title="Download Laporan Excel Mingguan Komprehensif"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
-            <span>Export Excel</span>
-          </button>
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={isLoading || !report}
+          className={BANNER_PRIMARY_BTN}
+          title="Download Laporan Excel Mingguan Komprehensif"
+        >
+          <FileSpreadsheet className="w-3.5 h-3.5 shrink-0 text-[#006041]" />
+          <span>Export Excel</span>
+        </button>
+      </MenuBanner>
 
       {/* Error state banner */}
       {error && (
@@ -728,8 +756,8 @@ export default function WeeklyAnalyticsView({
       {!isLoading && (
         <>
           {/* 2. TOP KPI COCKPIT LEDGER (5 Core Operational Pillars) */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+          <div className="fore-card overflow-hidden">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-[#efece6]">
               {/* Cockpit Card 1: Handling MB51 */}
               <div className="p-3.5 sm:p-4 flex flex-col justify-between hover:bg-slate-50/50 transition-colors">
                 <div>
@@ -896,39 +924,91 @@ export default function WeeklyAnalyticsView({
             </div>
           </div>
 
-          {/* 3. SEGMENTED SUB-TAB NAVIGATION (Horizontal Scroll with Status Badges) */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-2 sm:p-2.5">
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
-              {SUB_TABS.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeSubTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => handleSelectSubTab(tab.id as WeeklySubTab)}
+          {/* 3. SUB-TAB DROPDOWN NAVIGATION (Fore Organic Dropdown) */}
+          <div ref={subTabMenuRef} className="fore-card p-2.5 sm:p-3 flex items-center gap-3 relative z-30">
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#59575c] pl-1.5 shrink-0">
+              <Filter className="w-3.5 h-3.5 text-[#006041]" />
+              Modul Analisis
+            </span>
+            <div className="relative w-full sm:w-[400px]">
+              <button
+                type="button"
+                onClick={() => setIsSubTabMenuOpen((prev) => !prev)}
+                aria-haspopup="listbox"
+                aria-expanded={isSubTabMenuOpen}
+                className={cn(
+                  'w-full flex items-center justify-between gap-3 px-3.5 py-2 rounded-full border text-left transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#006041]/25',
+                  isSubTabMenuOpen
+                    ? 'bg-white border-[#006041] shadow-[0_8px_20px_-10px_rgba(0,96,65,0.35)]'
+                    : 'bg-[#faf8f5] border-[#e6e2db] hover:border-[#006041]/40 hover:bg-[#e7f0ee]/60'
+                )}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-7 h-7 rounded-full bg-[#006041] text-[#d0d784] flex items-center justify-center shrink-0">
+                    <ActiveSubTabIcon className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-[#222126] truncate">
+                    {activeSubTabItem.label}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] sm:text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#e7f0ee] text-[#006041] border border-[#006041]/15">
+                    {activeSubTabItem.badge}
+                  </span>
+                  <ChevronDown
                     className={cn(
-                      'inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap shrink-0',
-                      isActive
-                        ? 'bg-emerald-900 text-white shadow-xs font-bold'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 bg-slate-50/60 border border-slate-200/50'
+                      'w-4 h-4 text-[#59575c] transition-transform duration-150',
+                      isSubTabMenuOpen && 'rotate-180 text-[#006041]'
                     )}
-                  >
-                    <Icon className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-emerald-300' : 'text-slate-400')} />
-                    <span>{tab.label}</span>
-                    <span
-                      className={cn(
-                        'text-[10px] font-mono px-1.5 py-0.2 rounded-md font-bold',
-                        isActive
-                          ? 'bg-emerald-800 text-emerald-100 border border-emerald-700/60'
-                          : 'bg-white text-slate-500 border border-slate-200/60'
-                      )}
-                    >
-                      {tab.badge}
-                    </span>
-                  </button>
-                );
-              })}
+                  />
+                </div>
+              </button>
+
+              {isSubTabMenuOpen && (
+                <div
+                  role="listbox"
+                  aria-label="Pilih Modul Analisis Mingguan"
+                  className="absolute left-0 right-0 sm:right-auto sm:w-[420px] top-full mt-2 max-h-[380px] overflow-y-auto rounded-[20px] bg-white border border-[#e6e2db] shadow-[0_18px_40px_-12px_rgba(34,33,38,0.18)] p-1.5 z-50 space-y-1"
+                >
+                  {SUB_TABS.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeSubTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isActive}
+                        onClick={() => handleSelectSubTab(tab.id as WeeklySubTab)}
+                        className={cn(
+                          'w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-[14px] text-xs transition-all duration-100 cursor-pointer text-left',
+                          isActive
+                            ? 'bg-[#006041] text-white font-bold shadow-[0_4px_12px_-4px_rgba(0,96,65,0.4)]'
+                            : 'text-[#222126] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold'
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-[#d0d784]' : 'text-[#8c8882]')} />
+                          <span className="truncate">{tab.label}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className={cn(
+                              'text-[10px] font-mono px-2 py-0.5 rounded-full font-bold',
+                              isActive
+                                ? 'bg-white/15 text-white border border-white/20'
+                                : 'bg-[#faf8f5] text-[#59575c] border border-[#e6e2db]'
+                            )}
+                          >
+                            {tab.badge}
+                          </span>
+                          <Check className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-[#d0d784] opacity-100' : 'opacity-0')} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 

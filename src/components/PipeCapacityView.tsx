@@ -10,6 +10,8 @@ import { WarehousePipeCapacity } from '../types/warehouse';
 import { formatTon, formatPercent, formatQty, cn } from '@/lib/utils';
 import { BarChart3, TrendingUp, Table2, Users, PieChart, ArrowUpDown, ArrowUp, ArrowDown, Warehouse } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import { MenuBanner, BANNER_PRIMARY_BTN } from './MenuBanner';
+import { tooltipStyle } from '@/lib/chartTheme';
 
 ChartJS.register(...registerables);
 
@@ -163,9 +165,9 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
         type: 'bar' as const,
         label: 'Kapasitas (Ton)',
         data: data.map((d) => d.kapasitas),
-        backgroundColor: '#e2e8f0',
-        hoverBackgroundColor: '#cbd5e1',
-        borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 },
+        backgroundColor: '#e6e2db',
+        hoverBackgroundColor: '#d5cfc5',
+        borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
         borderSkipped: false,
         yAxisID: 'y',
         order: 3,
@@ -175,16 +177,16 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
         label: 'Stock Aktual (Ton)',
         data: data.map((d) => d.stock),
         backgroundColor: data.map((d) => {
-          if (d.persenTerisi > 90) return '#ef4444';
-          if (d.persenTerisi > 80) return '#f59e0b';
-          return '#059669';
-        }),
-        hoverBackgroundColor: data.map((d) => {
           if (d.persenTerisi > 90) return '#dc2626';
           if (d.persenTerisi > 80) return '#d97706';
-          return '#047857';
+          return '#006041';
         }),
-        borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 },
+        hoverBackgroundColor: data.map((d) => {
+          if (d.persenTerisi > 90) return '#b91c1c';
+          if (d.persenTerisi > 80) return '#b45309';
+          return '#1a4034';
+        }),
+        borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
         borderSkipped: false,
         yAxisID: 'y',
         order: 2,
@@ -203,8 +205,8 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
       legend: {
         position: 'bottom' as const,
         labels: {
-          font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 12, weight: 600 as const },
-          color: '#475569',
+          font: { family: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif', size: 12, weight: 600 as const },
+          color: '#59575c',
           usePointStyle: true,
           pointStyle: 'circle' as const,
           boxWidth: 8,
@@ -213,14 +215,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
         },
       },
       tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-        titleFont: { family: 'ui-sans-serif, system-ui, sans-serif', size: 12, weight: 700 as const },
-        bodyFont: { family: 'ui-sans-serif, system-ui, sans-serif', size: 11, weight: 500 as const },
-        padding: 12,
-        cornerRadius: 10,
-        boxPadding: 4,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
+        ...tooltipStyle,
         callbacks: {
           label: function (context: any) {
             const val = context.raw || 0;
@@ -235,15 +230,15 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
     scales: {
       x: {
         grid: { display: false },
-        ticks: { font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 11, weight: 600 as const }, color: '#475569' },
+        ticks: { font: { family: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif', size: 11, weight: 600 as const }, color: '#59575c' },
       },
       y: {
         type: 'linear' as const,
         display: true,
         position: 'left' as const,
         max: 1000,
-        grid: { color: '#f1f5f9' },
-        ticks: { font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 10, weight: 500 as const }, color: '#94a3b8', stepSize: 250 },
+        grid: { color: '#f1eee9' },
+        ticks: { font: { family: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif', size: 10, weight: 500 as const }, color: '#8c8882', stepSize: 250 },
       },
       y1: {
         type: 'linear' as const,
@@ -252,7 +247,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
         max: 150,
         grid: { drawOnChartArea: false },
         ticks: {
-          font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 10, weight: 600 as const },
+          font: { family: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif', size: 10, weight: 600 as const },
           color: '#d97706',
           stepSize: 50,
           callback: (value: any) => `${value}%`,
@@ -263,28 +258,23 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner & Header */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
-            <Warehouse className="h-4.5 w-4.5" strokeWidth={2.4} />
-          </div>
-          <h1 className="text-base font-bold text-white font-sans tracking-tight">
-            Stock Warehouse vs Kapasitas (Pipa)
-          </h1>
-        </div>
+      <MenuBanner
+        title="Stock Warehouse vs Kapasitas (Pipa)"
+        icon={Warehouse}
+        watermark="kapasitas"
+      >
         {onNavigateToWeekly && (
           <button
             type="button"
             onClick={() => onNavigateToWeekly('capacity')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+            className={BANNER_PRIMARY_BTN}
             title="Lihat Analisis Mingguan untuk Stok Pipa & Kapasitas"
           >
-            <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+            <BarChart3 className="w-3.5 h-3.5 text-[#006041]" />
             <span>Analisa Mingguan</span>
           </button>
         )}
-      </div>
+      </MenuBanner>
 
       {/* CUSTOMIZABLE CARDS GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -305,7 +295,7 @@ export const PipeCapacityView: React.FC<PipeCapacityViewProps> = ({
                 onMoveRight={() => handleMove(index, 'right')}
                 onWidthChange={(w) => handleWidthChange(card.id, w)}
                 badge={
-                  <span className="text-[10px] font-mono bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded border border-slate-300">
+                  <span className="fore-dashed-pill text-[10px] font-bold px-2.5 py-0.5">
                     Per Gudang
                   </span>
                 }

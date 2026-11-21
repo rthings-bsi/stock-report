@@ -85,22 +85,22 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
 
   if (isExpanded) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-3 lg:p-4 animate-in fade-in duration-150">
-        <div className="flex flex-col w-full h-full max-w-[98vw] 2xl:max-w-[1880px] rounded-2xl border border-slate-300 bg-white shadow-2xl overflow-hidden">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#18191f]/60 backdrop-blur-xs p-2 sm:p-3 lg:p-4 animate-in fade-in duration-150">
+        <div className="flex flex-col w-full h-full max-w-[98vw] 2xl:max-w-[1880px] rounded-[24px] border border-[#e6e2db] bg-white shadow-2xl overflow-hidden">
           {/* Expanded Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50/90 backdrop-blur-xs shrink-0 gap-3">
+          <div className="flex items-center justify-between border-b border-[#efece6] px-6 py-4 bg-[#faf8f5] shrink-0 gap-3">
             <div className="flex items-center gap-3 min-w-0">
               {Icon && (
-                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200/80 shadow-2xs shrink-0">
+                <div className="h-9 w-9 rounded-full bg-[#e7f0ee] text-[#006041] border border-[#cde0d9] flex items-center justify-center shrink-0">
                   <Icon className="h-4 w-4" />
                 </div>
               )}
               <div className="min-w-0">
-                <h3 className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900 truncate">
+                <h3 className="text-sm sm:text-base font-extrabold tracking-tight text-[#1a4034] truncate">
                   {title}
                 </h3>
                 {subtitle && (
-                  <p className="text-xs text-slate-500 font-mono truncate mt-0.5">
+                  <p className="text-xs text-[#787470] font-medium truncate mt-0.5">
                     {subtitle}
                   </p>
                 )}
@@ -112,10 +112,10 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
               <button
                 type="button"
                 onClick={() => setIsExpanded(false)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer shadow-2xs transition-all active:scale-95"
+                className="fore-pill-outline flex items-center gap-1.5 px-4 py-1.5 text-xs cursor-pointer active:scale-95"
                 title="Tutup mode layar penuh (Esc)"
               >
-                <Minimize2 className="h-3.5 w-3.5 text-slate-500" />
+                <Minimize2 className="h-3.5 w-3.5" />
                 <span>Tutup Layar Penuh</span>
               </button>
             </div>
@@ -131,48 +131,49 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
 
   return (
     <div
-      className={`border transition-all duration-200 bg-white shadow-xs hover:shadow-md flex flex-col justify-between overflow-hidden rounded-2xl min-w-0 ${
+      data-card-id={id}
+      className={`fore-card flex flex-col justify-between overflow-hidden min-w-0 ${
         isCustomizing
-          ? 'border-emerald-600 ring-2 ring-emerald-600/20'
-          : 'border-slate-200/90 hover:border-slate-300'
+          ? 'border-[#006041]! ring-2 ring-[#006041]/20'
+          : ''
       } ${COL_SPAN_MAP[width] || 'col-span-12'}`}
     >
-      {/* Header Card */}
-      <div className="border-b border-slate-100 px-4 py-3 bg-slate-50/80 backdrop-blur-xs flex items-center justify-between gap-2">
+      {/* Header Card (Fore warm linen porcelain tint) */}
+      <div className="border-b border-[#efece6] px-5 py-3.5 bg-[#faf8f5]/90 flex items-center justify-between gap-2.5">
         <div className="flex items-center gap-2.5 min-w-0">
           {isCustomizing && (
-            <div className="text-emerald-700 cursor-grab active:cursor-grabbing p-0.5">
+            <div className="text-[#006041] cursor-grab active:cursor-grabbing p-0.5">
               <GripVertical className="h-4 w-4" />
             </div>
           )}
           {Icon && (
-            <div className="p-1.5 rounded-xl bg-white text-slate-700 border border-slate-200/80 shadow-2xs shrink-0">
+            <div className="h-8 w-8 rounded-full bg-[#e7f0ee] text-[#006041] flex items-center justify-center shrink-0">
               <Icon className="h-3.5 w-3.5" />
             </div>
           )}
           <div className="min-w-0">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 truncate">
+            <h3 className="text-[13px] font-extrabold tracking-tight text-[#1a4034] truncate">
               {title}
             </h3>
             {subtitle && (
-              <p className="text-[10px] text-slate-500 font-mono truncate">
+              <p className="text-[11px] text-[#787470] font-medium truncate mt-0.5">
                 {subtitle}
               </p>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0 font-mono">
+        <div className="flex items-center gap-1.5 shrink-0">
           {badge}
           {headerAction}
 
           {/* Tombol Kustomisasi Layout */}
           {isCustomizing && (
-            <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-1 bg-white p-0.5 rounded-full border border-[#e6e2db]">
               <select
                 value={width}
                 onChange={(e) => onWidthChange && onWidthChange(e.target.value as CardWidth)}
-                className="text-[10px] font-bold text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded-lg border border-slate-200 cursor-pointer focus:outline-hidden"
+                className="text-[10px] font-bold text-[#1a4034] bg-[#f4f2ef] px-2 py-0.5 rounded-full border border-[#e6e2db] cursor-pointer focus:outline-hidden"
               >
                 {WIDTH_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -186,7 +187,7 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
                 disabled={!canMoveLeft}
                 onClick={onMoveLeft}
                 title="Pindahkan ke atas / kiri"
-                className="p-1 rounded-lg hover:bg-slate-100 text-slate-600 disabled:opacity-30 cursor-pointer"
+                className="p-1 rounded-full hover:bg-[#e7f0ee] text-[#1a4034] disabled:opacity-30 cursor-pointer"
               >
                 <ChevronLeft className="h-3 w-3" />
               </button>
@@ -196,27 +197,27 @@ export const CustomizableCard: React.FC<CustomizableCardProps> = ({
                 disabled={!canMoveRight}
                 onClick={onMoveRight}
                 title="Pindahkan ke bawah / kanan"
-                className="p-1 rounded-lg hover:bg-slate-100 text-slate-600 disabled:opacity-30 cursor-pointer"
+                className="p-1 rounded-full hover:bg-[#e7f0ee] text-[#1a4034] disabled:opacity-30 cursor-pointer"
               >
                 <ChevronRight className="h-3 w-3" />
               </button>
             </div>
           )}
 
-          {/* Tombol Maximize/Expand */}
+          {/* Tombol Expand Layar Penuh */}
           <button
             type="button"
             onClick={() => setIsExpanded(true)}
-            title="Tampilkan layar penuh"
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            title="Perbesar kartu ke layar penuh"
+            className="h-7 w-7 rounded-full border border-[#e6e2db] bg-white text-[#787470] hover:text-[#006041] hover:border-[#006041]/40 hover:bg-[#e7f0ee]/60 flex items-center justify-center transition-all cursor-pointer shrink-0"
           >
             <Maximize2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Card Content Body */}
-      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
+      {/* Body Card */}
+      <div className="p-4 sm:p-5 flex-1 flex flex-col min-h-0">
         {typeof children === 'function' ? children(false) : children}
       </div>
     </div>

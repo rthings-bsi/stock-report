@@ -65,31 +65,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col lg:flex-row font-sans selection:bg-[#16805c] selection:text-white bg-white">
+    <div className="min-h-screen w-full flex flex-col lg:flex-row font-sans selection:bg-[#006041] selection:text-white bg-[#f4f2ef]">
 
       {/* =========================================================================
-          LEFT PANE: DESKTOP BRAND SHOWCASE (Clean Mint/Sky Tint with Spindo Assets)
+          LEFT PANE: FORE-INSPIRED EDITORIAL WARM LINEN SHOWCASE
           ========================================================================= */}
-      <div
-        className="relative hidden lg:flex lg:w-[56%] xl:w-[58%] p-8 xl:p-14 flex-col justify-between overflow-hidden text-slate-800 min-h-screen border-r border-slate-200/70"
-        style={{
-          background:
-            'linear-gradient(135deg, #ffffff 0%, #f7fbff 38%, #edf7ff 72%, #e3f2ff 100%)'
-        }}
-      >
+      <div className="relative hidden lg:flex lg:w-[56%] xl:w-[58%] p-8 xl:p-14 flex-col justify-between overflow-hidden text-[#222126] min-h-screen bg-[#f4f2ef] border-r border-[#e6e2db]">
 
-        {/* Subtle background gradient overlay for soft depth */}
+        {/* Soft botanical organic circle halo (echoing Fore's hero visual pedestal) */}
         <div
-          className="absolute inset-0 pointer-events-none opacity-50"
-          style={{
-            background:
-              'radial-gradient(circle at 12% 20%, rgba(209, 250, 229, 0.42) 0%, transparent 46%), radial-gradient(circle at 88% 66%, rgba(186, 230, 253, 0.45) 0%, transparent 55%)'
-          }}
+          className="pointer-events-none absolute -right-24 bottom-10 h-[520px] w-[520px] rounded-full bg-[#e7f0ee]/80 blur-2xl"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute -left-24 top-20 h-[340px] w-[340px] rounded-full bg-[#d0d784]/18 blur-3xl"
+          aria-hidden="true"
         />
 
         {/* TOP HEADER */}
         <div className="relative z-10 flex items-center justify-between">
-          {/* Logo & Company Name */}
+          {/* Logo & Company Name (SPINDO logo preserved unaltered) */}
           <div className="flex items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -97,70 +92,72 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               alt="SPINDO Logo"
               className="h-10 w-auto object-contain"
             />
-            <div className="h-7 w-[1.5px] bg-slate-300 mx-3.5" />
-            <div className="text-xs font-semibold text-slate-700 leading-tight">
-              <span className="block">PT Steel Pipe Industry</span>
-              <span className="block text-slate-500 font-normal">of Indonesia</span>
+            <div className="h-7 w-[1px] bg-[#d5cfc5] mx-3.5" />
+            <div className="text-xs font-semibold text-[#1e4a3c] leading-tight">
+              <span className="block font-bold">PT Steel Pipe Industry</span>
+              <span className="block text-[#787470] font-medium">of Indonesia • Unit 5 Karawang</span>
             </div>
-          </div>
-
-          {/* Monitoring Gudang Pill Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 backdrop-blur-xs border border-emerald-200/70 text-xs font-semibold text-slate-700 shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
-            <span>Monitoring Gudang</span>
           </div>
         </div>
 
         {/* CENTER HERO & FEATURES */}
         <div className="relative z-10 my-auto py-6 xl:py-10 space-y-6 max-w-xl">
-          {/* Green Top Accent Bar */}
-          <div className="w-12 h-1.5 rounded-full bg-[#16805c]" />
+          {/* Wide-tracked editorial eyebrow (Fore APP kicker rhythm) */}
+          <div className="relative z-10 flex items-center gap-3">
+            <span className="inline-block w-8 h-[2px] rounded-full bg-[#97a259]" />
+            <span className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#1e4a3c]">
+              Warehouse Analytics
+            </span>
+          </div>
 
-          {/* Main Title */}
-          <div className="space-y-1">
-            <h1 className="text-5xl xl:text-[60px] font-black tracking-tight leading-[1.08] select-none">
-              <span className="block text-[#022854]">Pergerakan</span>
-              <span className="block text-[#16805c]">Barang</span>
+          {/* Main Display Title with Fore-inspired hollow watermark sweeping behind top edge */}
+          <div className="relative space-y-1">
+            <div
+              aria-hidden="true"
+              className="fore-watermark absolute -top-9 -left-2 text-[74px] xl:text-[90px] font-extrabold tracking-[-0.04em] leading-none whitespace-nowrap opacity-80"
+            >
+              spindo unit 5
+            </div>
+            <h1 className="relative z-10 text-5xl xl:text-[64px] font-extrabold tracking-[-0.03em] leading-[1.04] select-none">
+              <span className="block text-[#1a4034]">Pergerakan</span>
+              <span className="block text-[#006041]">Barang.</span>
             </h1>
           </div>
 
-          {/* Description */}
-          <p className="text-slate-600 text-sm xl:text-base max-w-md font-normal leading-relaxed">
+          {/* Editorial Description in Fore Seed-Olive Accent */}
+          <p className="relative text-[#6f7a3c] text-[15px] xl:text-[17px] max-w-md font-medium leading-relaxed">
             Catat dan pantau seluruh pergerakan barang, kapasitas stok pipa, segregasi NC, dan mutasi packaging secara akurat.
           </p>
 
-          {/* Feature Highlights Row */}
-          <div className="flex flex-wrap items-center gap-6 xl:gap-8 pt-3">
-            {/* 1. Real-time */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-100/70 text-[#16805c] flex items-center justify-center shrink-0 border border-emerald-200/60 shadow-2xs">
-                <Clock className="h-5 w-5" strokeWidth={2.2} />
+          {/* Feature Highlights Row (Organic Fore White Cards on Linen) */}
+          <div className="relative grid grid-cols-3 gap-3 pt-2">
+            <div className="flex items-center gap-2.5 rounded-[18px] bg-white/95 border border-[#e6e2db] px-3.5 py-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+              <div className="w-9 h-9 rounded-full bg-[#e7f0ee] text-[#006041] flex items-center justify-center shrink-0">
+                <Clock className="h-4 w-4" strokeWidth={2.2} />
               </div>
-              <div>
-                <div className="text-sm font-bold text-slate-800 leading-tight">Real-time</div>
-                <div className="text-xs text-slate-500 leading-tight mt-0.5">Update langsung</div>
-              </div>
-            </div>
-
-            {/* 2. Multi-user */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-sky-100/70 text-[#0284c7] flex items-center justify-center shrink-0 border border-sky-200/60 shadow-2xs">
-                <Users className="h-5 w-5" strokeWidth={2.2} />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-slate-800 leading-tight">Multi-user</div>
-                <div className="text-xs text-slate-500 leading-tight mt-0.5">Akses peran</div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-[#1a4034] leading-tight truncate">Real-time</div>
+                <div className="text-[11px] text-[#787470] leading-tight mt-0.5 truncate">Update langsung</div>
               </div>
             </div>
 
-            {/* 3. SAP Import */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-100/70 text-[#16805c] flex items-center justify-center shrink-0 border border-emerald-200/60 shadow-2xs">
-                <FileSpreadsheet className="h-5 w-5" strokeWidth={2.2} />
+            <div className="flex items-center gap-2.5 rounded-[18px] bg-white/95 border border-[#e6e2db] px-3.5 py-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+              <div className="w-9 h-9 rounded-full bg-[#f4f6e8] text-[#75813f] flex items-center justify-center shrink-0 border border-[#d0d784]/60">
+                <Users className="h-4 w-4" strokeWidth={2.2} />
               </div>
-              <div>
-                <div className="text-sm font-bold text-slate-800 leading-tight">SAP Import</div>
-                <div className="text-xs text-slate-500 leading-tight mt-0.5">Otomatis</div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-[#1a4034] leading-tight truncate">Multi-user</div>
+                <div className="text-[11px] text-[#787470] leading-tight mt-0.5 truncate">Akses peran</div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 rounded-[18px] bg-white/95 border border-[#e6e2db] px-3.5 py-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+              <div className="w-9 h-9 rounded-full bg-[#e7f0ee] text-[#006041] flex items-center justify-center shrink-0">
+                <FileSpreadsheet className="h-4 w-4" strokeWidth={2.2} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-[#1a4034] leading-tight truncate">SAP Import</div>
+                <div className="text-[11px] text-[#787470] leading-tight mt-0.5 truncate">Otomatis</div>
               </div>
             </div>
           </div>
@@ -178,190 +175,173 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <img
             src="/warehouse-illustration.webp"
             alt="Spindo Warehouse and Pipes Illustration"
-            className="w-full h-[260px] xl:h-[300px] object-cover object-bottom origin-left scale-x-110 pointer-events-none saturate-125 contrast-105"
+            className="w-full h-[250px] xl:h-[290px] object-cover object-bottom origin-left scale-x-105 pointer-events-none saturate-110 contrast-105"
           />
-          {/* Fade the cropped caption area at the top into the pane */}
-          <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#f4faff] via-[#f4faff]/85 to-transparent" />
+          {/* Feather top & bottom edges seamlessly into Fore warm linen (#f4f2ef) */}
+          <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#f4f2ef] via-[#f4f2ef]/85 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#f4f2ef] via-[#f4f2ef]/60 to-transparent" />
         </div>
 
         {/* BOTTOM FOOTER */}
-        <div className="relative z-10 pt-4 flex items-center justify-between text-xs text-slate-500 font-mono">
+        <div className="relative z-10 pt-4 flex items-center justify-between text-xs text-[#1e4a3c]/80 font-medium">
           <span>&copy; 2026 SPINDO</span>
           <span>
-            Created by <strong className="text-slate-900 font-bold ml-0.5">Ricky Satria</strong>
+            Created by <strong className="text-[#1a4034] font-bold ml-0.5">Ricky Satria</strong>
           </span>
         </div>
       </div>
 
       {/* =========================================================================
-          RIGHT PANE / MOBILE VIEW: FORM LOGIN
+          RIGHT PANE / MOBILE VIEW: CLEAN PORCELAIN FORM LOGIN
           ========================================================================= */}
-      <div className="relative w-full lg:w-[44%] xl:w-[42%] min-h-screen flex flex-col justify-center items-center p-6 sm:p-10 lg:p-12 xl:p-16 overflow-hidden bg-[linear-gradient(155deg,#f3f9ff_0%,#ffffff_48%,#e8f4ff_100%)]">
+      <div className="relative w-full lg:w-[44%] xl:w-[42%] min-h-screen flex flex-col bg-white overflow-hidden">
 
-        {/* Decorative background accents */}
+        {/* Subtle warm botanical ambient corner accents */}
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-          <div className="absolute -right-28 -top-28 h-[420px] w-[420px] rounded-full bg-sky-200/25 blur-3xl" />
-          <div className="absolute -bottom-32 -left-24 h-[380px] w-[380px] rounded-full bg-emerald-200/20 blur-3xl" />
-          <div className="absolute bottom-0 right-0 h-72 w-72 translate-x-1/3 translate-y-1/3 rotate-12 bg-white/35" />
+          <div className="absolute -right-28 top-16 h-[340px] w-[340px] rounded-full bg-[#e7f0ee]/55 blur-3xl" />
+          <div className="absolute -bottom-32 -left-24 h-[340px] w-[340px] rounded-full bg-[#f4f2ef] blur-3xl" />
         </div>
 
-        {/* Mobile-Only Top Brand Bar */}
-        <div className="relative z-10 lg:hidden flex items-center justify-between w-full max-w-md mb-8 pb-4 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/spindo-logo.png"
-              alt="SPINDO Logo"
-              className="h-8 w-auto object-contain"
-            />
-            <div className="text-[11px] font-semibold text-slate-700 leading-tight">
-              <span className="block">PT Steel Pipe Industry</span>
-              <span className="block text-slate-500 font-normal">of Indonesia</span>
-            </div>
-          </div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-[10.5px] font-semibold text-emerald-900">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>Monitoring Gudang</span>
-          </div>
-        </div>
-
-        <div className="relative z-10 w-full max-w-[480px] xl:max-w-[520px] space-y-7">
-
-          {/* Brand mark above the greeting (desktop only; mobile has the top bar) */}
-          <div className="hidden lg:flex justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/spindo-logo.png"
-              alt="SPINDO Logo"
-              className="h-14 xl:h-16 w-auto object-contain"
-            />
-          </div>
-
-          {/* Greeting Header */}
-          <div className="space-y-2 text-center">
-            <h2 className="text-3xl sm:text-[40px] font-black text-[#022854] tracking-tight">
-              Halo
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 font-normal">
-              Pakai akun SPINDO kamu untuk masuk ke sistem
-            </p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5 pt-1">
-
-            {/* Error Notification */}
-            {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200/90 flex items-start gap-2.5 text-xs text-rose-800 animate-in fade-in zoom-in-95 duration-150 font-mono">
-                <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" strokeWidth={2} />
-                <span className="leading-snug">{errorMsg}</span>
-              </div>
-            )}
-
-            {/* Field: Username */}
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-bold text-slate-700 block text-left">
-                Username
-              </label>
-              <div className="relative">
-                <User className="h-4.5 w-4.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.8} />
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  value={username}
-                  onChange={(e) => {
-                    setUsername(e.target.value);
-                    setErrorMsg('');
-                  }}
-                  placeholder="admin"
-                  className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 shadow-2xs focus:border-[#16805c] focus:outline-hidden focus:ring-4 focus:ring-[#16805c]/10 transition-all placeholder:text-slate-400 font-mono"
-                />
+        <div className="relative z-10 flex-1 flex flex-col justify-center items-center p-6 sm:p-10 lg:p-12 xl:p-16">
+          {/* Mobile-Only Top Brand Bar */}
+          <div className="lg:hidden flex items-center justify-between w-full max-w-md mb-8 pb-4 border-b border-[#efece6]">
+            <div className="flex items-center gap-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/spindo-logo.png"
+                alt="SPINDO Logo"
+                className="h-8 w-auto object-contain"
+              />
+              <div className="text-[11px] font-bold text-[#1e4a3c] leading-tight">
+                <span className="block">PT Steel Pipe Industry</span>
+                <span className="block text-[#787470] font-medium">of Indonesia</span>
               </div>
             </div>
+          </div>
 
-            {/* Field: Password */}
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-bold text-slate-700 block text-left">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="h-4.5 w-4.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.8} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setErrorMsg('');
-                  }}
-                  placeholder="••••••••••"
-                  className="w-full pl-10 pr-11 py-3.5 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 shadow-2xs focus:border-[#16805c] focus:outline-hidden focus:ring-4 focus:ring-[#16805c]/10 transition-all placeholder:text-slate-400 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 transition-colors cursor-pointer"
-                  tabIndex={-1}
-                  aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4.5 w-4.5" strokeWidth={1.8} />
-                  ) : (
-                    <Eye className="h-4.5 w-4.5" strokeWidth={1.8} />
-                  )}
-                </button>
-              </div>
+          <div className="w-full max-w-[440px] space-y-7">
+            {/* Greeting Header */}
+            <div className="space-y-2 text-center">
+              <h2 className="text-4xl sm:text-[44px] font-extrabold text-[#006041] tracking-[-0.03em] leading-tight">
+                Halo
+              </h2>
+              <p className="text-xs sm:text-sm text-[#787470] font-medium">
+                Pakai akun SPINDO kamu untuk masuk ke dashboard gudang
+              </p>
             </div>
 
-            {/* Remember Me & Forgot Password Link */}
-            <div className="flex items-center justify-between text-xs pt-1">
-              <label className="inline-flex items-center gap-2 cursor-pointer select-none text-slate-600 hover:text-slate-900 font-sans">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-slate-300 text-[#16805c] focus:ring-[#16805c]/20 h-4 w-4 cursor-pointer accent-[#16805c]"
-                />
-                <span>Ingat Saya</span>
-              </label>
-
-              <a
-                href="https://wa.me/6287776216046?text=Halo%20Admin%2C%20saya%20ingin%20reset%20password%20akun%20Spindo%20Warehouse."
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#16805c] hover:text-[#116246] font-semibold hover:underline cursor-pointer"
-              >
-                Lupa Password?
-              </a>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full mt-2 py-4 px-4 rounded-xl bg-[#16805c] hover:bg-[#126c4d] active:bg-[#0e563e] text-white font-bold text-[15px] shadow-[0_12px_30px_-12px_rgba(22,128,92,0.55)] hover:shadow-lg hover:shadow-[#16805c]/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 group"
-            >
-              {isLoading ? (
-                <span className="animate-pulse">Memproses Masuk...</span>
-              ) : (
-                <>
-                  <span>Masuk</span>
-                  <ArrowRight className="h-4 w-4 text-emerald-100 group-hover:translate-x-1 transition-transform" strokeWidth={2.2} />
-                </>
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-5 pt-1">
+              {/* Error Notification */}
+              {errorMsg && (
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200/90 flex items-start gap-2.5 text-xs text-rose-800 animate-in fade-in zoom-in-95 duration-150 font-medium">
+                  <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" strokeWidth={2} />
+                  <span className="leading-snug">{errorMsg}</span>
+                </div>
               )}
-            </button>
-          </form>
 
-          {/* Mobile Footer Meta */}
-          <div className="lg:hidden text-center pt-6 border-t border-slate-100 text-[11px] font-mono text-slate-400">
-            <span>&copy; 2026 SPINDO &bull; Created by Ricky Satria</span>
+              {/* Field: Username */}
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-bold text-[#1a4034] block text-left">
+                  Username
+                </label>
+                <div className="relative">
+                  <User className="h-4.5 w-4.5 text-[#9d9992] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.8} />
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(e.target.value);
+                      setErrorMsg('');
+                    }}
+                    placeholder="admin"
+                    className="w-full pl-11 pr-4 py-3.5 rounded-2xl border border-[#ddd8cf] bg-[#faf8f5] text-sm text-[#222126] focus:bg-white focus:border-[#006041] focus:outline-hidden focus:ring-4 focus:ring-[#006041]/10 transition-all placeholder:text-[#a6a29a] font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Field: Password */}
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-bold text-[#1a4034] block text-left">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="h-4.5 w-4.5 text-[#9d9992] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.8} />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setErrorMsg('');
+                    }}
+                    placeholder="••••••••••"
+                    className="w-full pl-11 pr-12 py-3.5 rounded-2xl border border-[#ddd8cf] bg-[#faf8f5] text-sm text-[#222126] focus:bg-white focus:border-[#006041] focus:outline-hidden focus:ring-4 focus:ring-[#006041]/10 transition-all placeholder:text-[#a6a29a] font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#9d9992] hover:text-[#006041] p-1.5 rounded-full hover:bg-[#e7f0ee]/60 transition-colors cursor-pointer"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4.5 w-4.5" strokeWidth={1.8} />
+                    ) : (
+                      <Eye className="h-4.5 w-4.5" strokeWidth={1.8} />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Remember Me & Forgot Password Link */}
+              <div className="flex items-center justify-between text-xs pt-1">
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none text-[#59575c] hover:text-[#222126] font-medium">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-[#d5cfc5] text-[#006041] focus:ring-[#006041]/20 h-4 w-4 cursor-pointer accent-[#006041]"
+                  />
+                  <span>Ingat Saya</span>
+                </label>
+
+                <a
+                  href="https://wa.me/6287776216046?text=Halo%20Admin%2C%20saya%20ingin%20reset%20password%20akun%20Spindo%20Warehouse."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#006041] hover:text-[#1a4034] font-bold hover:underline cursor-pointer"
+                >
+                  Lupa Password?
+                </a>
+              </div>
+
+              {/* Fore Signature Full-Pill Primary CTA Button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="fore-pill-primary w-full mt-2 py-4 px-6 text-[15px] shadow-[0_12px_28px_-10px_rgba(0,96,65,0.48)] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 group"
+              >
+                {isLoading ? (
+                  <span className="animate-pulse">Memproses Masuk...</span>
+                ) : (
+                  <>
+                    <span>Masuk</span>
+                    <ArrowRight className="h-4 w-4 text-[#d0d784] group-hover:translate-x-1 transition-transform" strokeWidth={2.4} />
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Mobile Footer Meta */}
+            <div className="lg:hidden text-center pt-6 border-t border-[#efece6] text-[11px] font-medium text-[#787470]">
+              <span>&copy; 2026 SPINDO &bull; Created by Ricky Satria</span>
+            </div>
           </div>
-
         </div>
-
       </div>
-
     </div>
   );
 };

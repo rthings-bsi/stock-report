@@ -26,6 +26,7 @@ import {
   getStandarBuffer
 } from '@/lib/packagingMaster';
 import { cn } from '@/lib/utils';
+import { MenuBanner } from './MenuBanner';
 
 interface PackagingBufferSettingsViewProps {
   initialConfig?: Record<string, number>;
@@ -332,22 +333,11 @@ export const PackagingBufferSettingsView: React.FC<PackagingBufferSettingsViewPr
 
   return (
     <div className="space-y-3 sm:space-y-5 font-sans pb-16 sm:pb-0">
-      {/* 1. Top Banner & Header (Ultra Minimalist) */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
-            <Boxes className="h-4.5 w-4.5 text-amber-300" strokeWidth={2.4} />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-white font-sans tracking-tight">
-              Standar Buffer Stock Packaging (RTP)
-            </h1>
-            <div className="text-[10.5px] text-emerald-200/80 font-sans hidden sm:block">
-              Unit 5 Karawang • Plant 1105 &bull; Standar Kuota Kebutuhan Harian & Master Tipe Box
-            </div>
-          </div>
-        </div>
-      </div>
+      <MenuBanner
+        title="Standar Buffer Stock Packaging (RTP)"
+        icon={Boxes}
+        watermark="buffer rtp"
+      />
 
       {/* 2. KPI Summary & Rules Logic Callout */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">

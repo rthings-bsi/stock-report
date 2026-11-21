@@ -33,6 +33,14 @@ import {
 } from 'lucide-react';
 import { formatTon, formatQty, cn } from '@/lib/utils';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import {
+  MenuBanner,
+  BANNER_PRIMARY_BTN,
+  BANNER_RESET_BTN,
+  BANNER_SELECT_WRAP,
+  BANNER_SELECT_CLS,
+  BANNER_SELECT_OPT_CLS,
+} from './MenuBanner';
 import { tooltipStyle } from '@/lib/chartTheme';
 import { moveCard, resizeCard } from '@/lib/cardLayout';
 
@@ -962,106 +970,94 @@ export const UnfifoView: React.FC<UnfifoViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* Top Banner & Header */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200 shadow-2xs">
-            <Clock className="h-4.5 w-4.5" strokeWidth={2.4} />
-          </div>
-          <h1 className="text-base font-bold text-white font-sans tracking-tight">
-            Deviasi Alur Pengeluaran (UNFIFO)
-          </h1>
-        </div>
-
-        {/* FILTERS */}
-        <div className="flex items-center gap-2.5 flex-wrap font-mono text-xs">
-          {/* GUDANG SELECTOR */}
-          <div className="relative flex items-center gap-1.5 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-700/80 shadow-2xs">
-            <Warehouse className="h-3.5 w-3.5 text-amber-300 shrink-0" />
-            <span className="text-emerald-300 text-[10px] uppercase font-bold">Gudang:</span>
-            <div className="relative inline-flex items-center">
-              <select
-                value={activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang}
-                onChange={(e) => {
-                  if (activeTab === 'pipe') {
-                    handleGudangChange(e.target.value);
-                  } else {
-                    handleCoilGudangChange(e.target.value);
-                  }
-                }}
-                className="appearance-none bg-emerald-900/90 border border-emerald-700/90 text-white text-xs font-bold rounded-md pl-2 pr-6 py-0.5 focus:outline-hidden focus:ring-1 focus:ring-amber-400 cursor-pointer"
-              >
-                <option value="ALL">
-                  Semua Gudang ({activeTab === 'pipe' ? availablePipeGudangs.length - 1 : availableCoilGudangs.length - 1})
+      <MenuBanner
+        title="Deviasi Alur Pengeluaran (UNFIFO)"
+        icon={Clock}
+        watermark="unfifo"
+      >
+        <div className={BANNER_SELECT_WRAP}>
+          <Warehouse className="h-3.5 w-3.5 text-[#d0d784] shrink-0" />
+          <select
+            value={activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang}
+            onChange={(e) => {
+              if (activeTab === 'pipe') {
+                handleGudangChange(e.target.value);
+              } else {
+                handleCoilGudangChange(e.target.value);
+              }
+            }}
+            className={BANNER_SELECT_CLS}
+            title="Filter Gudang"
+          >
+            <option value="ALL" className={BANNER_SELECT_OPT_CLS}>
+              Semua Gudang ({activeTab === 'pipe' ? availablePipeGudangs.length - 1 : availableCoilGudangs.length - 1})
+            </option>
+            {(activeTab === 'pipe' ? availablePipeGudangs : availableCoilGudangs)
+              .filter((g) => g !== 'ALL')
+              .map((g) => (
+                <option key={g} value={g} className={BANNER_SELECT_OPT_CLS}>
+                  {g}
                 </option>
-                {(activeTab === 'pipe' ? availablePipeGudangs : availableCoilGudangs)
-                  .filter((g) => g !== 'ALL')
-                  .map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-              </select>
-              <ChevronDown className="absolute right-1.5 h-3 w-3 text-emerald-300 pointer-events-none" />
-            </div>
-          </div>
-
-          {(activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang) !== 'ALL' && (
-            <button
-              type="button"
-              onClick={() => {
-                if (activeTab === 'pipe') {
-                  handleGudangChange('ALL');
-                } else {
-                  handleCoilGudangChange('ALL');
-                }
-              }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
-            >
-              <RotateCcw className="h-3 w-3" />
-              <span>Reset Filter</span>
-            </button>
-          )}
-
-          {onNavigateToWeekly && (
-            <button
-              type="button"
-              onClick={() => onNavigateToWeekly('unfifo')}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
-              title="Lihat Analisis Mingguan untuk Deviasi UNFIFO"
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
-              <span>Analisa Mingguan</span>
-            </button>
-          )}
+              ))}
+          </select>
+          <ChevronDown className="h-3.5 w-3.5 text-[#d4e5e0] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
-      </div>
 
-      {/* 2 TAB NAVIGATION FOR TABLES */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-        <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 shadow-2xs font-mono">
+        {(activeTab === 'pipe' ? selectedPipeGudang : selectedCoilGudang) !== 'ALL' && (
+          <button
+            type="button"
+            onClick={() => {
+              if (activeTab === 'pipe') {
+                handleGudangChange('ALL');
+              } else {
+                handleCoilGudangChange('ALL');
+              }
+            }}
+            className={BANNER_RESET_BTN}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>Reset Filter</span>
+          </button>
+        )}
+
+        {onNavigateToWeekly && (
+          <button
+            type="button"
+            onClick={() => onNavigateToWeekly('unfifo')}
+            className={BANNER_PRIMARY_BTN}
+            title="Lihat Analisis Mingguan untuk Deviasi UNFIFO"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-[#006041]" />
+            <span>Analisa Mingguan</span>
+          </button>
+        )}
+      </MenuBanner>
+
+      {/* 2 TAB NAVIGATION FOR TABLES (Fore Pill Switcher) */}
+      <div className="flex items-center justify-between">
+        <div className="inline-flex p-1 bg-[#f4f2ef] rounded-full border border-[#e6e2db] shadow-2xs">
           <button
             type="button"
             onClick={() => setActiveTab('pipe')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'pipe'
-                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                ? 'bg-[#006041] text-white shadow-[0_4px_12px_-4px_rgba(0,96,65,0.45)]'
+                : 'text-[#59575c] hover:text-[#006041] hover:bg-[#e7f0ee]/70'
             }`}
           >
-            <Layers className="h-3.5 w-3.5 text-emerald-700" />
+            <Layers className={`h-3.5 w-3.5 ${activeTab === 'pipe' ? 'text-[#d0d784]' : 'text-[#006041]'}`} />
             <span>Data Pipa UNFIFO ({pipeData.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('coil')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'coil'
-                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                ? 'bg-[#006041] text-white shadow-[0_4px_12px_-4px_rgba(0,96,65,0.45)]'
+                : 'text-[#59575c] hover:text-[#006041] hover:bg-[#e7f0ee]/70'
             }`}
           >
-            <Disc className="h-3.5 w-3.5 text-amber-700" />
+            <Disc className={`h-3.5 w-3.5 ${activeTab === 'coil' ? 'text-[#d0d784]' : 'text-amber-700'}`} />
             <span>Data Coil &amp; Strip UNFIFO ({coilData.length})</span>
           </button>
         </div>

@@ -46,6 +46,11 @@ import {
   ArrowLeft,
   BarChart3
 } from 'lucide-react';
+import {
+  MenuBanner,
+  BANNER_PRIMARY_BTN,
+  BANNER_GLASS_BTN,
+} from './MenuBanner';
 
 interface IncomingPackagingViewProps {
   data?: IncomingPackagingItem[];
@@ -702,65 +707,56 @@ export const IncomingPackagingView: React.FC<IncomingPackagingViewProps> = ({
 
   return (
     <div className="space-y-3 sm:space-y-5 font-sans pb-16 sm:pb-0">
-      {/* Top Banner & Header */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
-            <PackagePlus className="h-4.5 w-4.5" strokeWidth={2.4} />
-          </div>
-          <h1 className="text-base font-bold text-white font-sans tracking-tight">
-            Audit Harian Packaging (RTP)
-          </h1>
-        </div>
-
-        {/* Action Toolbar */}
-        <div className="flex items-center gap-2 ml-auto font-mono text-xs">
-          {onOpenBufferSettings && (
-            <button
-              type="button"
-              onClick={onOpenBufferSettings}
-              className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-800 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
-              title="Atur Standar Kebutuhan Buffer Stock Harian & Tipe Box"
-            >
-              <Boxes className="h-3.5 w-3.5 text-amber-300" strokeWidth={2} />
-              <span className="hidden sm:inline">Standar Buffer</span>
-              <span className="sm:hidden">Buffer</span>
-            </button>
-          )}
-
+      <MenuBanner
+        title="Audit Harian Packaging (RTP)"
+        icon={PackagePlus}
+        watermark="audit rtp"
+      >
+        {onOpenBufferSettings && (
           <button
             type="button"
-            onClick={handleOpenCreate}
-            className="hidden sm:inline-flex px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-bold transition-all shadow-2xs cursor-pointer items-center justify-center gap-1.5 text-xs"
-            title="Tambah Data Audit Packaging Baru"
+            onClick={onOpenBufferSettings}
+            className={BANNER_GLASS_BTN}
+            title="Atur Standar Kebutuhan Buffer Stock Harian & Tipe Box"
           >
-            <Plus className="h-3.5 w-3.5 text-emerald-950" strokeWidth={2.5} />
-            <span>Input Audit</span>
+            <Boxes className="h-3.5 w-3.5 text-[#d0d784]" strokeWidth={2} />
+            <span className="hidden sm:inline">Standar Buffer</span>
+            <span className="sm:hidden">Buffer</span>
           </button>
+        )}
 
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          className={BANNER_GLASS_BTN}
+          title="Download Spreadsheet Excel"
+        >
+          <Download className="h-3.5 w-3.5 text-[#d0d784]" strokeWidth={2} />
+          <span>Export</span>
+        </button>
+
+        {onNavigateToWeekly && (
           <button
             type="button"
-            onClick={handleExportExcel}
-            className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-xs"
-            title="Download Spreadsheet Excel"
+            onClick={() => onNavigateToWeekly('packaging')}
+            className={BANNER_GLASS_BTN}
+            title="Lihat Analisis Mingguan untuk Packaging"
           >
-            <Download className="h-3.5 w-3.5 text-emerald-300" strokeWidth={2} />
-            <span>Export</span>
+            <BarChart3 className="w-3.5 h-3.5 text-[#d0d784]" />
+            <span>Analisa Mingguan</span>
           </button>
+        )}
 
-          {onNavigateToWeekly && (
-            <button
-              type="button"
-              onClick={() => onNavigateToWeekly('packaging')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0 font-sans"
-              title="Lihat Analisis Mingguan untuk Packaging"
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
-              <span>Analisa Mingguan</span>
-            </button>
-          )}
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={handleOpenCreate}
+          className={cn(BANNER_PRIMARY_BTN, 'hidden sm:inline-flex')}
+          title="Tambah Data Audit Packaging Baru"
+        >
+          <Plus className="h-3.5 w-3.5 text-[#006041]" strokeWidth={2.5} />
+          <span>Input Audit</span>
+        </button>
+      </MenuBanner>
 
       {/* DESKTOP FULL KPI STATS CARDS (HIDDEN ON MOBILE) */}
       <div className="hidden sm:grid sm:grid-cols-5 gap-3 font-mono text-xs">

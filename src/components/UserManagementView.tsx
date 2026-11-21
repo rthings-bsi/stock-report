@@ -43,6 +43,11 @@ import {
   DEFAULT_STAFF_PERMISSIONS,
   DEFAULT_ADMIN_PERMISSIONS
 } from '@/types/auth';
+import {
+  MenuBanner,
+  BANNER_PRIMARY_BTN,
+  BANNER_GLASS_BTN,
+} from './MenuBanner';
 
 interface UserManagementViewProps {
   currentUser: UserSession;
@@ -488,87 +493,78 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
         </div>
       )}
 
-      {/* Top Banner & Header */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
-            {activeSubTab === 'users' ? (
-              <Users className="h-4.5 w-4.5" strokeWidth={2.4} />
-            ) : (
-              <ShieldCheck className="h-4.5 w-4.5" strokeWidth={2.4} />
-            )}
-          </div>
-          <h1 className="text-base font-bold text-white font-sans tracking-tight">
-            {activeSubTab === 'users'
-              ? 'Manajemen Pengguna (User Accounts)'
-              : 'Pengaturan Peran & Hak Akses (Roles & Permissions)'}
-          </h1>
-        </div>
+      <MenuBanner
+        title={
+          activeSubTab === 'users'
+            ? 'Manajemen Pengguna (User Accounts)'
+            : 'Pengaturan Peran & Hak Akses (Roles & Permissions)'
+        }
+        icon={activeSubTab === 'users' ? Users : ShieldCheck}
+        watermark="pengguna"
+      >
+        <button
+          type="button"
+          onClick={() => {
+            fetchUsers();
+            fetchRoles();
+          }}
+          className={BANNER_GLASS_BTN}
+          title="Segarkan Data"
+        >
+          <RotateCcw className="h-3.5 w-3.5 text-[#d0d784]" />
+          <span>Segarkan</span>
+        </button>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 flex-wrap font-mono text-xs shrink-0">
+        {activeSubTab === 'users' ? (
           <button
             type="button"
-            onClick={() => {
-              fetchUsers();
-              fetchRoles();
-            }}
-            className="px-2.5 py-1.5 rounded-lg border border-emerald-700 bg-emerald-950/80 hover:bg-emerald-900 text-white font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
-            title="Segarkan Data"
+            onClick={handleOpenCreateUser}
+            className={BANNER_PRIMARY_BTN}
           >
-            <RotateCcw className="h-3.5 w-3.5 text-emerald-300" />
-            <span>Segarkan</span>
+            <UserPlus className="h-4 w-4 text-[#006041]" strokeWidth={2.4} />
+            <span>Tambah User Baru</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleOpenCreateRole}
+            className={BANNER_PRIMARY_BTN}
+          >
+            <ShieldCheck className="h-4 w-4 text-[#006041]" strokeWidth={2.4} />
+            <span>Buat Role Baru</span>
+          </button>
+        )}
+      </MenuBanner>
+
+      {/* SUB-TAB NAVIGATOR (Fore Pill Switcher) */}
+      <div className="flex items-center">
+        <div className="inline-flex p-1 bg-[#f4f2ef] rounded-full border border-[#e6e2db] shadow-2xs gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('users')}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeSubTab === 'users'
+                ? 'bg-[#006041] text-white shadow-[0_4px_12px_-4px_rgba(0,96,65,0.45)]'
+                : 'text-[#59575c] hover:text-[#006041] hover:bg-[#e7f0ee]/70'
+            }`}
+          >
+            <Users className={`h-3.5 w-3.5 ${activeSubTab === 'users' ? 'text-[#d0d784]' : 'text-[#006041]'}`} />
+            <span>Daftar Pengguna ({users.length})</span>
           </button>
 
-          {activeSubTab === 'users' ? (
-            <button
-              type="button"
-              onClick={handleOpenCreateUser}
-              className="px-3 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-emerald-950 font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 text-xs"
-            >
-              <UserPlus className="h-4 w-4 text-emerald-800" strokeWidth={2.5} />
-              <span>Tambah User Baru</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleOpenCreateRole}
-              className="px-3 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-emerald-950 font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 text-xs"
-            >
-              <ShieldCheck className="h-4 w-4 text-emerald-800" strokeWidth={2.5} />
-              <span>Buat Role Baru</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('roles')}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeSubTab === 'roles'
+                ? 'bg-[#006041] text-white shadow-[0_4px_12px_-4px_rgba(0,96,65,0.45)]'
+                : 'text-[#59575c] hover:text-[#006041] hover:bg-[#e7f0ee]/70'
+            }`}
+          >
+            <Sliders className={`h-3.5 w-3.5 ${activeSubTab === 'roles' ? 'text-[#d0d784]' : 'text-[#006041]'}`} />
+            <span>Pengaturan Peran &amp; Hak Akses ({roles.length})</span>
+          </button>
         </div>
-      </div>
-
-      {/* SUB-TAB NAVIGATOR (PILLS) */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 font-mono text-xs">
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('users')}
-          className={`px-3.5 py-2 rounded-md font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs border ${
-            activeSubTab === 'users'
-              ? 'bg-emerald-800 text-white border-emerald-900 shadow-xs'
-              : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-950 border-slate-200'
-          }`}
-        >
-          <Users className="h-4 w-4" />
-          <span>Daftar Pengguna ({users.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('roles')}
-          className={`px-3.5 py-2 rounded-md font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs border ${
-            activeSubTab === 'roles'
-              ? 'bg-emerald-800 text-white border-emerald-900 shadow-xs'
-              : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-950 border-slate-200'
-          }`}
-        >
-          <Sliders className="h-4 w-4" />
-          <span>Pengaturan Peran &amp; Hak Akses ({roles.length})</span>
-        </button>
       </div>
 
       {/* ========================================================================= */}

@@ -297,370 +297,421 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-emerald-950/10 bg-white/95 backdrop-blur-md">
-      <div className="mx-auto flex h-16 w-full items-center justify-between px-3 sm:px-6 lg:px-8 2xl:px-10">
-        {/* Brand Header */}
-        <div className="flex items-center gap-3">
-          {/* Mobile Menu Toggle */}
-          {onToggleMobileSidebar && (
-            <button
-              type="button"
-              onClick={onToggleMobileSidebar}
-              className="flex md:hidden h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
-              title="Menu Navigasi"
-              aria-label="Toggle Mobile Menu"
-            >
-              <Menu className="h-4 w-4" strokeWidth={2} />
-            </button>
-          )}
+    <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md">
+      <div className="border-b border-[#e8e4dd]">
+        <div className="mx-auto flex h-[66px] w-full items-center justify-between px-3 sm:px-6 lg:px-8 2xl:px-10 gap-3">
+          {/* Brand Header */}
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Mobile Menu Toggle */}
+            {onToggleMobileSidebar && (
+              <button
+                type="button"
+                onClick={onToggleMobileSidebar}
+                className="flex md:hidden h-9 w-9 items-center justify-center rounded-full border border-[#e6e2db] bg-[#faf8f5] text-[#1a4034] hover:text-[#006041] hover:bg-[#e7f0ee] transition-all cursor-pointer"
+                title="Menu Navigasi"
+                aria-label="Toggle Mobile Menu"
+              >
+                <Menu className="h-4 w-4" strokeWidth={2.2} />
+              </button>
+            )}
 
-          {/* Clean Brand Logo (No clunky box borders) */}
-          <div className="flex items-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/spindo-logo.png"
-              alt="SPINDO Logo"
-              className="h-8 w-auto object-contain"
-            />
-          </div>
+            {/* Clean Brand Logo (Unaltered SPINDO logo) */}
+            <div className="flex items-center shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/spindo-logo.png"
+                alt="SPINDO Logo"
+                className="h-8 w-auto object-contain"
+              />
+            </div>
 
-          <div className="hidden sm:flex items-center gap-2.5">
-            <div className="h-4 w-[1px] bg-slate-200" />
-            <span className="text-xs font-mono font-bold tracking-wider text-slate-700 uppercase">
-              SPINDO 5
-            </span>
-          </div>
-        </div>
-
-        {/* Right Actions with Compact Menu */}
-        <div className="flex items-center gap-2.5">
-          {/* Unified Dropdown Menu Button with Mini Calendar */}
-          <div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              onClick={() => {
-                fetchSnapshots();
-                setIsOpenMenu(!isOpenMenu);
-              }}
-              className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-mono font-bold transition-all cursor-pointer shadow-2xs ${
-                isOpenMenu || isCustomizingLayout
-                  ? 'border-emerald-800 bg-emerald-50 text-emerald-950'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <CalendarIcon className="h-3.5 w-3.5 text-emerald-700" strokeWidth={2} />
-              <span className="hidden sm:inline">
-                {isCustomizingLayout ? 'Mode Edit Aktif' : `Tgl: ${activeDateLabel}`}
+            <div className="hidden sm:flex items-center gap-2.5 min-w-0">
+              <div className="h-5 w-[1px] bg-[#dfd9cf]" />
+              <span className="text-xs font-extrabold tracking-[0.12em] text-[#006041] uppercase">
+                SPINDO 5
               </span>
-              <ChevronDown className={`h-3 w-3 text-slate-500 transition-transform ${isOpenMenu ? 'rotate-180' : ''}`} strokeWidth={2} />
-            </button>
+              <span className="hidden lg:inline-flex fore-dashed-pill items-center gap-1.5 px-2.5 py-0.5 text-[10.5px] font-bold">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#006041]" />
+                <span>Unit 5 Karawang</span>
+              </span>
+            </div>
+          </div>
 
-            {/* Dropdown Content */}
-            {isOpenMenu && (
-              <div className="absolute right-0 mt-2 w-72 rounded-md border border-slate-200 bg-white p-3 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150 font-mono text-xs">
-                {/* User Info Header in Dropdown */}
-                {currentUser && (
-                  <div className="mb-2 p-2 rounded-md bg-slate-50 border border-slate-200 text-[11px] space-y-0.5">
-                    <div className="font-bold text-slate-900 flex items-center justify-between">
-                      <span>{currentUser.name}</span>
-                      <span className={`text-[9px] font-bold px-1 rounded ${
-                        currentUser.role === 'admin' ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {currentUser.role === 'admin' ? 'Full Access' : 'View Only'}
-                      </span>
+          {/* Right Actions (Fore Outlined Pill CTA + Snapshot Pill Menu) */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            {/* Fore Signature Outlined Pill CTA (Admin quick Upload SAP) */}
+            {currentUser?.role === 'admin' && onOpenUpload && (
+              <button
+                type="button"
+                onClick={onOpenUpload}
+                className="fore-pill-outline hidden sm:inline-flex items-center gap-1.5 px-4 py-1.5 text-xs cursor-pointer"
+              >
+                <Upload className="h-3.5 w-3.5" strokeWidth={2.2} />
+                <span>Upload SAP</span>
+              </button>
+            )}
+
+            {/* Unified Dropdown Menu Button with Mini Calendar */}
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  fetchSnapshots();
+                  setIsOpenMenu(!isOpenMenu);
+                }}
+                className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                  isOpenMenu || isCustomizingLayout
+                    ? 'border-[#006041] bg-[#e7f0ee] text-[#006041] shadow-2xs'
+                    : 'border-[#dfd9cf] bg-[#faf8f5] text-[#1a4034] hover:border-[#006041]/50 hover:bg-[#e7f0ee]/50'
+                }`}
+              >
+                <CalendarIcon className="h-3.5 w-3.5 text-[#006041]" strokeWidth={2.2} />
+                <span className="hidden sm:inline font-tabular">
+                  {isCustomizingLayout ? 'Mode Edit Aktif' : `Tgl: ${activeDateLabel}`}
+                </span>
+                <ChevronDown className={`h-3.5 w-3.5 text-[#787470] transition-transform ${isOpenMenu ? 'rotate-180' : ''}`} strokeWidth={2.2} />
+              </button>
+
+              {/* Dropdown Content (Fore soft elevated panel) */}
+              {isOpenMenu && (
+                <div className="absolute right-0 mt-2.5 w-76 rounded-[20px] border border-[#e6e2db] bg-white p-3.5 shadow-[0_14px_38px_-10px_rgba(26,64,52,0.18)] z-50 animate-in fade-in zoom-in-95 duration-150 font-sans text-xs">
+                  {/* User Info Header in Dropdown */}
+                  {currentUser && (
+                    <div className="mb-2.5 p-2.5 rounded-2xl bg-[#f4f2ef] border border-[#e8e4dd] text-[11px] space-y-0.5">
+                      <div className="font-bold text-[#1a4034] flex items-center justify-between gap-2">
+                        <span className="truncate">{currentUser.name}</span>
+                        <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                          currentUser.role === 'admin' ? 'bg-[#e7f0ee] text-[#006041] border border-[#cde0d9]' : 'bg-white text-[#59575c] border border-[#e6e2db]'
+                        }`}>
+                          {currentUser.role === 'admin' ? 'Full Access' : 'View Only'}
+                        </span>
+                      </div>
+                      <div className="text-[#787470] text-[10.5px] font-medium">{currentUser.department}</div>
                     </div>
-                    <div className="text-slate-500 text-[10px]">{currentUser.department}</div>
-                  </div>
-                )}
+                  )}
 
-                {/* 0. Upload Raw Data SAP Action (Admin Only) */}
-                {currentUser?.role === 'admin' && onOpenUpload && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenUpload();
-                      setIsOpenMenu(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-emerald-50 hover:text-emerald-950 text-slate-800 transition-colors cursor-pointer text-[11px] mb-1"
-                  >
-                    <Upload className="h-3.5 w-3.5 text-emerald-800" strokeWidth={2} />
-                    <span>Upload Raw Data SAP</span>
-                  </button>
-                )}
+                  {/* 0. Upload Raw Data SAP Action (Admin Only) */}
+                  {currentUser?.role === 'admin' && onOpenUpload && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenUpload();
+                        setIsOpenMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-full flex items-center gap-2 hover:bg-[#e7f0ee] hover:text-[#006041] text-[#222126] font-semibold transition-colors cursor-pointer text-[11.5px] mb-1"
+                    >
+                      <Upload className="h-3.5 w-3.5 text-[#006041]" strokeWidth={2.2} />
+                      <span>Upload Raw Data SAP</span>
+                    </button>
+                  )}
 
-                {/* 1. Atur Posisi Card Toggle (Admin Only) */}
-                {currentUser?.role === 'admin' && onToggleCustomizeLayout && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onToggleCustomizeLayout();
-                      setIsOpenMenu(false);
-                    }}
-                    className={`w-full text-left px-2.5 py-1.5 rounded flex items-center justify-between transition-colors cursor-pointer mb-1 ${
-                      isCustomizingLayout
-                        ? 'bg-emerald-800 text-white font-bold'
-                        : 'hover:bg-slate-100 text-slate-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <LayoutGrid className="h-3.5 w-3.5 text-slate-500" strokeWidth={2} />
-                      <span className="text-[11px]">{isCustomizingLayout ? 'Selesai Atur Card' : 'Atur Posisi & Ukuran Card'}</span>
-                    </div>
-                    {isCustomizingLayout && <Check className="h-3 w-3 text-amber-300" strokeWidth={2.5} />}
-                  </button>
-                )}
+                  {/* 1. Atur Posisi Card Toggle (Admin Only) */}
+                  {currentUser?.role === 'admin' && onToggleCustomizeLayout && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onToggleCustomizeLayout();
+                        setIsOpenMenu(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-full flex items-center justify-between transition-colors cursor-pointer mb-1 ${
+                        isCustomizingLayout
+                          ? 'bg-[#006041] text-white font-bold'
+                          : 'hover:bg-[#f4f2ef] text-[#222126] font-semibold'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <LayoutGrid className={`h-3.5 w-3.5 ${isCustomizingLayout ? 'text-[#d0d784]' : 'text-[#787470]'}`} strokeWidth={2} />
+                        <span className="text-[11.5px]">{isCustomizingLayout ? 'Selesai Atur Card' : 'Atur Posisi & Ukuran Card'}</span>
+                      </div>
+                      {isCustomizingLayout && <Check className="h-3.5 w-3.5 text-[#d0d784]" strokeWidth={2.5} />}
+                    </button>
+                  )}
 
-                <div className="my-1.5 border-t border-slate-100" />
+                  <div className="my-2 border-t border-[#efece6]" />
 
-                    {/* 2. Mini Calendar Header */}
-                    <div className="flex items-center justify-between px-1 py-1 mb-2">
-                      <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                        <CalendarIcon className="h-3.5 w-3.5 text-emerald-800" />
-                        {MONTH_NAMES[currentViewDate.getMonth()]} {currentViewDate.getFullYear()}
-                      </span>
-                      <div className="flex items-center gap-1">
+                      {/* 2. Mini Calendar Header */}
+                      <div className="flex items-center justify-between px-1 py-1 mb-2">
+                        <span className="font-extrabold text-[#1a4034] text-xs flex items-center gap-1.5">
+                          <CalendarIcon className="h-3.5 w-3.5 text-[#006041]" />
+                          {MONTH_NAMES[currentViewDate.getMonth()]} {currentViewDate.getFullYear()}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={handlePrevMonth}
+                            className="p-1.5 rounded-full hover:bg-[#e7f0ee] text-[#1a4034] transition-colors cursor-pointer"
+                            title="Bulan Sebelumnya"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleNextMonth}
+                            className="p-1.5 rounded-full hover:bg-[#e7f0ee] text-[#1a4034] transition-colors cursor-pointer"
+                            title="Bulan Berikutnya"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Day Labels */}
+                      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-[#97a259] mb-1">
+                        <span>M</span>
+                        <span>S</span>
+                        <span>S</span>
+                        <span>R</span>
+                        <span>K</span>
+                        <span>J</span>
+                        <span>S</span>
+                      </div>
+
+                      {/* Calendar Days Grid */}
+                      <div className="grid grid-cols-7 gap-1 text-center font-tabular">
+                        {calendarDays.map((item, idx) => {
+                          if (!item.isCurrentMonth) {
+                            return <div key={`empty-${idx}`} className="h-7 w-7" />;
+                          }
+
+                          const isSelected = activeDateString === item.dateStr;
+                          const hasData = item.hasData;
+
+                          return (
+                            <button
+                              key={item.dateStr}
+                              type="button"
+                              disabled={!hasData}
+                              onClick={() => {
+                                if (item.snapKey) {
+                                  onSelectSnapshot(item.snapKey);
+                                  setIsOpenMenu(false);
+                                }
+                              }}
+                              className={`h-7 w-7 rounded-full flex flex-col items-center justify-center text-[11px] transition-all relative ${
+                                isSelected
+                                  ? 'bg-[#006041] text-white font-bold shadow-2xs'
+                                  : hasData
+                                  ? 'bg-[#e7f0ee] text-[#006041] hover:bg-[#d4e5e0] border border-[#b2d2c7] font-bold cursor-pointer'
+                                  : 'text-[#c9c4bb] hover:bg-transparent cursor-not-allowed font-normal'
+                              }`}
+                            >
+                              <span>{item.day}</span>
+                              {hasData && !isSelected && (
+                                <span className="absolute bottom-0.5 h-1 w-1 rounded-full bg-[#006041]" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Quick select: Data Terkini (Aktif) */}
+                      <div className="mt-3 pt-2.5 border-t border-[#efece6]">
                         <button
                           type="button"
-                          onClick={handlePrevMonth}
-                          className="p-1 rounded hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
-                          title="Bulan Sebelumnya"
+                          onClick={() => {
+                            onSelectSnapshot('latest');
+                            setIsOpenMenu(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-full flex items-center justify-between transition-colors cursor-pointer text-[11px] ${
+                            selectedSnapshotKey === 'latest'
+                              ? 'bg-[#006041] text-white font-bold'
+                              : 'bg-[#f4f2ef] hover:bg-[#e7f0ee] text-[#1a4034] border border-[#e6e2db] hover:border-[#006041]/40 font-semibold'
+                          }`}
                         >
-                          <ChevronLeft className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleNextMonth}
-                          className="p-1 rounded hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
-                          title="Bulan Berikutnya"
-                        >
-                          <ChevronRight className="h-3.5 w-3.5" />
+                          <div className="flex items-center gap-1.5">
+                            <History className={`h-3.5 w-3.5 ${selectedSnapshotKey === 'latest' ? 'text-[#d0d784]' : 'text-[#006041]'}`} />
+                            <span>{selectedSnapshotKey === 'latest' ? 'Data Terkini (Aktif)' : 'Kembali ke Data Terkini'}</span>
+                          </div>
+                          <span className={`text-[10px] font-tabular ${selectedSnapshotKey === 'latest' ? 'text-[#e7f0ee]' : 'text-[#787470]'}`}>
+                            {formatSnapDateLabel('latest', lastUpdated)}
+                          </span>
                         </button>
                       </div>
-                    </div>
 
-                    {/* Day Labels */}
-                    <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 mb-1">
-                      <span>M</span>
-                      <span>S</span>
-                      <span>S</span>
-                      <span>R</span>
-                      <span>K</span>
-                      <span>J</span>
-                      <span>S</span>
-                    </div>
+                      {/* Snapshot History List for Direct Selection */}
+                      {snapshots.length > 0 && (
+                        <div className="mt-2.5 pt-2.5 border-t border-[#efece6] space-y-1.5">
+                          <div className="text-[10px] font-bold text-[#7f8a45] uppercase tracking-[0.12em] px-1 flex items-center justify-between">
+                            <span>Riwayat Arsip Tanggal</span>
+                            <span className="text-[9.5px] text-[#787470] font-semibold normal-case tracking-normal">{snapshots.length} arsip</span>
+                          </div>
+                          <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5">
+                            {snapshots.map((s, idx) => {
+                              const snapDate = s.snapshot_key.replace('snap_', '');
+                              const isCurrentActive = (selectedSnapshotKey === 'latest' && idx === 0) || selectedSnapshotKey === s.snapshot_key;
+                              const dateLabel = formatSnapDateLabel(snapDate);
+                              return (
+                                <div
+                                  key={s.snapshot_key}
+                                  className={`group w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-[11px] transition-colors ${
+                                    isCurrentActive
+                                      ? 'bg-[#e7f0ee] text-[#006041] font-bold border border-[#b2d2c7]'
+                                      : 'hover:bg-[#f4f2ef] text-[#3d3c42]'
+                                  }`}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onSelectSnapshot(s.snapshot_key);
+                                      setIsOpenMenu(false);
+                                    }}
+                                    className="flex items-center gap-1.5 truncate flex-1 text-left cursor-pointer min-w-0 font-tabular"
+                                  >
+                                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${idx === 0 ? 'bg-[#006041]' : 'bg-[#9d9992]'}`} />
+                                    <span className="truncate">{dateLabel}</span>
+                                    {idx === 0 && (
+                                      <span className="text-[9px] bg-[#006041]/12 text-[#006041] px-1.5 py-0.5 rounded-full font-bold shrink-0">
+                                        Terbaru
+                                      </span>
+                                    )}
+                                  </button>
+                                  <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                                    <span className="text-[9.5px] text-[#787470] font-tabular">
+                                      {s.last_updated.split(',')[1]?.trim() || ''}
+                                    </span>
+                                    {currentUser?.role === 'admin' && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setResetTarget({
+                                            type: 'date',
+                                            key: s.snapshot_key,
+                                            label: dateLabel
+                                          });
+                                          setIsOpenMenu(false);
+                                          setResetPassword('');
+                                          setResetError('');
+                                          setShowResetPassword(false);
+                                          setIsResetModalOpen(true);
+                                        }}
+                                        className="p-1 rounded-full text-[#9d9992] hover:text-rose-600 hover:bg-rose-100/70 transition-colors cursor-pointer"
+                                        title={`Reset / Hapus arsip tanggal ${dateLabel}`}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
-                    {/* Calendar Days Grid */}
-                    <div className="grid grid-cols-7 gap-1 text-center">
-                      {calendarDays.map((item, idx) => {
-                        if (!item.isCurrentMonth) {
-                          return <div key={`empty-${idx}`} className="h-7 w-7" />;
-                        }
-
-                        const isSelected = activeDateString === item.dateStr;
-                        const hasData = item.hasData;
-
-                        return (
-                          <button
-                            key={item.dateStr}
-                            type="button"
-                            disabled={!hasData}
-                            onClick={() => {
-                              if (item.snapKey) {
-                                onSelectSnapshot(item.snapKey);
-                                setIsOpenMenu(false);
-                              }
-                            }}
-                            className={`h-7 w-7 rounded-md flex flex-col items-center justify-center text-[11px] transition-all relative ${
-                              isSelected
-                                ? 'bg-emerald-800 text-white font-bold shadow-2xs'
-                                : hasData
-                                ? 'bg-emerald-50 text-emerald-950 hover:bg-emerald-100 border border-emerald-300/80 font-bold cursor-pointer'
-                                : 'text-slate-300 hover:bg-transparent cursor-not-allowed font-normal'
-                            }`}
-                          >
-                            <span>{item.day}</span>
-                            {hasData && !isSelected && (
-                              <span className="absolute bottom-0.5 h-1 w-1 rounded-full bg-emerald-700" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Quick select: Data Terkini (Aktif) */}
-                    <div className="mt-2.5 pt-2 border-t border-slate-100">
+                  {/* Option to delete currently viewed archive snapshot */}
+                  {currentUser?.role === 'admin' && (selectedSnapshotKey !== 'latest' ? selectedSnapshotKey : (snapshots.length > 0 ? snapshots[0].snapshot_key : null)) && (
+                    <div className="mt-2 pt-2 border-t border-[#efece6]">
                       <button
                         type="button"
                         onClick={() => {
-                          onSelectSnapshot('latest');
+                          const targetKey = selectedSnapshotKey !== 'latest' ? selectedSnapshotKey : snapshots[0].snapshot_key;
+                          const dateLabel = formatSnapDateLabel(targetKey.replace('snap_', ''));
+                          setResetTarget({
+                            type: 'date',
+                            key: targetKey,
+                            label: dateLabel
+                          });
                           setIsOpenMenu(false);
+                          setResetPassword('');
+                          setResetError('');
+                          setShowResetPassword(false);
+                          setIsResetModalOpen(true);
                         }}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors cursor-pointer text-[11px] ${
-                          selectedSnapshotKey === 'latest'
-                            ? 'bg-emerald-800 text-white font-bold'
-                            : 'bg-slate-50 hover:bg-emerald-50 text-slate-800 border border-slate-200 hover:border-emerald-300'
-                        }`}
+                        className="w-full text-left px-3 py-1.5 rounded-full flex items-center justify-between bg-rose-50/70 hover:bg-rose-100/70 text-rose-800 border border-rose-200/80 transition-colors cursor-pointer text-[11px] font-semibold"
                       >
-                        <div className="flex items-center gap-1.5">
-                          <History className={`h-3.5 w-3.5 ${selectedSnapshotKey === 'latest' ? 'text-amber-300' : 'text-emerald-700'}`} />
-                          <span>{selectedSnapshotKey === 'latest' ? 'Data Terkini (Aktif)' : 'Kembali ke Data Terkini'}</span>
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Trash2 className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                          <span className="truncate">Hapus Data Tanggal Ini</span>
                         </div>
-                        <span className={`text-[10px] font-mono ${selectedSnapshotKey === 'latest' ? 'text-emerald-100' : 'text-slate-500'}`}>
-                          {formatSnapDateLabel('latest', lastUpdated)}
+                        <span className="text-[9.5px] font-tabular text-rose-700 bg-rose-200/60 px-2 py-0.5 rounded-full shrink-0">
+                          {formatSnapDateLabel((selectedSnapshotKey !== 'latest' ? selectedSnapshotKey : snapshots[0].snapshot_key).replace('snap_', ''))}
                         </span>
                       </button>
                     </div>
+                  )}
 
-                    {/* Snapshot History List for Direct Selection */}
-                    {snapshots.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-slate-100 space-y-1">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
-                          <span>Riwayat Arsip Tanggal</span>
-                          <span className="text-[9px] text-slate-400 font-normal">{snapshots.length} arsip</span>
-                        </div>
-                        <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5">
-                          {snapshots.map((s, idx) => {
-                            const snapDate = s.snapshot_key.replace('snap_', '');
-                            const isCurrentActive = (selectedSnapshotKey === 'latest' && idx === 0) || selectedSnapshotKey === s.snapshot_key;
-                            const dateLabel = formatSnapDateLabel(snapDate);
-                            return (
-                              <div
-                                key={s.snapshot_key}
-                                className={`group w-full px-2 py-1 rounded flex items-center justify-between text-[10.5px] transition-colors ${
-                                  isCurrentActive
-                                    ? 'bg-emerald-100/90 text-emerald-950 font-bold border border-emerald-300'
-                                    : 'hover:bg-slate-100 text-slate-700'
-                                }`}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onSelectSnapshot(s.snapshot_key);
-                                    setIsOpenMenu(false);
-                                  }}
-                                  className="flex items-center gap-1.5 truncate flex-1 text-left cursor-pointer min-w-0"
-                                >
-                                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${idx === 0 ? 'bg-emerald-600' : 'bg-slate-400'}`} />
-                                  <span className="truncate">{dateLabel}</span>
-                                  {idx === 0 && (
-                                    <span className="text-[9px] bg-emerald-200/80 text-emerald-800 px-1 py-0.2 rounded font-bold shrink-0">
-                                      Terbaru
-                                    </span>
-                                  )}
-                                </button>
-                                <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                                  <span className="text-[9px] text-slate-400 font-mono">
-                                    {s.last_updated.split(',')[1]?.trim() || ''}
-                                  </span>
-                                  {currentUser?.role === 'admin' && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setResetTarget({
-                                          type: 'date',
-                                          key: s.snapshot_key,
-                                          label: dateLabel
-                                        });
-                                        setIsOpenMenu(false);
-                                        setResetPassword('');
-                                        setResetError('');
-                                        setShowResetPassword(false);
-                                        setIsResetModalOpen(true);
-                                      }}
-                                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-100/70 transition-colors cursor-pointer"
-                                      title={`Reset / Hapus arsip tanggal ${dateLabel}`}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                  {/* Reset Option if custom */}
+                  {currentUser?.role === 'admin' && isCustomData && (
+                    <div className="mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResetTarget({ type: 'all' });
+                          setIsOpenMenu(false);
+                          setResetPassword('');
+                          setResetError('');
+                          setShowResetPassword(false);
+                          setIsResetModalOpen(true);
+                        }}
+                        className="w-full text-left px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-amber-50 text-amber-900 font-semibold transition-colors cursor-pointer text-[11px]"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 text-amber-700" />
+                        <span>Reset ke Data Awal</span>
+                      </button>
+                    </div>
+                  )}
 
-                {/* Option to delete currently viewed archive snapshot */}
-                {currentUser?.role === 'admin' && (selectedSnapshotKey !== 'latest' ? selectedSnapshotKey : (snapshots.length > 0 ? snapshots[0].snapshot_key : null)) && (
-                  <div className="mt-1.5 pt-1.5 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const targetKey = selectedSnapshotKey !== 'latest' ? selectedSnapshotKey : snapshots[0].snapshot_key;
-                        const dateLabel = formatSnapDateLabel(targetKey.replace('snap_', ''));
-                        setResetTarget({
-                          type: 'date',
-                          key: targetKey,
-                          label: dateLabel
-                        });
-                        setIsOpenMenu(false);
-                        setResetPassword('');
-                        setResetError('');
-                        setShowResetPassword(false);
-                        setIsResetModalOpen(true);
-                      }}
-                      className="w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between bg-rose-50/60 hover:bg-rose-100/70 text-rose-800 border border-rose-200/80 transition-colors cursor-pointer text-[10.5px] font-semibold"
-                    >
-                      <div className="flex items-center gap-1.5 truncate">
-                        <Trash2 className="h-3.5 w-3.5 text-rose-600 shrink-0" />
-                        <span className="truncate">Hapus Data Tanggal Ini</span>
-                      </div>
-                      <span className="text-[9.5px] font-mono text-rose-700 bg-rose-200/60 px-1 py-0.5 rounded shrink-0">
-                        {formatSnapDateLabel((selectedSnapshotKey !== 'latest' ? selectedSnapshotKey : snapshots[0].snapshot_key).replace('snap_', ''))}
-                      </span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Reset Option if custom */}
-                {currentUser?.role === 'admin' && isCustomData && (
-                  <div className="mt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setResetTarget({ type: 'all' });
-                        setIsOpenMenu(false);
-                        setResetPassword('');
-                        setResetError('');
-                        setShowResetPassword(false);
-                        setIsResetModalOpen(true);
-                      }}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 hover:bg-amber-50 text-amber-900 transition-colors cursor-pointer text-[11px]"
-                    >
-                      <RefreshCw className="h-3 w-3 text-amber-700" />
-                      <span>Reset ke Data Awal</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Logout Option */}
-                {onLogout && (
-                  <div className="mt-2 pt-2 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onLogout();
-                        setIsOpenMenu(false);
-                      }}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 hover:bg-rose-50 text-rose-700 transition-colors cursor-pointer text-[11px] font-bold"
-                    >
-                      <LogOut className="h-3.5 w-3.5 text-rose-600" />
-                      <span>Keluar / Ganti Akun</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+                  {/* Logout Option */}
+                  {onLogout && (
+                    <div className="mt-2 pt-2 border-t border-[#efece6]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onLogout();
+                          setIsOpenMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-full flex items-center gap-1.5 hover:bg-rose-50 text-rose-700 transition-colors cursor-pointer text-[11.5px] font-bold"
+                      >
+                        <LogOut className="h-3.5 w-3.5 text-rose-600" />
+                        <span>Keluar / Ganti Akun</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* Fore Coffee Signature Espresso Roast Strip (#765b51) — Contextual Live/Archive/Edit Status */}
+      <div className="w-full bg-[#765b51] text-white px-3 sm:px-6 lg:px-8 py-1.5 flex items-center justify-center gap-2.5 text-[11.5px] font-semibold">
+        <span className="truncate">
+          {isCustomizingLayout
+            ? 'Mode Kustomisasi Layout Aktif — Atur lebar & urutan kartu sesuai kebutuhan.'
+            : selectedSnapshotKey !== 'latest'
+            ? `Menampilkan Arsip Snapshot Tanggal ${activeDateLabel}`
+            : `SPINDO Unit 5 Karawang • Pembaruan Terakhir: ${lastUpdated}`}
+        </span>
+        {isCustomizingLayout && onToggleCustomizeLayout ? (
+          <button
+            type="button"
+            onClick={onToggleCustomizeLayout}
+            className="inline-flex items-center px-3 py-0.5 rounded-full bg-white text-[#765b51] hover:bg-[#f4f2ef] text-[11px] font-bold transition-colors cursor-pointer shrink-0"
+          >
+            Selesai
+          </button>
+        ) : selectedSnapshotKey !== 'latest' ? (
+          <button
+            type="button"
+            onClick={() => onSelectSnapshot('latest')}
+            className="inline-flex items-center px-3 py-0.5 rounded-full bg-white text-[#765b51] hover:bg-[#f4f2ef] text-[11px] font-bold transition-colors cursor-pointer shrink-0"
+          >
+            Data Terkini
+          </button>
+        ) : (
+          <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white text-[#765b51] text-[10.5px] font-bold shrink-0">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#006041]" />
+            Aktif
+          </span>
+        )}
       </div>
 
       {/* Modal Password Konfirmasi Reset ke Data Awal (Mounted via Portal) */}
       {mounted && isResetModalOpen && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/65 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-[#18191f]/65 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
           onClick={(e) => {
             if (e.target === e.currentTarget && !isVerifyingReset) {
               setIsResetModalOpen(false);
@@ -668,25 +719,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           }}
         >
           <div
-            className="relative w-full max-w-[430px] my-auto bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150"
+            className="relative w-full max-w-[430px] my-auto bg-white rounded-[24px] shadow-2xl border border-[#e6e2db] overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-slate-100 bg-gradient-to-b from-rose-50/60 to-white flex items-start justify-between">
+            <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-[#efece6] bg-[#faf8f5] flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 border border-rose-200/80 text-rose-600 shadow-2xs shrink-0">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 border border-rose-200/80 text-rose-600 shrink-0">
                   <ShieldAlert className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-snug">
+                    <h3 className="text-sm sm:text-base font-extrabold text-[#1a4034] tracking-tight leading-snug">
                       {resetTarget.type === 'date' ? 'Hapus Arsip Tanggal' : 'Reset Data Awal'}
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200">
                       {resetTarget.type === 'date' ? 'Arsip Tanggal' : 'Kritis'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  <p className="text-[11px] text-[#787470] font-medium mt-0.5">
                     {resetTarget.type === 'date'
                       ? `Konfirmasi otorisasi untuk menghapus arsip snapshot tanggal ${resetTarget.label || ''}`
                       : 'Konfirmasi otorisasi untuk eksekusi reset'}
@@ -697,7 +748,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 disabled={isVerifyingReset}
                 onClick={() => setIsResetModalOpen(false)}
-                className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors -mr-1 -mt-1 cursor-pointer disabled:opacity-50"
+                className="h-8 w-8 rounded-full flex items-center justify-center text-[#787470] hover:text-[#1a4034] hover:bg-[#e7f0ee] transition-colors -mr-1 -mt-1 cursor-pointer disabled:opacity-50"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -706,7 +757,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Form Body */}
             <form onSubmit={handleVerifyAndReset} className="p-5 sm:p-6 space-y-4">
               {/* Warning Callout */}
-              <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-200/80 flex items-start gap-3 text-xs leading-relaxed text-amber-900 shadow-2xs">
+              <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/80 flex items-start gap-3 text-xs leading-relaxed text-amber-900">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold text-amber-950 block mb-0.5">
@@ -725,34 +776,34 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               {/* Info Akun Otorisasi */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-[#f4f2ef] border border-[#e6e2db]">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="h-8 w-8 rounded-lg bg-slate-800 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
+                  <div className="h-8 w-8 rounded-full bg-[#006041] text-white font-bold flex items-center justify-center text-xs shrink-0">
                     {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'A'}
                   </div>
                   <div className="min-w-0 truncate">
-                    <div className="text-xs font-bold text-slate-900 truncate">
+                    <div className="text-xs font-bold text-[#1a4034] truncate">
                       {currentUser?.name || 'Administrator'}
                     </div>
-                    <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
+                    <div className="text-[11px] text-[#787470] font-medium flex items-center gap-1">
                       <span>@{currentUser?.username || 'admin'}</span>
                       <span>•</span>
                       <span>{currentUser?.department || 'Warehouse'}</span>
                     </div>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider shrink-0">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#e7f0ee] text-[#006041] border border-[#cde0d9] uppercase tracking-wider shrink-0">
                   {currentUser?.role || 'admin'}
                 </span>
               </div>
 
               {/* Input Password */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">
+                <label className="block text-xs font-bold text-[#1a4034]">
                   Password Akun
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#9d9992]">
                     <Lock className="h-3.5 w-3.5" />
                   </div>
                   <input
@@ -765,13 +816,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                     placeholder="Masukkan password akun Anda..."
                     autoFocus
                     disabled={isVerifyingReset}
-                    className="w-full pl-9 pr-10 py-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800 transition-all font-medium disabled:bg-slate-50 disabled:text-slate-400"
+                    className="w-full pl-9 pr-10 py-2.5 text-xs rounded-2xl border border-[#ddd8cf] bg-[#faf8f5] text-[#222126] placeholder:text-[#a6a29a] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#006041]/10 focus:border-[#006041] transition-all font-medium disabled:opacity-50"
                   />
                   <button
                     type="button"
                     disabled={isVerifyingReset}
                     onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#9d9992] hover:text-[#006041] transition-colors cursor-pointer"
                     tabIndex={-1}
                   >
                     {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -781,7 +832,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Error Alert */}
               {resetError && (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-medium animate-in fade-in duration-150">
+                <div className="flex items-center gap-2 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-medium animate-in fade-in duration-150">
                   <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
                   <span>{resetError}</span>
                 </div>
@@ -793,14 +844,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   disabled={isVerifyingReset}
                   onClick={() => setIsResetModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-200/90 rounded-xl transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                  className="px-4 py-2 text-xs font-bold text-[#3d3c42] bg-[#f4f2ef] hover:bg-[#e8e4dd] border border-[#e6e2db] rounded-full transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isVerifyingReset || !resetPassword.trim()}
-                  className="flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-xl transition-all shadow-xs hover:shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-full transition-all shadow-xs hover:shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isVerifyingReset ? (
                     <>

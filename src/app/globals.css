@@ -1,49 +1,116 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   Fore Coffee Design System Tokens (Extracted via REA Evidence)
+   - Primary Foliage: #006041 (--foliage-regular)
+   - Deep Foliage:    #1e4a3c / #1a4034 (--foliage-darker)
+   - Seed Olive:      #97a259 (--seed-regular) / #d0d784 (--seed-lighter)
+   - Roast Accent:    #765b51 (announcement / operational strip)
+   - Warm Linen:      #f4f2ef (dominant calm ground)
+   - Botanical Mint:  #e7f0ee / #e2edec (soft interactive tint)
+   - Charcoal Ink:    #222126 / #18191f (warm editorial neutral)
+   - Typography:      Plus Jakarta Sans (display & UI) + JetBrains Mono (data)
+   ============================================================================ */
+
+@theme inline {
+  --font-sans: var(--font-plus-jakarta), "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@theme {
+  /* Fore Botanical Foliage scale (maps harmoniously across all 16 dashboard tabs) */
+  --color-emerald-50: #e7f0ee;
+  --color-emerald-100: #d4e5e0;
+  --color-emerald-200: #b2d2c7;
+  --color-emerald-300: #7eb5a2;
+  --color-emerald-400: #42977b;
+  --color-emerald-500: #1b7f5d;
+  --color-emerald-600: #0a6e4c;
+  --color-emerald-700: #006041;
+  --color-emerald-800: #1e4a3c;
+  --color-emerald-900: #1a4034;
+  --color-emerald-950: #102a22;
+
+  /* Warm Linen & Charcoal Ink neutral scale (replaces clinical blue-slate) */
+  --color-slate-50: #f8f6f3;
+  --color-slate-100: #f1eee9;
+  --color-slate-200: #e6e2db;
+  --color-slate-300: #d5cfc5;
+  --color-slate-400: #9d9992;
+  --color-slate-500: #787470;
+  --color-slate-600: #59575c;
+  --color-slate-700: #3d3c42;
+  --color-slate-800: #2b2a30;
+  --color-slate-900: #222126;
+  --color-slate-950: #18191f;
+
+  /* Custom Fore tokens for direct utility classes */
+  --color-fore-foliage: #006041;
+  --color-fore-deep: #1e4a3c;
+  --color-fore-darker: #1a4034;
+  --color-fore-seed: #97a259;
+  --color-fore-seed-light: #d0d784;
+  --color-fore-roast: #765b51;
+  --color-fore-linen: #f4f2ef;
+  --color-fore-mint: #e7f0ee;
+  --color-fore-ink: #222126;
+}
+
 @layer base {
   :root {
-    --primary-banner: #064e3b;
-    --primary-header: #047857;
-    --card-radius: 6px;
+    --foliage-regular: #006041;
+    --foliage-deep: #1e4a3c;
+    --foliage-darker: #1a4034;
+    --seed-regular: #97a259;
+    --seed-lighter: #d0d784;
+    --roast-accent: #765b51;
+    --linen-canvas: #f4f2ef;
+    --mint-soft: #e7f0ee;
+    --fore-ink: #222126;
+    --primary-banner: #1a4034;
+    --primary-header: #006041;
+    --card-radius: 20px;
   }
 
   body {
-    background-color: #f8fafc;
-    color: #0f172a;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+    background-color: #f4f2ef;
+    color: #222126;
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
   }
+
+  /* Accessible keyboard focus matching Fore Foliage */
+  :focus-visible {
+    outline: 2px solid #006041;
+    outline-offset: 2px;
+  }
 }
 
-/* Modern Clean Backgrounds (Zero noise / No dotted clutter) */
-
-/* 1. Clean Slate (Default) - Crisp Apple/Linear style neutral */
+/* Warm Organic Linen Ground (Fore Coffee .bg-top-fore inspired) */
 body.bg-theme-clean-slate,
 body {
-  background-color: #f8fafc;
-  background-image: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 180px);
+  background-color: #f4f2ef;
+  background-image: linear-gradient(180deg, #efece6 0%, #f4f2ef 220px);
   background-repeat: no-repeat;
 }
 
-/* 2. Soft Ambient Sheen - Ultra-subtle corporate depth */
 body.bg-theme-soft-ambient {
-  background-color: #f8fafc;
-  background-image: radial-gradient(at 50% 0%, rgba(6, 78, 59, 0.04) 0px, transparent 600px);
+  background-color: #f4f2ef;
+  background-image: radial-gradient(at 50% 0%, rgba(0, 96, 65, 0.05) 0px, transparent 620px);
   background-repeat: no-repeat;
   background-attachment: fixed;
 }
 
-/* 3. Pure Porcelain White */
 body.bg-theme-pure-white {
   background-color: #ffffff;
   background-image: none;
 }
 
-/* 4. Industrial Cool Grey */
 body.bg-theme-cool-grey {
-  background-color: #f1f5f9;
+  background-color: #f1eee9;
   background-image: none;
 }
 
@@ -59,25 +126,80 @@ body.bg-theme-cool-grey {
   border-radius: var(--card-radius) !important;
 }
 
-/* 60-30-10 Palette Utilities */
 .bg-canvas {
-  background-color: #f8fafc;
+  background-color: #f4f2ef;
 }
 
-/* Subtle clean scrollbar */
+/* Signature Fore Coffee UI Primitives */
+.fore-card {
+  background-color: #ffffff;
+  border: 1px solid #e8e4dd;
+  border-radius: 20px;
+  box-shadow: 0 2px 10px 0 rgba(0, 0, 0, 0.04);
+  transition: box-shadow 220ms ease, border-color 220ms ease, transform 220ms ease;
+}
+
+.fore-card:hover {
+  border-color: #d8d2c7;
+  box-shadow: 0 12px 30px -12px rgba(26, 64, 52, 0.14);
+}
+
+.fore-pill-outline {
+  border-radius: 9999px;
+  border: 1.5px solid #006041;
+  color: #006041;
+  background-color: transparent;
+  font-weight: 700;
+  transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 160ms ease;
+}
+
+.fore-pill-outline:hover {
+  background-color: #006041;
+  color: #ffffff;
+  box-shadow: 0 8px 20px -8px rgba(0, 96, 65, 0.45);
+}
+
+.fore-pill-primary {
+  border-radius: 9999px;
+  background-color: #006041;
+  color: #ffffff;
+  font-weight: 700;
+  transition: background-color 180ms ease, box-shadow 180ms ease, transform 160ms ease;
+}
+
+.fore-pill-primary:hover {
+  background-color: #1a4034;
+  box-shadow: 0 10px 24px -10px rgba(0, 96, 65, 0.55);
+}
+
+.fore-dashed-pill {
+  border-radius: 9999px;
+  border: 1.2px dashed #b9c372;
+  background-color: rgba(208, 215, 132, 0.14);
+  color: #677234;
+}
+
+.fore-watermark {
+  color: transparent;
+  -webkit-text-stroke: 1.4px rgba(0, 96, 65, 0.11);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Subtle warm organic scrollbar */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+  background: #d5cfc5;
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #97a259;
 }
 
 .font-tabular {

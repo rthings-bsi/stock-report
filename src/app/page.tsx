@@ -1455,8 +1455,9 @@ export default function Home() {
 
   if (isAuthChecking) {
     return (
-      <div className="min-h-screen w-full bg-slate-100 flex items-center justify-center font-mono text-xs text-slate-500">
-        Memeriksa sesi login...
+      <div className="min-h-screen w-full bg-[#f4f2ef] flex items-center justify-center font-sans text-xs font-semibold text-[#1e4a3c] gap-2.5">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#006041] animate-pulse" />
+        <span>Memeriksa sesi login...</span>
       </div>
     );
   }
@@ -1466,7 +1467,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen text-slate-900 flex flex-col font-sans selection:bg-emerald-900 selection:text-white">
+    <div className="min-h-screen text-[#222126] bg-[#f4f2ef] flex flex-col font-sans selection:bg-[#006041] selection:text-white">
       {/* Navbar Component */}
       <Navbar
         lastUpdated={lastUpdated}
@@ -1490,17 +1491,17 @@ export default function Home() {
         onLogout={handleLogout}
       />
 
-      {/* Mobile Drawer Navigation */}
+      {/* Mobile Drawer Navigation (Fore soft mint-porcelain slide drawer) */}
       {isMobileSidebarOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+            className="fixed inset-0 bg-[#18191f]/45 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
             onClick={() => setIsMobileSidebarOpen(false)}
           />
-          <div className="relative flex w-full max-w-xs flex-1 flex-col bg-white p-4 shadow-xl overflow-y-auto space-y-4 animate-in slide-in-from-left duration-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="relative flex w-full max-w-xs flex-1 flex-col bg-[#faf8f5] p-4 shadow-2xl overflow-y-auto space-y-4 animate-in slide-in-from-left duration-200 border-r border-[#e6e2db]">
+            <div className="flex items-center justify-between border-b border-[#e6e2db] pb-3.5">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 items-center justify-center rounded-md bg-white p-1 border border-slate-200 shadow-2xs shrink-0">
+                <div className="flex h-9 items-center justify-center rounded-xl bg-white px-2 py-1 border border-[#e6e2db] shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/spindo-logo.png"
@@ -1508,12 +1509,12 @@ export default function Home() {
                     className="h-6 w-auto object-contain"
                   />
                 </div>
-                <span className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">Menu Sistem</span>
+                <span className="text-xs font-extrabold tracking-[0.12em] text-[#006041] uppercase">Menu Sistem</span>
               </div>
               <button
                 type="button"
                 onClick={() => setIsMobileSidebarOpen(false)}
-                className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="h-8 w-8 rounded-full flex items-center justify-center text-[#787470] hover:text-[#006041] hover:bg-[#e7f0ee] transition-colors cursor-pointer"
                 title="Tutup Menu"
               >
                 <X className="h-4 w-4" />
@@ -1522,8 +1523,8 @@ export default function Home() {
 
             {/* Section 1: Monitoring Gudang (Mobile) */}
             {dashboardMenuItems.length > 0 && (
-              <div className="space-y-1">
-                <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="space-y-1.5">
+                <div className="px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#7f8a45]">
                   Monitoring Gudang
                 </div>
                 <nav className="space-y-1">
@@ -1538,14 +1539,14 @@ export default function Home() {
                           setIsMobileSidebarOpen(false);
                         }}
                         className={cn(
-                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer",
+                          "w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-[13px] transition-all text-left cursor-pointer",
                           isActive
-                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                            ? "bg-[#006041] text-white shadow-[0_6px_16px_-6px_rgba(0,96,65,0.5)] font-bold"
+                            : "text-[#3d3c42] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold"
                         )}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <Icon className={cn("h-4.5 w-4.5 shrink-0", isActive ? "text-white" : "text-slate-400")} strokeWidth={isActive ? 2.2 : 1.8} />
+                          <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-[#d0d784]" : "text-[#787470]")} strokeWidth={isActive ? 2.2 : 1.9} />
                           <span className="truncate leading-normal">{item.label}</span>
                         </div>
                       </button>
@@ -1557,8 +1558,8 @@ export default function Home() {
 
             {/* Section 2: Operasional & Input Data (Mobile) */}
             {operationalMenuItems.length > 0 && (
-              <div className="pt-3 border-t border-slate-100 space-y-1">
-                <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="pt-3 border-t border-[#e6e2db] space-y-1.5">
+                <div className="px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#7f8a45]">
                   Operasional
                 </div>
                 <nav className="space-y-1">
@@ -1573,19 +1574,19 @@ export default function Home() {
                           setIsMobileSidebarOpen(false);
                         }}
                         className={cn(
-                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer",
+                          "w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-[13px] transition-all text-left cursor-pointer",
                           isActive
-                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                            ? "bg-[#006041] text-white shadow-[0_6px_16px_-6px_rgba(0,96,65,0.5)] font-bold"
+                            : "text-[#3d3c42] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold"
                         )}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <Icon className={cn("h-4.5 w-4.5 shrink-0", isActive ? "text-white" : "text-slate-400")} strokeWidth={isActive ? 2.2 : 1.8} />
+                          <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-[#d0d784]" : "text-[#787470]")} strokeWidth={isActive ? 2.2 : 1.9} />
                           <span className="truncate leading-normal">{item.label}</span>
                         </div>
                         <span className={cn(
-                          "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0",
-                          isActive ? "bg-white/20 text-white border-white/20" : "bg-emerald-50 text-emerald-700 border-emerald-200/60"
+                          "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
+                          isActive ? "bg-white/15 text-white border-white/25" : "border-[#b9c372] border-dashed bg-[#d0d784]/15 text-[#5e682f]"
                         )}>
                           Input
                         </span>
@@ -1598,8 +1599,8 @@ export default function Home() {
 
             {/* Menu Kelola Data & Hak Akses: Mobile */}
             {(canUploadSAP || canManageUsers || viewCapacitySettings) && (
-              <div className="pt-3 border-t border-slate-100 space-y-1">
-                <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="pt-3 border-t border-[#e6e2db] space-y-1.5">
+                <div className="px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#7f8a45]">
                   Pengaturan &amp; Data
                 </div>
                 <div className="space-y-1">
@@ -1610,13 +1611,13 @@ export default function Home() {
                         setIsUploadOpen(true);
                         setIsMobileSidebarOpen(false);
                       }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer"
+                      className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-[13px] font-semibold text-[#3d3c42] hover:bg-[#e7f0ee] hover:text-[#006041] transition-all cursor-pointer"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <Upload className="h-4.5 w-4.5 text-slate-400 shrink-0" strokeWidth={1.8} />
+                        <Upload className="h-4 w-4 text-[#006041] shrink-0" strokeWidth={2} />
                         <span className="truncate leading-normal">Upload Raw Data SAP</span>
                       </div>
-                      <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200/60 shrink-0">
+                      <span className="text-[10px] font-bold bg-[#e7f0ee] text-[#006041] px-2 py-0.5 rounded-full shrink-0">
                         Excel
                       </span>
                     </button>
@@ -1630,19 +1631,19 @@ export default function Home() {
                         setIsMobileSidebarOpen(false);
                       }}
                       className={cn(
-                        "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all cursor-pointer",
+                        "w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-[13px] transition-all cursor-pointer",
                         activeTab === 'capacity_settings'
-                          ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                          ? "bg-[#006041] text-white shadow-[0_6px_16px_-6px_rgba(0,96,65,0.5)] font-bold"
+                          : "text-[#3d3c42] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold"
                       )}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <SlidersHorizontal className={cn("h-4.5 w-4.5 shrink-0", activeTab === 'capacity_settings' ? "text-white" : "text-slate-400")} strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.8} />
+                        <SlidersHorizontal className={cn("h-4 w-4 shrink-0", activeTab === 'capacity_settings' ? "text-[#d0d784]" : "text-[#787470]")} strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.9} />
                         <span className="truncate leading-normal">Master Kapasitas</span>
                       </div>
                       <span className={cn(
-                        "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0",
-                        activeTab === 'capacity_settings' ? "bg-white/20 text-white border-white/20" : "bg-slate-100 text-slate-600 border-slate-200/60"
+                        "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
+                        activeTab === 'capacity_settings' ? "bg-white/15 text-white border-white/25" : "bg-[#f4f2ef] text-[#59575c] border-[#e6e2db]"
                       )}>
                         Master
                       </span>
@@ -1657,19 +1658,19 @@ export default function Home() {
                         setIsMobileSidebarOpen(false);
                       }}
                       className={cn(
-                        "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all cursor-pointer",
+                        "w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-[13px] transition-all cursor-pointer",
                         activeTab === 'users'
-                          ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                          ? "bg-[#006041] text-white shadow-[0_6px_16px_-6px_rgba(0,96,65,0.5)] font-bold"
+                          : "text-[#3d3c42] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold"
                       )}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <Users className={cn("h-4.5 w-4.5 shrink-0", activeTab === 'users' ? "text-white" : "text-slate-400")} strokeWidth={activeTab === 'users' ? 2.2 : 1.8} />
+                        <Users className={cn("h-4 w-4 shrink-0", activeTab === 'users' ? "text-[#d0d784]" : "text-[#787470]")} strokeWidth={activeTab === 'users' ? 2.2 : 1.9} />
                         <span className="truncate leading-normal">Kelola Pengguna</span>
                       </div>
                       <span className={cn(
-                        "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0",
-                        activeTab === 'users' ? "bg-white/20 text-white border-white/20" : "bg-slate-100 text-slate-600 border-slate-200/60"
+                        "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
+                        activeTab === 'users' ? "bg-white/15 text-white border-white/25" : "bg-[#f4f2ef] text-[#59575c] border-[#e6e2db]"
                       )}>
                         RBAC
                       </span>
@@ -1680,15 +1681,15 @@ export default function Home() {
             )}
 
             {/* Mobile User Profile Footer */}
-            <div className="pt-3 border-t border-slate-100 mt-auto">
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-between gap-2.5">
+            <div className="pt-3 border-t border-[#e6e2db] mt-auto">
+              <div className="p-2.5 rounded-2xl bg-white border border-[#e6e2db] flex items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="h-8 w-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                  <div className="h-8 w-8 rounded-full bg-[#006041] text-white flex items-center justify-center font-extrabold text-xs shrink-0">
                     {currentUser.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <div className="font-semibold text-slate-900 text-xs truncate leading-snug">{currentUser.name}</div>
-                    <div className="text-[11px] text-slate-500 truncate leading-snug">
+                    <div className="font-bold text-[#1a4034] text-xs truncate leading-snug">{currentUser.name}</div>
+                    <div className="text-[11px] text-[#787470] truncate leading-snug">
                       {currentUser.role === 'admin' ? 'Administrator' : 'Staff Operasional'}
                     </div>
                   </div>
@@ -1696,7 +1697,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
+                  className="p-1.5 rounded-full hover:bg-rose-50 text-[#9d9992] hover:text-rose-600 transition-colors cursor-pointer shrink-0"
                   title="Keluar"
                 >
                   <LogOut className="h-4 w-4" strokeWidth={2} />
@@ -1708,27 +1709,27 @@ export default function Home() {
       )}
 
       {/* Main Layout Container with Sidebar */}
-      <div className="flex-1 flex w-full mx-auto px-3 sm:px-6 lg:px-8 2xl:px-10 py-5 gap-5">
-        {/* Modern Clean Sidebar (Expandable / Collapsible Rail) */}
+      <div className="flex-1 flex w-full mx-auto px-3 sm:px-6 lg:px-8 2xl:px-10 py-6 gap-6">
+        {/* Fore Organic Floating Sidebar (Expandable / Collapsible Rail) */}
         <aside
           className={cn(
             "shrink-0 hidden md:flex flex-col transition-all duration-200",
-            isSidebarOpen ? "w-64" : "w-14"
+            isSidebarOpen ? "w-66" : "w-15"
           )}
         >
           {isSidebarOpen ? (
-            /* FULL SIDEBAR (w-64) */
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm space-y-4">
+            /* FULL SIDEBAR (w-66) */
+            <div className="rounded-[22px] border border-[#e8e4dd] bg-white p-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-4 sticky top-[116px]">
 
               {/* Sidebar Header */}
-              <div className="flex items-center justify-between px-2 pb-2 border-b border-slate-100">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="flex items-center justify-between px-2.5 pb-2.5 border-b border-[#efece6]">
+                <span className="text-[10.5px] font-extrabold uppercase tracking-[0.18em] text-[#1e4a3c]">
                   Menu Navigasi
                 </span>
                 <button
                   type="button"
                   onClick={toggleSidebar}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-full text-[#787470] hover:text-[#006041] hover:bg-[#e7f0ee] transition-colors cursor-pointer"
                   title="Kecilkan Sidebar (Ctrl+B)"
                 >
                   <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
@@ -1737,8 +1738,8 @@ export default function Home() {
 
               {/* Menu Section 1: Monitoring Gudang */}
               {dashboardMenuItems.length > 0 && (
-                <div className="space-y-1">
-                  <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="space-y-1.5">
+                  <div className="px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#7f8a45]">
                     Monitoring Gudang
                   </div>
                   <nav className="space-y-1">
@@ -1751,19 +1752,19 @@ export default function Home() {
                           id={`sidebar-${item.id}`}
                           onClick={() => handleSelectTab(item.id)}
                           className={cn(
-                            "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer group",
+                            "w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-[13px] transition-all text-left cursor-pointer group",
                             isActive
-                              ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                              ? "bg-[#006041] text-white shadow-[0_6px_18px_-6px_rgba(0,96,65,0.5)] font-bold"
+                              : "text-[#4a4950] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold"
                           )}
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <Icon
                               className={cn(
-                                "h-4.5 w-4.5 shrink-0 transition-colors",
-                                isActive ? "text-white" : "text-slate-400 group-hover:text-emerald-700"
+                                "h-4 w-4 shrink-0 transition-colors",
+                                isActive ? "text-[#d0d784]" : "text-[#8c8882] group-hover:text-[#006041]"
                               )}
-                              strokeWidth={isActive ? 2.2 : 1.8}
+                              strokeWidth={isActive ? 2.2 : 1.9}
                             />
                             <span className="truncate leading-normal">
                               {item.label}
@@ -1778,8 +1779,8 @@ export default function Home() {
 
               {/* Menu Section 2: Operasional & Input Data (Desktop) */}
               {operationalMenuItems.length > 0 && (
-                <div className="pt-3 border-t border-slate-100 space-y-1">
-                  <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="pt-3 border-t border-[#efece6] space-y-1.5">
+                  <div className="px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#7f8a45]">
                     Operasional
                   </div>
                   <nav className="space-y-1">
@@ -1792,29 +1793,29 @@ export default function Home() {
                           id={`sidebar-${item.id}`}
                           onClick={() => handleSelectTab(item.id)}
                           className={cn(
-                            "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer group",
+                            "w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-[13px] transition-all text-left cursor-pointer group",
                             isActive
-                              ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                              ? "bg-[#006041] text-white shadow-[0_6px_18px_-6px_rgba(0,96,65,0.5)] font-bold"
+                              : "text-[#4a4950] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold"
                           )}
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <Icon
                               className={cn(
-                                "h-4.5 w-4.5 shrink-0 transition-colors",
-                                isActive ? "text-white" : "text-slate-400 group-hover:text-emerald-700"
+                                "h-4 w-4 shrink-0 transition-colors",
+                                isActive ? "text-[#d0d784]" : "text-[#8c8882] group-hover:text-[#006041]"
                               )}
-                              strokeWidth={isActive ? 2.2 : 1.8}
+                              strokeWidth={isActive ? 2.2 : 1.9}
                             />
                             <span className="truncate leading-normal">
                               {item.label}
                             </span>
                           </div>
                           <span className={cn(
-                            "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
+                            "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
                             isActive
-                              ? "bg-white/20 text-white border-white/20"
-                              : "bg-emerald-50 text-emerald-700 border-emerald-200/60"
+                              ? "bg-white/15 text-white border-white/25"
+                              : "border-[#b9c372] border-dashed bg-[#d0d784]/15 text-[#5e682f]"
                           )}>
                             Input
                           </span>
@@ -1827,8 +1828,8 @@ export default function Home() {
 
               {/* Menu Kelola Data & Hak Akses: Desktop */}
               {(canUploadSAP || canManageUsers || viewCapacitySettings) && (
-                <div className="pt-3 border-t border-slate-100 space-y-1">
-                  <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="pt-3 border-t border-[#efece6] space-y-1.5">
+                  <div className="px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#7f8a45]">
                     Pengaturan &amp; Data
                   </div>
                   <div className="space-y-1">
@@ -1836,13 +1837,13 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => setIsUploadOpen(true)}
-                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left cursor-pointer group"
+                        className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-[13px] font-semibold text-[#4a4950] hover:bg-[#e7f0ee] hover:text-[#006041] transition-all text-left cursor-pointer group"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <Upload className="h-4.5 w-4.5 text-slate-400 group-hover:text-emerald-700 shrink-0 transition-colors" strokeWidth={1.8} />
+                          <Upload className="h-4 w-4 text-[#8c8882] group-hover:text-[#006041] shrink-0 transition-colors" strokeWidth={1.9} />
                           <span className="truncate leading-normal">Upload Raw Data SAP</span>
                         </div>
-                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200/60 shrink-0">
+                        <span className="text-[10px] font-bold bg-[#e7f0ee] text-[#006041] px-2 py-0.5 rounded-full shrink-0">
                           Excel
                         </span>
                       </button>
@@ -1854,19 +1855,19 @@ export default function Home() {
                         id="sidebar-capacity-settings"
                         onClick={() => handleSelectTab('capacity_settings')}
                         className={cn(
-                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer group",
+                          "w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-[13px] transition-all text-left cursor-pointer group",
                           activeTab === 'capacity_settings'
-                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                            ? "bg-[#006041] text-white shadow-[0_6px_18px_-6px_rgba(0,96,65,0.5)] font-bold"
+                            : "text-[#4a4950] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold"
                         )}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <SlidersHorizontal className={cn("h-4.5 w-4.5 shrink-0 transition-colors", activeTab === 'capacity_settings' ? "text-white" : "text-slate-400 group-hover:text-emerald-700")} strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.8} />
+                          <SlidersHorizontal className={cn("h-4 w-4 shrink-0 transition-colors", activeTab === 'capacity_settings' ? "text-[#d0d784]" : "text-[#8c8882] group-hover:text-[#006041]")} strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.9} />
                           <span className="truncate leading-normal">Master Kapasitas</span>
                         </div>
                         <span className={cn(
-                          "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
-                          activeTab === 'capacity_settings' ? "bg-white/20 text-white border-white/20" : "bg-slate-100 text-slate-600 border-slate-200/60"
+                          "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
+                          activeTab === 'capacity_settings' ? "bg-white/15 text-white border-white/25" : "bg-[#f4f2ef] text-[#59575c] border-[#e6e2db]"
                         )}>
                           Master
                         </span>
@@ -1879,19 +1880,19 @@ export default function Home() {
                         id="sidebar-users"
                         onClick={() => handleSelectTab('users')}
                         className={cn(
-                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] transition-all text-left cursor-pointer group",
+                          "w-full flex items-center justify-between px-3.5 py-2.5 rounded-full text-[13px] transition-all text-left cursor-pointer group",
                           activeTab === 'users'
-                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                            ? "bg-[#006041] text-white shadow-[0_6px_18px_-6px_rgba(0,96,65,0.5)] font-bold"
+                            : "text-[#4a4950] hover:bg-[#e7f0ee] hover:text-[#006041] font-semibold"
                         )}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <Users className={cn("h-4.5 w-4.5 shrink-0 transition-colors", activeTab === 'users' ? "text-white" : "text-slate-400 group-hover:text-emerald-700")} strokeWidth={activeTab === 'users' ? 2.2 : 1.8} />
+                          <Users className={cn("h-4 w-4 shrink-0 transition-colors", activeTab === 'users' ? "text-[#d0d784]" : "text-[#8c8882] group-hover:text-[#006041]")} strokeWidth={activeTab === 'users' ? 2.2 : 1.9} />
                           <span className="truncate leading-normal">Kelola Pengguna</span>
                         </div>
                         <span className={cn(
-                          "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
-                          activeTab === 'users' ? "bg-white/20 text-white border-white/20" : "bg-slate-100 text-slate-600 border-slate-200/60"
+                          "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 transition-colors",
+                          activeTab === 'users' ? "bg-white/15 text-white border-white/25" : "bg-[#f4f2ef] text-[#59575c] border-[#e6e2db]"
                         )}>
                           RBAC
                         </span>
@@ -1902,17 +1903,17 @@ export default function Home() {
               )}
 
               {/* User Profile Snippet in Sidebar Footer */}
-              <div className="pt-3 border-t border-slate-100">
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-between gap-2.5 hover:border-slate-300 transition-colors">
+              <div className="pt-3 border-t border-[#efece6]">
+                <div className="p-2.5 rounded-2xl bg-[#f4f2ef] border border-[#e6e2db] flex items-center justify-between gap-2.5 hover:border-[#006041]/30 transition-colors">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="h-8 w-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                    <div className="h-8 w-8 rounded-full bg-[#006041] text-white flex items-center justify-center font-extrabold text-xs shrink-0">
                       {currentUser.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-semibold text-slate-900 text-xs truncate leading-snug">
+                      <div className="font-bold text-[#1a4034] text-xs truncate leading-snug">
                         {currentUser.name}
                       </div>
-                      <div className="text-[11px] text-slate-500 truncate leading-snug">
+                      <div className="text-[11px] text-[#787470] truncate leading-snug">
                         {currentUser.role === 'admin' ? 'Administrator' : 'Staff Operasional'}
                       </div>
                     </div>
@@ -1920,7 +1921,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
+                    className="p-1.5 rounded-full hover:bg-rose-50 text-[#9d9992] hover:text-rose-600 transition-colors cursor-pointer shrink-0"
                     title="Keluar / Ganti Akun"
                   >
                     <LogOut className="h-4 w-4" strokeWidth={2} />
@@ -1929,22 +1930,22 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            /* COMPACT ICON RAIL (w-14) */
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-2 shadow-sm flex flex-col items-center gap-2">
+            /* COMPACT ICON RAIL (w-15) */
+            <div className="rounded-[22px] border border-[#e8e4dd] bg-white p-2.5 shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col items-center gap-2 sticky top-[116px]">
               {/* Expand Toggle */}
               <button
                 type="button"
                 onClick={toggleSidebar}
-                className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
+                className="h-9 w-9 flex items-center justify-center rounded-full text-[#787470] hover:text-[#006041] hover:bg-[#e7f0ee] transition-all cursor-pointer"
                 title="Perluas Sidebar (Ctrl+B)"
               >
-                <PanelLeftOpen className="h-4.5 w-4.5" strokeWidth={2} />
+                <PanelLeftOpen className="h-4 w-4" strokeWidth={2} />
               </button>
 
-              <div className="w-6 h-[1px] bg-slate-100" />
+              <div className="w-6 h-[1px] bg-[#efece6]" />
 
               {/* Dashboard Items */}
-              <div className="space-y-1 w-full flex flex-col items-center">
+              <div className="space-y-1.5 w-full flex flex-col items-center">
                 {dashboardMenuItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
@@ -1953,14 +1954,14 @@ export default function Home() {
                       key={item.id}
                       onClick={() => handleSelectTab(item.id)}
                       className={cn(
-                        "h-9 w-9 flex items-center justify-center rounded-xl transition-all cursor-pointer",
+                        "h-9 w-9 flex items-center justify-center rounded-full transition-all cursor-pointer",
                         isActive
-                          ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                          ? "bg-[#006041] text-[#d0d784] shadow-sm font-bold"
+                          : "text-[#787470] hover:bg-[#e7f0ee] hover:text-[#006041]"
                       )}
                       title={item.label}
                     >
-                      <Icon className="h-4.5 w-4.5 shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
+                      <Icon className="h-4 w-4 shrink-0" strokeWidth={isActive ? 2.2 : 1.9} />
                     </button>
                   );
                 })}
@@ -1969,8 +1970,8 @@ export default function Home() {
               {/* Operational Items */}
               {operationalMenuItems.length > 0 && (
                 <>
-                  <div className="w-6 h-[1px] bg-slate-100" />
-                  <div className="space-y-1 w-full flex flex-col items-center">
+                  <div className="w-6 h-[1px] bg-[#efece6]" />
+                  <div className="space-y-1.5 w-full flex flex-col items-center">
                     {operationalMenuItems.map((item) => {
                       const Icon = item.icon;
                       const isActive = activeTab === item.id;
@@ -1979,14 +1980,14 @@ export default function Home() {
                           key={item.id}
                           onClick={() => handleSelectTab(item.id)}
                           className={cn(
-                            "h-9 w-9 flex items-center justify-center rounded-xl transition-all cursor-pointer",
+                            "h-9 w-9 flex items-center justify-center rounded-full transition-all cursor-pointer",
                             isActive
-                              ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                              : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                              ? "bg-[#006041] text-[#d0d784] shadow-sm font-bold"
+                              : "text-[#787470] hover:bg-[#e7f0ee] hover:text-[#006041]"
                           )}
                           title={`${item.label} (Input RTP)`}
                         >
-                          <Icon className="h-4.5 w-4.5 shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
+                          <Icon className="h-4 w-4 shrink-0" strokeWidth={isActive ? 2.2 : 1.9} />
                         </button>
                       );
                     })}
@@ -1997,16 +1998,16 @@ export default function Home() {
               {/* Admin Tools */}
               {(canUploadSAP || canManageUsers || viewCapacitySettings) && (
                 <>
-                  <div className="w-6 h-[1px] bg-slate-100" />
-                  <div className="space-y-1 w-full flex flex-col items-center">
+                  <div className="w-6 h-[1px] bg-[#efece6]" />
+                  <div className="space-y-1.5 w-full flex flex-col items-center">
                     {canUploadSAP && (
                       <button
                         type="button"
                         onClick={() => setIsUploadOpen(true)}
-                        className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer"
+                        className="h-9 w-9 flex items-center justify-center rounded-full text-[#787470] hover:bg-[#e7f0ee] hover:text-[#006041] transition-all cursor-pointer"
                         title="Upload Raw Data SAP"
                       >
-                        <Upload className="h-4.5 w-4.5" strokeWidth={1.8} />
+                        <Upload className="h-4 w-4" strokeWidth={1.9} />
                       </button>
                     )}
                     {viewCapacitySettings && (
@@ -2014,14 +2015,14 @@ export default function Home() {
                         type="button"
                         onClick={() => handleSelectTab('capacity_settings')}
                         className={cn(
-                          "h-9 w-9 flex items-center justify-center rounded-xl transition-all cursor-pointer",
+                          "h-9 w-9 flex items-center justify-center rounded-full transition-all cursor-pointer",
                           activeTab === 'capacity_settings'
-                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                            ? "bg-[#006041] text-[#d0d784] shadow-sm font-bold"
+                            : "text-[#787470] hover:bg-[#e7f0ee] hover:text-[#006041]"
                         )}
                         title="Master Kapasitas Gudang (Pipa & Coil)"
                       >
-                        <SlidersHorizontal className="h-4.5 w-4.5" strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.8} />
+                        <SlidersHorizontal className="h-4 w-4" strokeWidth={activeTab === 'capacity_settings' ? 2.2 : 1.9} />
                       </button>
                     )}
                     {canManageUsers && (
@@ -2029,14 +2030,14 @@ export default function Home() {
                         type="button"
                         onClick={() => handleSelectTab('users')}
                         className={cn(
-                          "h-9 w-9 flex items-center justify-center rounded-xl transition-all cursor-pointer",
+                          "h-9 w-9 flex items-center justify-center rounded-full transition-all cursor-pointer",
                           activeTab === 'users'
-                            ? "bg-emerald-700 text-white shadow-sm font-semibold"
-                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                            ? "bg-[#006041] text-[#d0d784] shadow-sm font-bold"
+                            : "text-[#787470] hover:bg-[#e7f0ee] hover:text-[#006041]"
                         )}
                         title="Kelola Pengguna & Roles"
                       >
-                        <Users className="h-4.5 w-4.5" strokeWidth={activeTab === 'users' ? 2.2 : 1.8} />
+                        <Users className="h-4 w-4" strokeWidth={activeTab === 'users' ? 2.2 : 1.9} />
                       </button>
                     )}
                   </div>
@@ -2044,9 +2045,9 @@ export default function Home() {
               )}
 
               {/* User Avatar */}
-              <div className="w-6 h-[1px] bg-slate-100 mt-auto" />
+              <div className="w-6 h-[1px] bg-[#efece6] mt-auto" />
               <div
-                className="h-8 w-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs"
+                className="h-8 w-8 rounded-full bg-[#006041] text-white flex items-center justify-center font-extrabold text-xs shrink-0"
                 title={`${currentUser.name} (${currentUser.role})`}
               >
                 {currentUser.name.charAt(0).toUpperCase()}

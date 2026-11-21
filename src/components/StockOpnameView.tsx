@@ -37,7 +37,6 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Layers,
   Building2,
   MapPin,
   Maximize2,
@@ -51,6 +50,8 @@ import {
 import { CustomizableCard, CardWidth } from './CustomizableCard';
 import { tooltipStyleStrong, tooltipStyle } from '@/lib/chartTheme';
 import { moveCard, resizeCard } from '@/lib/cardLayout';
+import { MenuBanner, BANNER_PRIMARY_BTN } from './MenuBanner';
+import { VarianceKpiGrid } from './VarianceKpiGrid';
 
 ChartJS.register(...registerables);
 
@@ -175,7 +176,17 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
             }
           }
 
-          list.sort((a, b) => a.lastUpdated.localeCompare(b.lastUpdated));
+          const getPeriodSortKey = (p: StockOpnamePeriodSummary): string => {
+            const keyMatch = p.periodKey?.match(/snap_(\d{4}-\d{2}-\d{2})/);
+            if (keyMatch) return keyMatch[1];
+            const dmyMatch = p.lastUpdated?.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+            if (dmyMatch) {
+              const [, d, m, y] = dmyMatch;
+              return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+            }
+            return p.lastUpdated || p.periodKey || '';
+          };
+          list.sort((a, b) => getPeriodSortKey(a).localeCompare(getPeriodSortKey(b)));
           setStoPeriods(list);
         }
       } catch (err) {
@@ -1271,85 +1282,103 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
   // ==========================================
   // CHART 5: PERBANDINGAN STO PER PERIODE
   // ==========================================
+  const periodStatsList = useMemo(() => {
+    return stoPeriods.map((p) => {
+      const source =
+        selectedGudang !== 'ALL' && p.gudangBreakdown?.[selectedGudang]
+          ? {
+              accuracy: p.gudangBreakdown[selectedGudang].accuracyRate,
+              sapTon: p.gudangBreakdown[selectedGudang].sapTon,
+              actualTon: p.gudangBreakdown[selectedGudang].actualTon,
+              varianceTon: p.gudangBreakdown[selectedGudang].varianceTon,
+              sapQty: p.gudangBreakdown[selectedGudang].sapQty,
+              actualQty: p.gudangBreakdown[selectedGudang].actualQty,
+              itemCount: p.gudangBreakdown[selectedGudang].itemCount,
+              matchingCount: p.gudangBreakdown[selectedGudang].matchingCount,
+            }
+          : {
+              accuracy: p.accuracyRate,
+              sapTon: p.sapTon,
+              actualTon: p.actualTon,
+              varianceTon: p.varianceTon,
+              sapQty: p.sapQty,
+              actualQty: p.actualQty,
+              itemCount: p.totalItems,
+              matchingCount: p.matchingCount,
+            };
+
+      return {
+        periodKey: p.periodKey,
+        label: p.label || p.lastUpdated,
+        accuracy: Number((source.accuracy || 0).toFixed(1)),
+        sapTon: Number((source.sapTon || 0).toFixed(2)),
+        actualTon: Number((source.actualTon || 0).toFixed(2)),
+        varianceTon: Number((source.varianceTon || 0).toFixed(2)),
+        sapQty: source.sapQty || 0,
+        actualQty: source.actualQty || 0,
+        itemCount: source.itemCount || 0,
+        matchingCount: source.matchingCount || 0,
+      };
+    });
+  }, [stoPeriods, selectedGudang]);
+
+  const accuracyAxisMin = useMemo(() => {
+    if (periodStatsList.length === 0) return 85;
+    const minAcc = Math.min(...periodStatsList.map((v) => v.accuracy));
+    return Math.min(90, Math.max(0, Math.floor((minAcc - 4) / 5) * 5));
+  }, [periodStatsList]);
+
   const periodChartData = useMemo(() => {
-    if (stoPeriods.length === 0) {
+    if (periodStatsList.length === 0) {
       return { labels: [], datasets: [] };
     }
 
-    const labels = stoPeriods.map((p) => p.label || p.lastUpdated);
+    const labels = periodStatsList.map((v) => v.label);
+    const barGeometry = {
+      type: 'bar' as const,
+      borderWidth: 1,
+      borderRadius: 8,
+      borderSkipped: 'bottom' as const,
+      barPercentage: 0.72,
+      categoryPercentage: periodStatsList.length <= 3 ? 0.42 : 0.62,
+      maxBarThickness: 46,
+      yAxisID: 'y',
+    };
 
-    const periodValues = stoPeriods.map((p) => {
-      if (selectedGudang !== 'ALL' && p.gudangBreakdown?.[selectedGudang]) {
-        const g = p.gudangBreakdown[selectedGudang];
-        return {
-          accuracy: Number((g.accuracyRate || 0).toFixed(1)),
-          sapTon: Number((g.sapTon || 0).toFixed(2)),
-          actualTon: Number((g.actualTon || 0).toFixed(2)),
-          varianceTon: Number((g.varianceTon || 0).toFixed(2)),
-          sapQty: g.sapQty || 0,
-          actualQty: g.actualQty || 0,
-          varianceQty: (g.actualQty || 0) - (g.sapQty || 0),
-          itemCount: g.itemCount || 0,
-          matchingCount: g.matchingCount || 0,
-        };
-      }
-      return {
-        accuracy: Number((p.accuracyRate || 0).toFixed(1)),
-        sapTon: Number((p.sapTon || 0).toFixed(2)),
-        actualTon: Number((p.actualTon || 0).toFixed(2)),
-        varianceTon: Number((p.varianceTon || 0).toFixed(2)),
-        sapQty: p.sapQty || 0,
-        actualQty: p.actualQty || 0,
-        varianceQty: p.varianceQty || 0,
-        itemCount: p.totalItems || 0,
-        matchingCount: p.matchingCount || 0,
-      };
-    });
+    const sapBarTheme = {
+      ...barGeometry,
+      backgroundColor: 'rgba(148, 144, 136, 0.82)',
+      borderColor: '#787470',
+    };
+
+    const actualBarTheme = {
+      ...barGeometry,
+      backgroundColor: 'rgba(0, 96, 65, 0.88)',
+      borderColor: '#004931',
+    };
+
+    const accuracyLineTheme = {
+      type: 'line' as const,
+      label: 'Akurasi STO (%)',
+      data: periodStatsList.map((v) => v.accuracy),
+      borderColor: '#879434',
+      backgroundColor: 'rgba(151, 162, 89, 0.14)',
+      pointBackgroundColor: '#879434',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      borderWidth: 2.5,
+      tension: 0.28,
+    };
 
     if (periodMetric === 'all') {
       return {
         labels,
         datasets: [
-          {
-            type: 'bar' as const,
-            label: 'Stock SAP (Ton)',
-            data: periodValues.map((v) => v.sapTon),
-            backgroundColor: 'rgba(100, 116, 139, 0.85)',
-            borderColor: '#475569',
-            borderWidth: 1,
-            borderRadius: 5,
-            maxBarThickness: 44,
-            yAxisID: 'y',
-            order: 2,
-          },
-          {
-            type: 'bar' as const,
-            label: 'Actual (Ton)',
-            data: periodValues.map((v) => v.actualTon),
-            backgroundColor: 'rgba(16, 185, 129, 0.85)',
-            borderColor: '#059669',
-            borderWidth: 1,
-            borderRadius: 5,
-            maxBarThickness: 44,
-            yAxisID: 'y',
-            order: 2,
-          },
-          {
-            type: 'line' as const,
-            label: 'Akurasi STO (%)',
-            data: periodValues.map((v) => v.accuracy),
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99, 102, 241, 0.12)',
-            pointBackgroundColor: '#6366f1',
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: 2,
-            pointRadius: 6,
-            pointHoverRadius: 8,
-            borderWidth: 2.5,
-            tension: 0.25,
-            yAxisID: 'y1',
-            order: 1,
-          },
+          { ...sapBarTheme, label: 'Stock SAP (Ton)', data: periodStatsList.map((v) => v.sapTon), order: 2 },
+          { ...actualBarTheme, label: 'Actual (Ton)', data: periodStatsList.map((v) => v.actualTon), order: 2 },
+          { ...accuracyLineTheme, yAxisID: 'y1', order: 1 },
         ],
       };
     }
@@ -1358,28 +1387,8 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
       return {
         labels,
         datasets: [
-          {
-            type: 'bar' as const,
-            label: 'Stock SAP (Ton)',
-            data: periodValues.map((v) => v.sapTon),
-            backgroundColor: 'rgba(100, 116, 139, 0.85)',
-            borderColor: '#475569',
-            borderWidth: 1,
-            borderRadius: 5,
-            maxBarThickness: 44,
-            yAxisID: 'y',
-          },
-          {
-            type: 'bar' as const,
-            label: 'Actual (Ton)',
-            data: periodValues.map((v) => v.actualTon),
-            backgroundColor: 'rgba(16, 185, 129, 0.85)',
-            borderColor: '#059669',
-            borderWidth: 1,
-            borderRadius: 5,
-            maxBarThickness: 44,
-            yAxisID: 'y',
-          },
+          { ...sapBarTheme, label: 'Stock SAP (Ton)', data: periodStatsList.map((v) => v.sapTon) },
+          { ...actualBarTheme, label: 'Actual (Ton)', data: periodStatsList.map((v) => v.actualTon) },
         ],
       };
     }
@@ -1388,28 +1397,8 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
       return {
         labels,
         datasets: [
-          {
-            type: 'bar' as const,
-            label: 'Stock SAP (Pcs)',
-            data: periodValues.map((v) => v.sapQty),
-            backgroundColor: 'rgba(100, 116, 139, 0.85)',
-            borderColor: '#475569',
-            borderWidth: 1,
-            borderRadius: 5,
-            maxBarThickness: 44,
-            yAxisID: 'y',
-          },
-          {
-            type: 'bar' as const,
-            label: 'Actual (Pcs)',
-            data: periodValues.map((v) => v.actualQty),
-            backgroundColor: 'rgba(16, 185, 129, 0.85)',
-            borderColor: '#059669',
-            borderWidth: 1,
-            borderRadius: 5,
-            maxBarThickness: 44,
-            yAxisID: 'y',
-          },
+          { ...sapBarTheme, label: 'Stock SAP (Pcs)', data: periodStatsList.map((v) => v.sapQty) },
+          { ...actualBarTheme, label: 'Actual (Pcs)', data: periodStatsList.map((v) => v.actualQty) },
         ],
       };
     }
@@ -1417,55 +1406,18 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
     if (periodMetric === 'accuracy') {
       return {
         labels,
-        datasets: [
-          {
-            type: 'line' as const,
-            label: 'Akurasi STO (%)',
-            data: periodValues.map((v) => v.accuracy),
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99, 102, 241, 0.15)',
-            fill: true,
-            pointBackgroundColor: '#4f46e5',
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: 2,
-            pointRadius: 6,
-            pointHoverRadius: 8,
-            borderWidth: 2.5,
-            tension: 0.25,
-            yAxisID: 'y',
-          },
-        ],
+        datasets: [{ ...accuracyLineTheme, fill: true, yAxisID: 'y' }],
       };
     }
 
     return {
       labels,
       datasets: [
-        {
-          type: 'bar' as const,
-          label: 'Total Item Sensus',
-          data: periodValues.map((v) => v.itemCount),
-          backgroundColor: 'rgba(100, 116, 139, 0.85)',
-          borderColor: '#475569',
-          borderWidth: 1,
-          borderRadius: 5,
-          maxBarThickness: 44,
-          yAxisID: 'y',
-        },
-        {
-          type: 'bar' as const,
-          label: 'Item Sesuai (Akurat)',
-          data: periodValues.map((v) => v.matchingCount),
-          backgroundColor: 'rgba(16, 185, 129, 0.85)',
-          borderColor: '#059669',
-          borderWidth: 1,
-          borderRadius: 5,
-          maxBarThickness: 44,
-          yAxisID: 'y',
-        },
+        { ...sapBarTheme, label: 'Total Item Sensus', data: periodStatsList.map((v) => v.itemCount) },
+        { ...actualBarTheme, label: 'Item Sesuai (Akurat)', data: periodStatsList.map((v) => v.matchingCount) },
       ],
     };
-  }, [stoPeriods, periodMetric, selectedGudang]);
+  }, [periodStatsList, periodMetric]);
 
   const periodMetricRef = useRef(periodMetric);
   useEffect(() => {
@@ -1485,38 +1437,35 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
             const val = dataset.data[index];
             if (element && typeof val === 'number') {
               let text = '';
-              let fillStyle = '#475569';
+              let fillStyle = '#59575c';
               let yOffset = -9;
 
               if (currentMetric === 'all') {
                 if (dataset.type === 'line') {
                   text = `${val.toFixed(1)}%`;
-                  fillStyle = '#4f46e5';
+                  fillStyle = '#5f6c1e';
                   yOffset = -14;
-                } else if (datasetIndex === 0) {
-                  text = `${val.toLocaleString('id-ID', { maximumFractionDigits: 1 })} T`;
-                  fillStyle = '#475569';
                 } else {
                   text = `${val.toLocaleString('id-ID', { maximumFractionDigits: 1 })} T`;
-                  fillStyle = '#047857';
+                  fillStyle = datasetIndex === 0 ? '#59575c' : '#006041';
                 }
               } else if (currentMetric === 'ton') {
                 text = `${val.toLocaleString('id-ID', { maximumFractionDigits: 1 })} T`;
-                fillStyle = datasetIndex === 0 ? '#475569' : '#047857';
+                fillStyle = datasetIndex === 0 ? '#59575c' : '#006041';
               } else if (currentMetric === 'qty') {
                 text = val >= 1000 ? `${(val / 1000).toFixed(0)}k Pcs` : `${Math.round(val).toLocaleString('id-ID')} Pcs`;
-                fillStyle = datasetIndex === 0 ? '#475569' : '#047857';
+                fillStyle = datasetIndex === 0 ? '#59575c' : '#006041';
               } else if (currentMetric === 'accuracy') {
                 text = `${val.toFixed(1)}%`;
-                fillStyle = '#4f46e5';
+                fillStyle = '#5f6c1e';
                 yOffset = -14;
               } else if (currentMetric === 'item') {
-                text = `${Math.round(val).toLocaleString('id-ID')} Item`;
-                fillStyle = datasetIndex === 0 ? '#475569' : '#047857';
+                text = `${Math.round(val).toLocaleString('id-ID')} item`;
+                fillStyle = datasetIndex === 0 ? '#59575c' : '#006041';
               }
 
               ctx.save();
-              ctx.font = 'bold 9.5px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+              ctx.font = '700 10px "Plus Jakarta Sans", system-ui, sans-serif';
               ctx.fillStyle = fillStyle;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
@@ -1532,38 +1481,27 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
 
   const periodChartOptions = useMemo(() => {
     const isCombo = periodMetric === 'all';
+    const isAccuracyOnly = periodMetric === 'accuracy';
     return {
       responsive: true,
       maintainAspectRatio: false,
+      layout: {
+        padding: {
+          top: 28,
+          right: 6,
+          left: 2,
+        },
+      },
       interaction: {
         mode: 'index' as const,
         intersect: false,
       },
       plugins: {
         legend: {
-          display: true,
-          position: 'top' as const,
-          align: 'end' as const,
-          labels: {
-            boxWidth: 12,
-            boxHeight: 12,
-            borderRadius: 3,
-            usePointStyle: isCombo,
-            font: {
-              family: 'ui-sans-serif, system-ui, sans-serif',
-              size: 11,
-              weight: 600,
-            },
-            color: '#475569',
-            padding: 12,
-          },
+          display: false,
         },
         tooltip: {
-          backgroundColor: '#0f172a',
-          titleFont: { family: 'ui-sans-serif, system-ui, sans-serif', size: 12, weight: 'bold' as const },
-          bodyFont: { family: 'ui-monospace, SFMono-Regular, monospace', size: 11 },
-          padding: 10,
-          cornerRadius: 8,
+          ...tooltipStyleStrong,
           callbacks: {
             label(context: any) {
               const val = context.raw;
@@ -1585,21 +1523,23 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
       scales: {
         x: {
           grid: { display: false },
+          border: { color: '#e6e2db' },
           ticks: {
-            font: { family: 'ui-sans-serif, system-ui, sans-serif', size: 11, weight: 'bold' as const },
-            color: '#334155',
+            font: { family: '"Plus Jakarta Sans", system-ui, sans-serif', size: 11.5, weight: 700 },
+            color: '#222126',
           },
         },
         y: {
           type: 'linear' as const,
           display: true,
           position: 'left' as const,
-          beginAtZero: true,
-          grace: '15%',
-          grid: { color: '#f1f5f9' },
+          beginAtZero: !isAccuracyOnly,
+          ...(isAccuracyOnly ? { min: accuracyAxisMin, max: 100 } : { grace: '18%' }),
+          border: { display: false },
+          grid: { color: '#efece6' },
           ticks: {
-            font: { family: 'ui-monospace, monospace', size: 10 },
-            color: '#64748b',
+            font: { family: '"Plus Jakarta Sans", system-ui, sans-serif', size: 10.5, weight: 600 },
+            color: isAccuracyOnly ? '#5f6c1e' : '#787470',
             callback: (v: any) => {
               if (periodMetric === 'all' || periodMetric === 'ton') {
                 return `${v} T`;
@@ -1620,12 +1560,13 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
                 type: 'linear' as const,
                 display: true,
                 position: 'right' as const,
-                min: 0,
+                min: accuracyAxisMin,
                 max: 100,
+                border: { display: false },
                 grid: { drawOnChartArea: false },
                 ticks: {
-                  font: { family: 'ui-monospace, monospace', size: 10 },
-                  color: '#6366f1',
+                  font: { family: '"Plus Jakarta Sans", system-ui, sans-serif', size: 10.5, weight: 600 },
+                  color: '#5f6c1e',
                   callback: (v: any) => `${v}%`,
                 },
               },
@@ -1633,7 +1574,7 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           : {}),
       },
     };
-  }, [periodMetric]);
+  }, [periodMetric, accuracyAxisMin]);
 
   // Helper render sort icon pada header tabel
   const renderSortIcon = (field: string) => {
@@ -1649,168 +1590,30 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
 
   return (
     <div className="space-y-4 font-sans text-slate-800 animate-in fade-in duration-200">
-      {/* Top Banner & Header */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
-            <ClipboardCheck className="h-4.5 w-4.5" strokeWidth={2.4} />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-white font-sans tracking-tight">
-              Stock Opname (STO) &amp; Rekonsiliasi Actual vs SAP
-            </h1>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 ml-auto">
-          <button
-            type="button"
-            onClick={handleExport}
-            title="Ekspor data ke Excel"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 text-emerald-100 hover:text-white border border-emerald-700 text-xs font-semibold transition-all cursor-pointer shadow-xs"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Export Excel</span>
-          </button>
-        </div>
-      </div>
+      <MenuBanner
+        title="Stock Opname (STO) & Rekonsiliasi Actual vs SAP"
+        icon={ClipboardCheck}
+        watermark="stock opname"
+      >
+        <button
+          type="button"
+          onClick={handleExport}
+          title="Ekspor data ke Excel"
+          className={BANNER_PRIMARY_BTN}
+        >
+          <Download className="h-3.5 w-3.5 text-[#006041]" />
+          <span>Export Excel</span>
+        </button>
+      </MenuBanner>
 
       {/* 2. KPI Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {/* Total Item */}
-        <div className="group relative bg-gradient-to-b from-slate-50/80 via-white to-white rounded-2xl p-4 border border-slate-200/90 shadow-xs hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Total Item STO</span>
-            <div className="p-1.5 rounded-xl bg-slate-100 text-slate-600 border border-slate-200/60 group-hover:scale-110 transition-transform duration-200">
-              <Layers className="h-3.5 w-3.5 text-slate-500" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono tracking-tight text-slate-900">{formatQty(summary.totalItems)}</span>
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold font-mono bg-slate-100 text-slate-600 border border-slate-200/70">100%</span>
-          </div>
-          <div className="w-full bg-slate-100 rounded-full h-1 mt-2.5 overflow-hidden">
-            <div className="bg-slate-400 h-full rounded-full w-full" />
-          </div>
-          <p className="text-[10px] text-slate-400 mt-1.5 truncate">Total record opname SAP</p>
-        </div>
-
-        {/* Item Sesuai (Akurat) */}
-        <div className="group relative bg-gradient-to-b from-emerald-50/70 via-emerald-50/20 to-white rounded-2xl p-4 border border-emerald-200/90 shadow-xs hover:shadow-md hover:border-emerald-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-emerald-700 text-xs font-medium">
-            <span>Sesuai (Akurat)</span>
-            <div className="p-1.5 rounded-xl bg-emerald-100 text-emerald-700 border border-emerald-200/80 group-hover:scale-110 transition-transform duration-200">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono tracking-tight text-emerald-700">{formatQty(summary.matchingItems)}</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-100 text-emerald-800 border border-emerald-300/80 shadow-2xs">
-              {summary.accuracyRate.toFixed(1)}%
-            </span>
-          </div>
-          <div className="w-full bg-emerald-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
-            <div
-              className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.max(0, summary.accuracyRate))}%` }}
-            />
-          </div>
-          <p className="text-[10px] text-emerald-600/80 mt-1.5 truncate">Selisih = 0 (Stock SAP = Actual)</p>
-        </div>
-
-        {/* Selisih Minus */}
-        <div className="group relative bg-gradient-to-b from-rose-50/70 via-rose-50/20 to-white rounded-2xl p-4 border border-rose-200/90 shadow-xs hover:shadow-md hover:border-rose-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-rose-700 text-xs font-medium">
-            <span>Selisih Minus (-)</span>
-            <div className="p-1.5 rounded-xl bg-rose-100 text-rose-700 border border-rose-200/80 group-hover:scale-110 transition-transform duration-200">
-              <MinusCircle className="h-3.5 w-3.5 text-rose-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono tracking-tight text-rose-700">{formatQty(summary.minusItems)}</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-rose-100 text-rose-800 border border-rose-300/80 shadow-2xs">
-              -{formatTon(summary.totalMinusTon)} T
-            </span>
-          </div>
-          <div className="w-full bg-rose-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
-            <div
-              className="bg-rose-500 h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${summary.totalItems > 0 ? Math.min(100, (summary.minusItems / summary.totalItems) * 100) : 0}%`,
-              }}
-            />
-          </div>
-          <p className="text-[10px] text-rose-600/80 mt-1.5 truncate">Defisit (Actual &lt; Stock SAP)</p>
-        </div>
-
-        {/* Selisih Plus */}
-        <div className="group relative bg-gradient-to-b from-amber-50/70 via-amber-50/20 to-white rounded-2xl p-4 border border-amber-200/90 shadow-xs hover:shadow-md hover:border-amber-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-amber-800 text-xs font-medium">
-            <span>Selisih Plus (+)</span>
-            <div className="p-1.5 rounded-xl bg-amber-100 text-amber-800 border border-amber-200/80 group-hover:scale-110 transition-transform duration-200">
-              <PlusCircle className="h-3.5 w-3.5 text-amber-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono tracking-tight text-amber-700">{formatQty(summary.plusItems)}</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-amber-100 text-amber-800 border border-amber-300/80 shadow-2xs">
-              +{formatTon(summary.totalPlusTon)} T
-            </span>
-          </div>
-          <div className="w-full bg-amber-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
-            <div
-              className="bg-amber-500 h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${summary.totalItems > 0 ? Math.min(100, (summary.plusItems / summary.totalItems) * 100) : 0}%`,
-              }}
-            />
-          </div>
-          <p className="text-[10px] text-amber-700/80 mt-1.5 truncate">Surplus (Actual &gt; Stock SAP)</p>
-        </div>
-
-        {/* Net Variance */}
-        <div className="col-span-2 sm:col-span-1 group relative bg-gradient-to-b from-slate-50/90 via-white to-white rounded-2xl p-4 border border-slate-200/90 shadow-xs hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-600 text-xs font-medium">
-            <span>Net Variance (Total)</span>
-            <div className="p-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200/60 group-hover:scale-110 transition-transform duration-200">
-              <Scale className="h-3.5 w-3.5 text-slate-500" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span
-              className={cn(
-                'text-2xl font-bold font-mono tracking-tight',
-                summary.netVarianceTon < 0
-                  ? 'text-rose-600'
-                  : summary.netVarianceTon > 0
-                  ? 'text-amber-600'
-                  : 'text-emerald-600'
-              )}
-            >
-              {summary.netVarianceTon > 0 ? '+' : ''}
-              {formatTon(summary.netVarianceTon)} T
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-slate-100 text-slate-600 border border-slate-200/70">
-              {summary.netVarianceQty > 0 ? '+' : ''}
-              {formatQty(summary.netVarianceQty)} pcs
-            </span>
-          </div>
-          <div className="w-full bg-slate-100 rounded-full h-1 mt-2.5 overflow-hidden">
-            <div
-              className={cn(
-                'h-full rounded-full',
-                summary.netVarianceTon < 0
-                  ? 'bg-rose-400'
-                  : summary.netVarianceTon > 0
-                  ? 'bg-amber-400'
-                  : 'bg-emerald-400'
-              )}
-              style={{ width: '100%' }}
-            />
-          </div>
-          <p className="text-[10px] text-slate-400 mt-1.5 truncate">Total deviasi tonase bersih</p>
-        </div>
-      </div>
+      <VarianceKpiGrid
+        summary={summary}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        totalLabel="Total Item STO"
+        totalDescription="Record opname SAP"
+      />
 
       {/* 3. Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white/95 backdrop-blur-xs rounded-2xl border border-slate-200/90 shadow-xs">
@@ -2440,266 +2243,198 @@ export const StockOpnameView: React.FC<StockOpnameViewProps> = ({
           onMoveLeft={() => handleMove(4, 'left')}
           onMoveRight={() => handleMove(4, 'right')}
           badge={
-            <span className="text-[10px] font-mono bg-indigo-50 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full border border-indigo-200/80 shadow-2xs">
+            <span className="text-[10.5px] font-tabular bg-[#e7f0ee] text-[#006041] font-bold px-2.5 py-0.5 rounded-full border border-[#006041]/20">
               {stoPeriods.length} Periode
             </span>
           }
           headerAction={
-            <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 text-[11px] font-mono">
-              <button
-                type="button"
-                onClick={() => setPeriodMetric('all')}
-                className={cn(
-                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
-                  periodMetric === 'all'
-                    ? 'bg-white text-indigo-700 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                )}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                onClick={() => setPeriodMetric('ton')}
-                className={cn(
-                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
-                  periodMetric === 'ton'
-                    ? 'bg-white text-emerald-700 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                )}
-              >
-                Tonase
-              </button>
-              <button
-                type="button"
-                onClick={() => setPeriodMetric('qty')}
-                className={cn(
-                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
-                  periodMetric === 'qty'
-                    ? 'bg-white text-emerald-700 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                )}
-              >
-                Qty Pcs
-              </button>
-              <button
-                type="button"
-                onClick={() => setPeriodMetric('accuracy')}
-                className={cn(
-                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
-                  periodMetric === 'accuracy'
-                    ? 'bg-white text-indigo-700 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                )}
-              >
-                Akurasi (%)
-              </button>
-              <button
-                type="button"
-                onClick={() => setPeriodMetric('item')}
-                className={cn(
-                  'px-2.5 py-1 rounded-lg font-bold transition-all duration-200 cursor-pointer',
-                  periodMetric === 'item'
-                    ? 'bg-white text-slate-800 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                )}
-              >
-                Item
-              </button>
+            <div className="flex flex-wrap items-center gap-1 bg-[#f4f2ef] p-1 rounded-full border border-[#e6e2db] text-[11px]">
+              {(
+                [
+                  { id: 'all', label: 'All' },
+                  { id: 'ton', label: 'Tonase' },
+                  { id: 'qty', label: 'Qty Pcs' },
+                  { id: 'accuracy', label: 'Akurasi (%)' },
+                  { id: 'item', label: 'Item' },
+                ] as const
+              ).map((tab) => {
+                const isActive = periodMetric === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setPeriodMetric(tab.id)}
+                    className={cn(
+                      'px-3 py-1 rounded-full font-bold transition-all duration-150 cursor-pointer whitespace-nowrap',
+                      isActive
+                        ? 'bg-[#006041] text-white shadow-xs'
+                        : 'text-[#59575c] hover:text-[#1a4034] hover:bg-white/75'
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
           }
         >
-          {(expanded) => (
-            <div className="flex flex-col justify-between h-full w-full">
-              {/* Top Sub-legend / indicator */}
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  {periodMetric === 'all' && (
-                    <>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-slate-500 shrink-0" />
-                        <span>Stock SAP (Ton)</span>
+          {(expanded) => {
+            const legendItems =
+              periodMetric === 'accuracy'
+                ? [{ label: 'Tren Persentase Akurasi STO (%)', dot: 'rounded-full h-2 w-3.5 bg-[#879434]', text: 'text-[#5f6c1e]' }]
+                : [
+                    {
+                      label:
+                        periodMetric === 'qty'
+                          ? 'Stock SAP (Pcs)'
+                          : periodMetric === 'item'
+                          ? 'Total Item Disensus'
+                          : 'Stock SAP (Ton)',
+                      dot: 'rounded-sm h-2.5 w-2.5 bg-[#949088]',
+                      text: 'text-[#59575c]',
+                    },
+                    {
+                      label:
+                        periodMetric === 'qty'
+                          ? 'Actual Sensus (Pcs)'
+                          : periodMetric === 'item'
+                          ? 'Item Sesuai (Akurat)'
+                          : 'Actual Sensus (Ton)',
+                      dot: 'rounded-sm h-2.5 w-2.5 bg-[#006041]',
+                      text: 'text-[#006041]',
+                    },
+                    ...(periodMetric === 'all'
+                      ? [{ label: 'Akurasi STO (%)', dot: 'rounded-full h-2 w-3.5 bg-[#879434]', text: 'text-[#5f6c1e]' }]
+                      : []),
+                  ];
+
+            const periodGridCols =
+              periodStatsList.length === 1
+                ? 'grid-cols-1 max-w-md'
+                : periodStatsList.length === 2
+                ? 'grid-cols-1 sm:grid-cols-2'
+                : periodStatsList.length === 3
+                ? 'grid-cols-1 sm:grid-cols-3'
+                : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4';
+
+            return (
+              <div className="flex flex-col justify-between h-full w-full">
+                {/* Single Clean Top Sub-legend */}
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                  <div className="flex flex-wrap items-center gap-4">
+                    {legendItems.map((item) => (
+                      <div key={item.label} className={cn('inline-flex items-center gap-1.5 text-xs font-semibold', item.text)}>
+                        <span className={cn('shrink-0', item.dot)} />
+                        <span>{item.label}</span>
                       </div>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" />
-                        <span>Actual Sensus (Ton)</span>
-                      </div>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600">
-                        <span className="h-2 w-3 rounded-full bg-indigo-500 shrink-0" />
-                        <span>Akurasi STO (%)</span>
-                      </div>
-                    </>
-                  )}
-                  {periodMetric === 'ton' && (
-                    <>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-slate-500 shrink-0" />
-                        <span>Stock SAP (Ton)</span>
-                      </div>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" />
-                        <span>Actual Sensus (Ton)</span>
-                      </div>
-                    </>
-                  )}
-                  {periodMetric === 'qty' && (
-                    <>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-slate-500 shrink-0" />
-                        <span>Stock SAP (Pcs)</span>
-                      </div>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" />
-                        <span>Actual Sensus (Pcs)</span>
-                      </div>
-                    </>
-                  )}
-                  {periodMetric === 'accuracy' && (
-                    <div className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-700">
-                      <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 shrink-0" />
-                      <span>Tren Persentase Akurasi STO (%)</span>
+                    ))}
+                  </div>
+
+                  {selectedGudang !== 'ALL' && (
+                    <div className="inline-flex items-center gap-1 text-[11px] font-tabular font-semibold text-[#006041] bg-[#e7f0ee] px-2.5 py-0.5 rounded-full border border-[#006041]/20">
+                      <span>Filter Gudang:</span>
+                      <span className="font-bold">{selectedGudang}</span>
                     </div>
                   )}
-                  {periodMetric === 'item' && (
-                    <>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-slate-500 shrink-0" />
-                        <span>Total Item Disensus</span>
-                      </div>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" />
-                        <span>Item Sesuai (Akurat)</span>
-                      </div>
-                    </>
+                </div>
+
+                {/* Chart container */}
+                <div className={cn('w-full', expanded ? 'flex-1 min-h-[420px]' : 'h-64 sm:h-72')}>
+                  {isLoadingPeriods ? (
+                    <div className="flex flex-col items-center justify-center h-full text-[#787470] py-10">
+                      <div className="h-6 w-6 border-2 border-[#006041] border-t-transparent rounded-full animate-spin mb-2" />
+                      <p className="text-xs font-medium text-[#59575c]">
+                        Memuat riwayat data STO per periode...
+                      </p>
+                    </div>
+                  ) : periodStatsList.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-[#787470] py-10">
+                      <History className="h-7 w-7 text-[#c5c0b8] mb-1.5 stroke-1" />
+                      <p className="text-xs font-medium text-[#59575c]">
+                        Belum ada riwayat periode STO
+                      </p>
+                    </div>
+                  ) : (
+                    <Bar
+                      key={`period-chart-${periodMetric}-${selectedGudang}-${periodStatsList.length}`}
+                      data={periodChartData as any}
+                      options={periodChartOptions as any}
+                      plugins={[periodDataLabelsPlugin]}
+                    />
                   )}
                 </div>
 
-                {selectedGudang !== 'ALL' && (
-                  <div className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                    <span>Filter Gudang:</span>
-                    <span className="font-bold">{selectedGudang}</span>
+                {/* Clean Period Summary Cards Strip */}
+                {periodStatsList.length > 0 && (
+                  <div className={cn('grid gap-3 pt-4 border-t border-[#efece6] mt-3', periodGridCols)}>
+                    {periodStatsList.map((stats) => {
+                      const isHigh = stats.accuracy >= 95;
+                      const isMed = stats.accuracy >= 85 && stats.accuracy < 95;
+
+                      return (
+                        <div
+                          key={stats.periodKey}
+                          className="rounded-[16px] bg-[#faf8f5] border border-[#e6e2db] p-3.5 hover:border-[#006041]/35 transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-[#efece6]">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Calendar className="h-3.5 w-3.5 text-[#006041] shrink-0" />
+                              <span className="text-xs font-bold text-[#1a4034] truncate">
+                                {stats.label}
+                              </span>
+                            </div>
+                            <span
+                              className={cn(
+                                'text-[10.5px] font-tabular font-bold px-2.5 py-0.5 rounded-full border shrink-0',
+                                isHigh
+                                  ? 'bg-[#e7f0ee] text-[#006041] border-[#006041]/20'
+                                  : isMed
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200/80'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200/80'
+                              )}
+                            >
+                              {stats.accuracy.toFixed(1)}%
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 pt-2.5">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-medium text-[#787470] block">Stock SAP</span>
+                              <span className="text-xs font-bold font-tabular text-[#222126] whitespace-nowrap">
+                                {formatTon(stats.sapTon)} T
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-medium text-[#787470] block">Actual</span>
+                              <span className="text-xs font-bold font-tabular text-[#006041] whitespace-nowrap">
+                                {formatTon(stats.actualTon)} T
+                              </span>
+                            </div>
+                            <div className="min-w-0 text-right">
+                              <span className="text-[10px] font-medium text-[#787470] block">Selisih</span>
+                              <span
+                                className={cn(
+                                  'text-xs font-bold font-tabular whitespace-nowrap',
+                                  stats.varianceTon < 0
+                                    ? 'text-rose-600'
+                                    : stats.varianceTon > 0
+                                    ? 'text-amber-700'
+                                    : 'text-[#006041]'
+                                )}
+                              >
+                                {stats.varianceTon > 0 ? '+' : ''}
+                                {formatTon(stats.varianceTon, { decimals: 2 })} T
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
-
-              {/* Chart container */}
-              <div className={cn("w-full", expanded ? "flex-1 min-h-[420px]" : "h-64 sm:h-72")}>
-                {isLoadingPeriods ? (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
-                    <div className="h-6 w-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mb-2" />
-                    <p className="text-xs font-medium text-slate-500">
-                      Memuat riwayat data STO per periode...
-                    </p>
-                  </div>
-                ) : stoPeriods.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
-                    <History className="h-7 w-7 text-slate-300 mb-1.5 stroke-1" />
-                    <p className="text-xs font-medium text-slate-500">
-                      Belum ada riwayat periode STO
-                    </p>
-                  </div>
-                ) : (
-                  <Bar
-                    key={`period-chart-${periodMetric}-${selectedGudang}-${stoPeriods.length}`}
-                    data={periodChartData as any}
-                    options={periodChartOptions as any}
-                    plugins={[periodDataLabelsPlugin]}
-                  />
-                )}
-              </div>
-
-              {/* Period Summary Cards Grid */}
-              {stoPeriods.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 pt-3.5 border-t border-slate-100 mt-3">
-                  {stoPeriods.map((p) => {
-                    const stats = (selectedGudang !== 'ALL' && p.gudangBreakdown?.[selectedGudang])
-                      ? {
-                          accuracy: p.gudangBreakdown[selectedGudang].accuracyRate,
-                          sapTon: p.gudangBreakdown[selectedGudang].sapTon,
-                          actualTon: p.gudangBreakdown[selectedGudang].actualTon,
-                          varianceTon: p.gudangBreakdown[selectedGudang].varianceTon,
-                          sapQty: p.gudangBreakdown[selectedGudang].sapQty,
-                          actualQty: p.gudangBreakdown[selectedGudang].actualQty,
-                          totalItems: p.gudangBreakdown[selectedGudang].itemCount,
-                          matching: p.gudangBreakdown[selectedGudang].matchingCount,
-                        }
-                      : {
-                          accuracy: p.accuracyRate,
-                          sapTon: p.sapTon,
-                          actualTon: p.actualTon,
-                          varianceTon: p.varianceTon,
-                          sapQty: p.sapQty,
-                          actualQty: p.actualQty,
-                          totalItems: p.totalItems,
-                          matching: p.matchingCount,
-                        };
-
-                    const isHigh = stats.accuracy >= 95;
-                    const isMed = stats.accuracy >= 85 && stats.accuracy < 95;
-
-                    return (
-                      <div
-                        key={p.periodKey}
-                        className="flex flex-col p-2.5 rounded-xl bg-slate-50/70 hover:bg-slate-100/70 border border-slate-200/80 transition-all duration-200 shadow-2xs"
-                      >
-                        <div className="flex items-center justify-between gap-1.5 mb-2">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <Calendar className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                            <span className="text-xs font-bold text-slate-800 truncate">
-                              {p.label || p.lastUpdated}
-                            </span>
-                          </div>
-                          <span
-                            className={cn(
-                              "text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border shadow-2xs shrink-0",
-                              isHigh
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : isMed
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : "bg-rose-50 text-rose-700 border-rose-200"
-                            )}
-                          >
-                            {stats.accuracy.toFixed(1)}%
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
-                          <div className="bg-white/90 p-1.5 rounded-lg border border-slate-200/60">
-                            <span className="text-[9.5px] text-slate-400 block font-sans">Stock SAP</span>
-                            <span className="font-bold text-slate-700 truncate block">
-                              {stats.sapTon.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} T
-                            </span>
-                          </div>
-                          <div className="bg-white/90 p-1.5 rounded-lg border border-slate-200/60">
-                            <span className="text-[9.5px] text-slate-400 block font-sans">Actual Sensus</span>
-                            <span className="font-bold text-emerald-700 truncate block">
-                              {stats.actualTon.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} T
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-slate-200/50 text-[10px] font-mono text-slate-500">
-                          <span>Selisih Ton:</span>
-                          <span
-                            className={cn(
-                              "font-bold",
-                              stats.varianceTon < 0
-                                ? "text-rose-600"
-                                : stats.varianceTon > 0
-                                ? "text-amber-600"
-                                : "text-emerald-600"
-                            )}
-                          >
-                            {stats.varianceTon > 0 ? `+${stats.varianceTon.toFixed(2)}` : stats.varianceTon.toFixed(2)} T
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+            );
+          }}
         </CustomizableCard>
 
         {/* CARD 6: TABEL DETAIL HASIL REKONSILIASI STO (MULTI-TAB) */}

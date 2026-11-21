@@ -25,6 +25,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { CustomizableCard, CardWidth } from './CustomizableCard';
+import { MenuBanner, BANNER_PRIMARY_BTN } from './MenuBanner';
 import { moveCard, resizeCard } from '@/lib/cardLayout';
 
 ChartJS.register(...registerables);
@@ -452,28 +453,23 @@ export const DamagedPackagingView: React.FC<DamagedPackagingViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* Top Banner & Header */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
-            <PackageX className="h-4.5 w-4.5" strokeWidth={2.4} />
-          </div>
-          <h1 className="text-base font-bold text-white font-sans tracking-tight">
-            Data Temuan Packaging Rusak (NG)
-          </h1>
-        </div>
+      <MenuBanner
+        title="Data Temuan Packaging Rusak (NG)"
+        icon={PackageX}
+        watermark="packaging ng"
+      >
         {onNavigateToWeekly && (
           <button
             type="button"
             onClick={() => onNavigateToWeekly('packaging')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/90 hover:bg-emerald-700 border border-emerald-600/70 text-emerald-100 hover:text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+            className={BANNER_PRIMARY_BTN}
             title="Lihat Analisis Mingguan untuk Packaging"
           >
-            <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+            <BarChart3 className="w-3.5 h-3.5 text-[#006041]" />
             <span>Analisa Mingguan</span>
           </button>
         )}
-      </div>
+      </MenuBanner>
 
       {/* FILTER & SEARCH CONTROLS */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3 sm:px-4 sm:py-3 rounded-xl border border-slate-200/90 shadow-2xs text-xs">

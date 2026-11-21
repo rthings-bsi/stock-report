@@ -33,6 +33,11 @@ import {
 } from 'lucide-react';
 import { tooltipStyleStrong } from '@/lib/chartTheme';
 import { cn } from '@/lib/utils';
+import {
+  MenuBanner,
+  BANNER_PRIMARY_BTN,
+  BANNER_GLASS_BTN,
+} from './MenuBanner';
 import { readExcelFileRawMatrix } from '@/lib/parser';
 import { parseMB51File } from '@/lib/parseMB51';
 import { sanitizeFormulaValue } from '@/lib/sanitizeFormula';
@@ -1302,50 +1307,46 @@ export default function ProductivityView({
       )}
 
       {/* 1. TOP BANNER HEADER */}
-      <div className="bg-emerald-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-emerald-800 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-800 border border-emerald-700/80 text-emerald-200">
-            <Users className="h-4.5 w-4.5" strokeWidth={2.4} />
-          </div>
-          <h1 className="text-base font-bold text-white font-sans tracking-tight">
-            Produktivitas Gudang
-          </h1>
-        </div>
-
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {onNavigateToWeekly && (
-            <button
-              onClick={() => onNavigateToWeekly('productivity')}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700/90 text-emerald-100 font-semibold text-xs transition-colors border border-emerald-700/80 cursor-pointer"
-              title="Lihat Analisis Mingguan untuk Produktivitas Gudang"
-            >
-              <BarChart3 className="w-3.5 h-3.5 shrink-0 text-amber-300" />
-              <span>Analisa Mingguan</span>
-            </button>
-          )}
-
+      <MenuBanner
+        title="Produktivitas Gudang"
+        icon={Users}
+        watermark="produktivitas"
+      >
+        {onNavigateToWeekly && (
           <button
-            onClick={openHeadcountEditor}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700/90 text-emerald-100 font-semibold text-xs transition-colors border border-emerald-700/80 cursor-pointer"
+            type="button"
+            onClick={() => onNavigateToWeekly('productivity')}
+            className={BANNER_GLASS_BTN}
+            title="Lihat Analisis Mingguan untuk Produktivitas Gudang"
           >
-            <Users className="w-3.5 h-3.5 shrink-0" />
-            <span>Headcount</span>
+            <BarChart3 className="w-3.5 h-3.5 shrink-0 text-[#d0d784]" />
+            <span>Analisa Mingguan</span>
           </button>
+        )}
 
-          <button
-            onClick={handleExportExcel}
-            disabled={exportingExcel}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700/90 text-emerald-100 font-semibold text-xs transition-colors border border-emerald-700/80 disabled:opacity-40 cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 shrink-0" />
-            <span>{exportingExcel ? 'Export...' : 'Excel'}</span>
-          </button>
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={openHeadcountEditor}
+          className={BANNER_GLASS_BTN}
+        >
+          <Users className="w-3.5 h-3.5 shrink-0 text-[#d0d784]" />
+          <span>Headcount</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={exportingExcel}
+          className={BANNER_PRIMARY_BTN}
+        >
+          <Download className="w-3.5 h-3.5 shrink-0 text-[#006041]" />
+          <span>{exportingExcel ? 'Export...' : 'Export Excel'}</span>
+        </button>
+      </MenuBanner>
 
       {/* 2. UNIFIED OPERATIONAL METRIC LEDGER (Clean, Minimalist & High-Legibility) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 divide-x divide-slate-100">
+      <div className="fore-card overflow-hidden">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 divide-x divide-[#efece6]">
           {/* Metric 1: Total Tonase Handling */}
           <div className="p-4 sm:p-5 flex flex-col justify-between">
             <div>
@@ -1437,11 +1438,11 @@ export default function ProductivityView({
         </div>
       </div>
 
-      {/* 3. SEGMENTED SUB-TABS & STREAMLINED FILTER TOOLBAR (Minimalist & Premium) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-2.5 sm:p-3 space-y-2.5">
+      {/* 3. SEGMENTED SUB-TABS & STREAMLINED FILTER TOOLBAR */}
+      <div className="fore-card p-2.5 sm:p-3 space-y-2.5">
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5">
-          {/* Sub-Tabs: iOS/macOS System Segmented Control */}
-          <div className="inline-flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70 shadow-2xs overflow-x-auto scrollbar-none max-w-full shrink-0">
+          {/* Sub-Tabs: Fore Pill Segmented Control */}
+          <div className="inline-flex items-center gap-1 bg-[#f4f2ef] p-1 rounded-full border border-[#e6e2db] shadow-2xs overflow-x-auto scrollbar-none max-w-full shrink-0">
             {[
               { id: 'matrix', label: 'Matriks Harian', icon: Table2 },
               { id: 'daily_trend', label: 'Tren Harian', icon: TrendingUp },
@@ -1456,21 +1457,21 @@ export default function ProductivityView({
                   type="button"
                   onClick={() => setActiveSubTab(t.id as SubTab)}
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap shrink-0',
+                    'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap shrink-0',
                     isActive
-                      ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/80 font-bold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                      ? 'bg-[#006041] text-white shadow-[0_4px_12px_-4px_rgba(0,96,65,0.45)] font-bold'
+                      : 'text-[#59575c] hover:text-[#006041] hover:bg-[#e7f0ee]/70'
                   )}
                 >
-                  <Icon className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-emerald-700' : 'text-slate-400')} />
+                  <Icon className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-[#d0d784]' : 'text-[#8c8882]')} />
                   <span>{t.label}</span>
                   {t.count !== undefined && (
                     <span
                       className={cn(
                         'px-1.5 py-0.2 rounded-full text-[10px] font-mono tabular-nums',
                         isActive
-                          ? 'bg-emerald-100 text-emerald-800 font-bold'
-                          : 'bg-slate-200/80 text-slate-600'
+                          ? 'bg-white/15 text-white font-bold'
+                          : 'bg-white text-[#59575c] border border-[#e6e2db]'
                       )}
                     >
                       {t.count}
