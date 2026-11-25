@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { normalizeWildcardMaterialCode } from './materialCode';
 
 // Chunk size for bulk inserts to avoid HTTP payload limits in PostgREST
 const CHUNK_SIZE = 400;
@@ -271,7 +272,7 @@ export async function getNormalizedSnapshotFromSupabase(
       gudangs: typeof r.gudangs === 'string' ? JSON.parse(r.gudangs) : r.gudangs,
       customer: r.customer,
       ukuran: r.ukuran,
-      kodeMaterial: r.kode_material,
+      kodeMaterial: normalizeWildcardMaterialCode(r.kode_material),
       type: r.material_type,
       grade: r.grade,
       primeTon: Number(r.prime_ton) || 0,
@@ -299,7 +300,7 @@ export async function getNormalizedSnapshotFromSupabase(
   // 7. UNFIFO Items
   const unfifoData = unfifoDataRows.map((r: any) => ({
     gudang: r.gudang,
-    kodeMaterial: r.kode_material,
+    kodeMaterial: normalizeWildcardMaterialCode(r.kode_material),
     ukuran: r.ukuran,
     customer: r.customer,
     batchOld: r.batch_old,

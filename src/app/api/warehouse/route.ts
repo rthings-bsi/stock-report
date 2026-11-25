@@ -9,6 +9,7 @@ import {
 } from '../../../lib/supabaseNormalized';
 import { calculateSTOPeriodSummary } from '../../../lib/parseStockOpname';
 import { calculateAuditSLocPeriodSummary } from '../../../lib/parseAuditSLoc';
+import { sanitizeMaterialCodeItems } from '../../../lib/materialCode';
 import {
   hasPermission,
   isAuthContext,
@@ -580,9 +581,9 @@ export async function GET(request: Request) {
               coilStripData,
               ncWarehouseData,
               ncItems,
-              looSTData,
-              looLTData,
-              unfifoData,
+              looSTData: sanitizeMaterialCodeItems(looSTData),
+              looLTData: sanitizeMaterialCodeItems(looLTData),
+              unfifoData: sanitizeMaterialCodeItems(unfifoData),
               unfifoCoilData,
               unfifoPipeData,
               damagedPackagingData,
@@ -787,9 +788,9 @@ export async function GET(request: Request) {
           coilStripData,
           ncWarehouseData,
           ncItems,
-          looSTData,
-          looLTData,
-          unfifoData,
+          looSTData: sanitizeMaterialCodeItems(looSTData),
+          looLTData: sanitizeMaterialCodeItems(looLTData),
+          unfifoData: sanitizeMaterialCodeItems(unfifoData),
           unfifoCoilData,
           unfifoPipeData,
           damagedPackagingData,
@@ -1340,11 +1341,13 @@ export async function POST(request: Request) {
       : (hasRealCoil(prevCoil) ? prevCoil : (coilStripData || []));
     const finalNcWh = uploadHasPipe && hasArray(ncWarehouseData) ? ncWarehouseData : (hasArray(prevNcWh) ? prevNcWh : (ncWarehouseData || []));
     const finalNcItems = uploadHasPipe && hasArray(ncItems) ? ncItems : prevNcItems;
-    const rawLooST = uploadHasLoo && hasArray(looSTData) ? looSTData : prevLooST;
-    const rawLooLT = uploadHasLoo && hasArray(looLTData) ? looLTData : prevLooLT;
-    const finalLooST = uploadHasPipe ? rawLooST : enrichLoo(rawLooST, prevLooST);
-    const finalLooLT = uploadHasPipe ? rawLooLT : enrichLoo(rawLooLT, prevLooLT);
-    const finalUnfifo = (uploadHasPipe || uploadHasCoil) && hasArray(unfifoData) ? unfifoData : prevUnfifo;
+    const cleanPrevLooST = sanitizeMaterialCodeItems(prevLooST);
+    const cleanPrevLooLT = sanitizeMaterialCodeItems(prevLooLT);
+    const rawLooST = sanitizeMaterialCodeItems(uploadHasLoo && hasArray(looSTData) ? looSTData : cleanPrevLooST);
+    const rawLooLT = sanitizeMaterialCodeItems(uploadHasLoo && hasArray(looLTData) ? looLTData : cleanPrevLooLT);
+    const finalLooST = uploadHasPipe ? rawLooST : enrichLoo(rawLooST, cleanPrevLooST);
+    const finalLooLT = uploadHasPipe ? rawLooLT : enrichLoo(rawLooLT, cleanPrevLooLT);
+    const finalUnfifo = sanitizeMaterialCodeItems((uploadHasPipe || uploadHasCoil) && hasArray(unfifoData) ? unfifoData : prevUnfifo);
     const finalUnfifoCoil = uploadHasCoil ? (unfifoCoilData || []) : (hasArray(prevUnfifoCoil) ? prevUnfifoCoil : (unfifoCoilData || []));
     const finalUnfifoPipe = uploadHasPipe && hasArray(unfifoPipeData) ? unfifoPipeData : prevUnfifoPipe;
     const finalDamagedPkg = uploadHasDamagedPkg && hasArray(damagedPackagingData) ? damagedPackagingData : prevDamagedPkg;

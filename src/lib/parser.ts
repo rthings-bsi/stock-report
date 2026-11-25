@@ -1,4 +1,5 @@
 import { normalizeNCRNumber, extractNCRAndRemark } from './parseNCProgress';
+import { getMaterialBaseKey } from './materialCode';
 import * as XLSX from 'xlsx';
 import {
   WarehousePipeCapacity,
@@ -441,23 +442,6 @@ function isCoilOrStripMaterial(desc: string | undefined | null, matNum: string =
     return true;
   }
   return false;
-}
-
-/**
- * Normalisasi kode material SAP ke Base Key Wildcard (*)
- * Format Spindo SAP standar: 3 karakter prefix (e.g. YAB, XCB, YBB, YDB) + 2 digit proses (00 s/d 99) + sisa kode
- * Contoh: YAB01A0A0400+40000 (FG) dan YAB00A0A0400+40000 (WIP) -> YAB*A0A0400+40000
- */
-function getMaterialBaseKey(matCode: string): string {
-  if (!matCode) return '';
-  let clean = matCode.trim().toUpperCase();
-  // Normalisasi karakter O (Oh) ke 0 (Nol) pada token tengah kode material SAP (misal AOA0400 -> A0A0400)
-  clean = clean.replace(/([A-Z])O([A-Z])/g, '$10$2');
-  const match = clean.match(/^([A-Z0-9]{3})\d{2}([A-Z0-9+.\-_]+)$/);
-  if (match) {
-    return `${match[1]}*${match[2]}`;
-  }
-  return clean;
 }
 
 /**

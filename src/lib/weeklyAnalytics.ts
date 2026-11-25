@@ -14,6 +14,7 @@
  * Dilengkapi Smart Fallback Aggregation dari MB51 sehingga data tidak pernah kosong 0 Ton.
  */
 
+import { normalizeWildcardMaterialCode } from './materialCode';
 import {
   NCProgressTransaction,
   WarehousePipeCapacity,
@@ -1784,7 +1785,7 @@ export function computeWeeklyUnfifo(
 
         criticalItems.push({
           gudang: gd,
-          kodeMaterial: u.kodeMaterial,
+          kodeMaterial: normalizeWildcardMaterialCode(u.kodeMaterial),
           ukuran: u.ukuran,
           customer: u.customer,
           batch: u.batchOld,
