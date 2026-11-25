@@ -1579,7 +1579,9 @@ export function computeWeeklyLoo(
   const custDeficitMap = new Map<string, { customer: string; looTon: number; stockTon: number; count: number; gudangs: Set<string> }>();
 
   if (hasLoo) {
-    allItems.forEach((it) => {
+    allItems
+      .filter((it) => (it.looTon || 0) > 0 || (it.looQty || 0) > 0)
+      .forEach((it) => {
       const lTon = it.looTon || 0;
       const sTon = it.totalStockTon || 0;
       const lQty = it.looQty || 0;

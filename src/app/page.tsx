@@ -53,6 +53,7 @@ import { IncomingPackagingView } from '@/components/IncomingPackagingView';
 import { PackagingBufferSettingsView } from '@/components/PackagingBufferSettingsView';
 import { PACKAGING_CUSTOMER_BOX_MASTER } from '@/lib/packagingMaster';
 import { sanitizeMaterialCodeItems } from '@/lib/materialCode';
+import { mergeLooAndPipeStock } from '@/lib/looMerge';
 import { UserManagementView } from '@/components/UserManagementView';
 import { CapacitySettingsView } from '@/components/CapacitySettingsView';
 import WeeklyAnalyticsView from '@/components/WeeklyAnalyticsView';
@@ -917,49 +918,9 @@ export default function Home() {
       ? newState.uploadedCategories.includes('productivity')
       : Boolean(newState.productivityData);
 
-    // Helper untuk memperkaya item LOO dengan data stock eksisting jika hanya LOO yang diunggah
-    const enrichLooWithExistingStock = (
-      currentLoo: LooComparisonItem[] | undefined,
-      refLoo: LooComparisonItem[] | undefined
-    ) => {
-      if (!currentLoo || currentLoo.length === 0) return currentLoo || [];
-      if (!refLoo || refLoo.length === 0) return currentLoo;
-      const refMap = new Map<string, LooComparisonItem>();
-      for (const item of refLoo) {
-        if (item.kodeMaterial) refMap.set(item.kodeMaterial, item);
-        if (item.ukuran) refMap.set(item.ukuran, item);
-      }
-      return currentLoo.map((item) => {
-        if ((item.totalStockTon || 0) > 0) return item;
-        const ref = refMap.get(item.kodeMaterial) || refMap.get(item.ukuran);
-        if (!ref || (ref.totalStockTon || 0) === 0) return item;
-        const fgTon = ref.fgTon || 0;
-        const wipTon = ref.wipTon || 0;
-        const totalStockTon = ref.totalStockTon || (fgTon + wipTon);
-        const primeTon = ref.primeTon || 0;
-        const looTon = item.looTon || 0;
-        const persenFulfillment = looTon > 0 ? (totalStockTon / looTon) * 100 : 100;
-        const primeFulfillment = looTon > 0 ? (primeTon / looTon) * 100 : 100;
-        return {
-          ...item,
-          fgTon,
-          wipTon,
-          totalStockTon,
-          primeTon,
-          gradeCTon: ref.gradeCTon || 0,
-          gradeETon: ref.gradeETon || 0,
-          grade: ref.grade || item.grade || 'PRIME',
-          gudang: ref.gudang || item.gudang,
-          gudangs: ref.gudangs || item.gudangs,
-          gudangBreakdown: ref.gudangBreakdown || item.gudangBreakdown,
-          fgQty: ref.fgQty || item.fgQty || 0,
-          wipQty: ref.wipQty || item.wipQty || 0,
-          totalQty: ref.totalQty || item.totalQty || 0,
-          persenFulfillment: Number(persenFulfillment.toFixed(1)),
-          primeFulfillment: Number(primeFulfillment.toFixed(1)),
-        };
-      });
-    };
+    const snapshotKey = newState.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
+    const nowStr = newState.lastUpdated || new Date().toLocaleString('id-ID');
+    const isSameSnapshot = snapshotKey === selectedSnapshotKey;
 
     const nextPipeCapacities = hasPipe ? newState.pipeCapacities! : (pipeCapacities.length > 0 ? pipeCapacities : (currentSaved.pipeCapacities || []));
     const nextFastSlowData = hasPipe && newState.fastSlowData ? newState.fastSlowData : (fastSlowData.length > 0 ? fastSlowData : (currentSaved.fastSlowData || []));
@@ -972,19 +933,20 @@ export default function Home() {
     const nextCoilStripData = hasCoil ? newState.coilStripData! : (coilStripData.length > 0 ? coilStripData : (currentSaved.coilStripData || []));
     const nextUnfifoCoilData = hasCoil && newState.unfifoCoilData ? newState.unfifoCoilData : (unfifoCoilData.length > 0 ? unfifoCoilData : (currentSaved.unfifoCoilData || []));
 
-    const rawLooST = hasLoo && newState.looSTData ? newState.looSTData : (looSTData.length > 0 ? looSTData : (currentSaved.looSTData || []));
-    const rawLooLT = hasLoo && newState.looLTData ? newState.looLTData : (looLTData.length > 0 ? looLTData : (currentSaved.looLTData || []));
-
-    const nextLooSTData = hasLoo && !hasPipe
-      ? enrichLooWithExistingStock(rawLooST, looSTData.length > 0 ? looSTData : currentSaved.looSTData)
-      : rawLooST;
-    const nextLooLTData = hasLoo && !hasPipe
-      ? enrichLooWithExistingStock(rawLooLT, looLTData.length > 0 ? looLTData : currentSaved.looLTData)
-      : rawLooLT;
-
-    const snapshotKey = newState.snapshotKey || `snap_${new Date().toISOString().slice(0, 10)}`;
-    const nowStr = newState.lastUpdated || new Date().toLocaleString('id-ID');
-    const isSameSnapshot = snapshotKey === selectedSnapshotKey;
+    // Penggabungan dua arah & ketat berdasarkan kodeMaterial (tanpa fallback ukuran)
+    // agar upload parsial Pipa-saja maupun LOO-saja selalu menyinkronkan FG & WIP seluruh gudang.
+    const prevLooSTRef = looSTData.length > 0 ? looSTData : (currentSaved.looSTData || []);
+    const prevLooLTRef = looLTData.length > 0 ? looLTData : (currentSaved.looLTData || []);
+    const mergedLoo = mergeLooAndPipeStock({
+      prevST: prevLooSTRef,
+      prevLT: prevLooLTRef,
+      nextST: newState.looSTData || [],
+      nextLT: newState.looLTData || [],
+      hasPipe,
+      hasLoo,
+    });
+    const nextLooSTData = mergedLoo.looSTData;
+    const nextLooLTData = mergedLoo.looLTData;
 
     const nextDamagedPackagingData = hasDamagedPkg ? newState.damagedPackagingData! : (damagedPackagingData.length > 0 ? damagedPackagingData : (currentSaved.damagedPackagingData || []));
     const nextIncomingPackagingData = hasIncomingPkg ? newState.incomingPackagingData! : (incomingPackagingData.length > 0 ? incomingPackagingData : (currentSaved.incomingPackagingData || []));
@@ -1072,6 +1034,12 @@ export default function Home() {
         const resJson = await res.json().catch(() => null);
         if (!res.ok || !resJson?.success) {
           console.error('Server save error:', resJson);
+        } else if (Array.isArray(resJson.looSTData) && Array.isArray(resJson.looLTData)) {
+          // Sinkronkan hasil merge otoritatif server (terutama saat upload parsial Pipa/LOO lintas snapshot)
+          setLooSTData(resJson.looSTData);
+          setLooLTData(resJson.looLTData);
+          mergedFullState.looSTData = resJson.looSTData;
+          mergedFullState.looLTData = resJson.looLTData;
         }
       }
 

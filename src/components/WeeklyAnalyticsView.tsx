@@ -452,7 +452,11 @@ export default function WeeklyAnalyticsView({
 
   // 5. Stock Pipa vs LOO Fulfillment
   const looMetrics = useMemo(() => {
-    const combined = [...looSTData, ...looLTData];
+    const rawCombined = [...looSTData, ...looLTData];
+    const hasLooOrders = rawCombined.some((i) => (i.looTon || 0) > 0 || (i.looQty || 0) > 0);
+    const combined = hasLooOrders
+      ? rawCombined.filter((i) => (i.looTon || 0) > 0 || (i.looQty || 0) > 0)
+      : rawCombined;
     const totalLooTon = combined.reduce((acc, item) => acc + (item.looTon || 0), 0);
     const totalStockTon = combined.reduce((acc, item) => acc + (item.totalStockTon || 0), 0);
     const totalKurangTon = combined.reduce((acc, item) => {

@@ -397,6 +397,19 @@ function getRowValue(row: Record<string, unknown>, keys: string[]): unknown {
   return undefined;
 }
 
+const SUMMARY_LABEL_REGEX =
+  /^(?:\*+|grand\s*total|sub[\s-]*total|total(?:\s+(?:keseluruhan|stock|stok|semua|all|akhir|order|loo|berat|qty|gudang|sloc|pipa|coil|strip|gd\.?\s*\d{1,2}|5[a-n]\w*))?|overall\s*result|result|jumlah(?:\s+(?:keseluruhan|total|stock|stok|order))?|sum)$/i;
+
+/**
+ * Deteksi label baris ringkasan/subtotal/grand total dari export Excel SAP (ALV Grid / Pivot).
+ * Tetap aman untuk nama customer asli yang mengandung kata "TOTAL" (mis. "PT. TOTAL TANJUNG INDAH").
+ */
+function isSummaryLabel(val: unknown): boolean {
+  const s = String(val ?? '').trim();
+  if (!s) return false;
+  return SUMMARY_LABEL_REGEX.test(s);
+}
+
 /**
  * Filter untuk memisahkan bahan baku Coil / Strip dari produk pipa
  */
@@ -1130,16 +1143,38 @@ export function parseExcelFiles(
 
   // 1. Process Raw Pipe Stock
   effectivePipeRows.forEach((row, idx) => {
-    const sloc = String(getRowValue(row, ['SLOC', 'Gudang', 'Storage Location', 'SLoc', 'Sloc']) || '');
+    const sloc = String(getRowValue(row, ['SLOC', 'Gudang', 'Storage Location', 'SLoc', 'Sloc']) || '').trim();
+    const rawPanjang = String(getRowValue(row, ['PANJANG', 'Panjang', 'Length', 'Length(mm)']) || '').trim();
+    const matNum = String(getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Material', 'Kode Material', 'Material No']) || '').trim();
+    const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi']) || '').trim();
+    const rawBatchEarly = String(getRowValue(row, ['BATCH', 'Batch', 'Lot', 'No. Batch', 'No Batch']) || '').trim();
+    const rawCustEarly = String(getRowValue(row, ['Customer', 'CUSTOMER', 'Nama Customer', 'Pelanggan', 'Customers Gabungan']) || '').trim();
+    const rawPastEarly = String(getRowValue(row, ['PAST', 'Past', 'Jenis Stock', 'Kategori Stock', 'Status Barang']) || '').trim();
+    const rawUkuranEarly = String(getRowValue(row, ['Ukuran', 'UKURAN', 'Dimension', 'Dimensi']) || '').trim();
+    const diamEarly = parseNumber(getRowValue(row, ['DIAM "', 'DIAM MM', 'DIAMETER', 'Diameter', 'OD']));
+    const panjangEarly = parseNumber(rawPanjang);
+
+    // Lewati baris Grand Total / Subtotal / Overall Result dari export ALV SAP atau Excel pivot
+    // agar tidak menggandakan seluruh stok gudang ke fallback Gd.01 maupun mencemari stockByMaterial.
+    if (
+      isSummaryLabel(sloc) ||
+      isSummaryLabel(matNum) ||
+      isSummaryLabel(desc) ||
+      isSummaryLabel(rawCustEarly) ||
+      isSummaryLabel(rawPastEarly)
+    ) {
+      return;
+    }
+    const hasPipeIdentity = Boolean(
+      matNum || desc || rawBatchEarly || rawUkuranEarly || diamEarly > 0 || panjangEarly > 0
+    );
+    if (!hasPipeIdentity) return;
+
     const g = normalizeGudang(sloc);
 
     const { weightKg, qty: resolvedPipeQty } = resolveStockWeightAndQty(row, 'pipe');
     const tonase = weightKg / 1000;
     if (tonase === 0 || isNaN(tonase)) return;
-
-    const rawPanjang = String(getRowValue(row, ['PANJANG', 'Panjang', 'Length', 'Length(mm)']) || '');
-    const matNum = String(getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Material', 'Kode Material', 'Material No']) || '');
-    const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi']) || '');
 
     const { dimension: cleanDim, panjangMm: extractedPanjang } = extractPipeDimension(desc, matNum, rawPanjang);
 
@@ -1152,8 +1187,8 @@ export function parseExcelFiles(
     // Klasifikasi status FG vs WIP (Aturan Resmi Spindo):
     // Jika pada kolom DESCRIPTION terdapat kata kunci "MP" -> FG (Finished Goods), selain itu -> WIP (Work In Process)
     const hasMPKeyword = /\bMP\b/i.test(desc) || /\bMP\s/i.test(desc) || /\sMP\b/i.test(desc);
-    const isExplicitFG = status === 'FG' || status.includes('FINISHED') || status.includes('SUDAH');
-    const isExplicitWIP = status === 'WIP' || status.includes('BELUM');
+    const isExplicitFG = /\bFG\b/.test(status) || status.includes('FINISHED') || status.includes('SUDAH');
+    const isExplicitWIP = /\bWIP\b/.test(status) || status.includes('BELUM');
 
     const isFG = isExplicitWIP ? false : (isExplicitFG || hasMPKeyword);
     const isWIP = !isFG;
@@ -1556,11 +1591,27 @@ export function parseExcelFiles(
   });
 
   effectiveCoilRows.forEach(row => {
-    const sloc = String(getRowValue(row, ['SLOC', 'Gudang', 'Storage Location', 'SLoc', 'Sloc']) || '');
-    const g = normalizeCoilGudang(sloc);
+    const sloc = String(getRowValue(row, ['SLOC', 'Gudang', 'Storage Location', 'SLoc', 'Sloc']) || '').trim();
     const rawMatNum = String(getRowValue(row, ['MATERIAL NUMBER', 'Material Number', 'Kode Material', 'Material', 'Material No']) || '').trim();
     const rawSpec = String(getRowValue(row, ['Coil Specification', 'COIL SPECIFICATION', 'Coil Spec', 'Specification', 'Spec', 'DESCRIPTION', 'Description']) || '').trim();
-    const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi', 'Coil Specification']) || rawSpec).toUpperCase();
+    const desc = String(getRowValue(row, ['DESCRIPTION', 'Description', 'Deskripsi', 'Coil Specification']) || rawSpec).toUpperCase().trim();
+    const rawBatchCheck = String(getRowValue(row, ['BATCH', 'Batch', 'Lot']) || '').trim();
+    const tebalCheck = parseNumber(getRowValue(row, ['TEBAL', 'Tebal', 'TEBAL AKTUAL', 'Tebal Aktual', 'Thickness']) || 0);
+    const lebarCheck = parseNumber(getRowValue(row, ['LEBAR', 'Lebar', 'Width']) || 0);
+
+    if (
+      isSummaryLabel(sloc) ||
+      isSummaryLabel(rawMatNum) ||
+      isSummaryLabel(rawSpec) ||
+      isSummaryLabel(desc)
+    ) {
+      return;
+    }
+    if (!rawMatNum && !rawSpec && !desc && !rawBatchCheck && tebalCheck <= 0 && lebarCheck <= 0) {
+      return;
+    }
+
+    const g = normalizeCoilGudang(sloc);
     const jenisMat = String(getRowValue(row, [
       'Jenis Material',
       'Jenis_Material',
@@ -1716,6 +1767,10 @@ export function parseExcelFiles(
     if (!rawKodeMat && !desc) return;
     if (!rawKodeMat) rawKodeMat = desc;
 
+    if (isSummaryLabel(rawKodeMat) || isSummaryLabel(desc)) {
+      return;
+    }
+
     if (isCoilOrStripMaterial(desc, rawKodeMat)) {
       return;
     }
@@ -1829,6 +1884,8 @@ export function parseExcelFiles(
       ]) || ''
     ).trim();
 
+    if (isSummaryLabel(custName)) return;
+
     const baseLooMat = getMaterialBaseKey(rawKodeMat);
     const { dimension: looCleanDim, panjangMm: looPanjang } = extractPipeDimension(desc, rawKodeMat);
     const type: 'LT' | 'ST' = looPanjang < 3000 ? 'ST' : 'LT';
@@ -1885,7 +1942,9 @@ export function parseExcelFiles(
     const looQty = loo?.looQty || 0;
     const persenFulfillment = looTon > 0 ? (totalStockTon / looTon) * 100 : (totalStockTon > 0 ? 100 : 0);
 
-    const gudangsArr = stock?.gudangList ? Array.from(stock.gudangList) : (stock?.gudang ? [stock.gudang] : []);
+    const gudangsArr = stock?.gudangList
+      ? Array.from(stock.gudangList).sort()
+      : (stock?.gudang ? [stock.gudang] : []);
     const gudangDisplay = gudangsArr.length > 0 ? gudangsArr.join(', ') : '-';
     const primeTon = stock?.primeTon || 0;
     const gradeCTon = stock?.gradeCTon || 0;
@@ -1898,6 +1957,28 @@ export function parseExcelFiles(
 
     const primeFulfill = looTon > 0 ? (primeTon / looTon) * 100 : (primeTon > 0 ? 100 : 0);
 
+    const normalizedBreakdown: NonNullable<LooComparisonItem['gudangBreakdown']> = {};
+    if (stock?.gudangBreakdown) {
+      for (const gKey of Object.keys(stock.gudangBreakdown).sort()) {
+        const b = stock.gudangBreakdown[gKey];
+        const bFgQty = Math.round(b.fgQty || 0);
+        const bWipQty = Math.round(b.wipQty || 0);
+        const bTotQty = Math.round(b.totalStockQty || (bFgQty + bWipQty));
+        normalizedBreakdown[gKey] = {
+          fgTon: Number((b.fgTon || 0).toFixed(3)),
+          wipTon: Number((b.wipTon || 0).toFixed(3)),
+          totalStockTon: Number((b.totalStockTon || ((b.fgTon || 0) + (b.wipTon || 0))).toFixed(3)),
+          fgQty: bFgQty,
+          wipQty: bWipQty,
+          totalQty: bTotQty,
+          totalStockQty: bTotQty,
+          primeTon: Number((b.primeTon || 0).toFixed(3)),
+          gradeCTon: Number((b.gradeCTon || 0).toFixed(3)),
+          gradeETon: Number((b.gradeETon || 0).toFixed(3)),
+        };
+      }
+    }
+
     const item: LooComparisonItem = {
       no: 0,
       customer,
@@ -1905,22 +1986,22 @@ export function parseExcelFiles(
       kodeMaterial: k,
       type,
       grade: dominantGrade,
-      primeTon: Number(primeTon.toFixed(2)),
-      gradeCTon: Number(gradeCTon.toFixed(2)),
-      gradeETon: Number(gradeETon.toFixed(2)),
+      primeTon: Number(primeTon.toFixed(3)),
+      gradeCTon: Number(gradeCTon.toFixed(3)),
+      gradeETon: Number(gradeETon.toFixed(3)),
       gudang: gudangDisplay,
       gudangs: gudangsArr,
-      fgTon: Number(fgTon.toFixed(2)),
-      wipTon: Number(wipTon.toFixed(2)),
-      totalStockTon: Number(totalStockTon.toFixed(2)),
-      looTon: Number(looTon.toFixed(2)),
+      fgTon: Number(fgTon.toFixed(3)),
+      wipTon: Number(wipTon.toFixed(3)),
+      totalStockTon: Number(totalStockTon.toFixed(3)),
+      looTon: Number(looTon.toFixed(3)),
       persenFulfillment: Number(persenFulfillment.toFixed(1)),
       primeFulfillment: Number(primeFulfill.toFixed(1)),
       fgQty: Math.round(fgQty),
       wipQty: Math.round(wipQty),
       totalQty: Math.round(totalStockQty),
       looQty: Math.round(looQty),
-      gudangBreakdown: stock?.gudangBreakdown || {}
+      gudangBreakdown: normalizedBreakdown
     };
 
     if (type === 'ST') {
@@ -1930,11 +2011,13 @@ export function parseExcelFiles(
     }
   });
 
+  // Simpan seluruh item LOO dan pool stock pipa tanpa pemotongan slice(0, 200)
+  // agar tidak ada item LOO atau stok gudang yang hilang pada tampilan maupun upload parsial.
   looSTList.sort((a, b) => b.looTon - a.looTon || b.totalStockTon - a.totalStockTon);
-  const looSTData = looSTList.slice(0, 200).map((item, idx) => ({ ...item, no: idx + 1 }));
+  const looSTData = looSTList.map((item, idx) => ({ ...item, no: idx + 1 }));
 
   looLTList.sort((a, b) => b.looTon - a.looTon || b.totalStockTon - a.totalStockTon);
-  const looLTData = looLTList.slice(0, 200).map((item, idx) => ({ ...item, no: idx + 1 }));
+  const looLTData = looLTList.map((item, idx) => ({ ...item, no: idx + 1 }));
 
   // 4. Calculate UNFIFO Violations
   const unfifoData: UnfifoItem[] = [];

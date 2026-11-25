@@ -10,6 +10,7 @@ import {
 import { calculateSTOPeriodSummary } from '../../../lib/parseStockOpname';
 import { calculateAuditSLocPeriodSummary } from '../../../lib/parseAuditSLoc';
 import { sanitizeMaterialCodeItems } from '../../../lib/materialCode';
+import { mergeLooAndPipeStock } from '../../../lib/looMerge';
 import {
   hasPermission,
   isAuthContext,
@@ -1279,51 +1280,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Helper untuk memperkaya item LOO dengan stock pipa eksisting jika diupload parsial
-    const enrichLoo = (currentLoo: any[], referenceLoo: any[]) => {
-      if (!Array.isArray(currentLoo) || currentLoo.length === 0) return currentLoo;
-      if (!Array.isArray(referenceLoo) || referenceLoo.length === 0) return currentLoo;
-
-      const refMap = new Map<string, any>();
-      for (const item of referenceLoo) {
-        if (item.kodeMaterial) refMap.set(item.kodeMaterial, item);
-        if (item.ukuran) refMap.set(item.ukuran, item);
-      }
-
-      return currentLoo.map((item) => {
-        if ((item.totalStockTon || 0) > 0) return item;
-        const ref = refMap.get(item.kodeMaterial) || refMap.get(item.ukuran);
-        if (!ref || (ref.totalStockTon || 0) === 0) return item;
-
-        const fgTon = ref.fgTon || 0;
-        const wipTon = ref.wipTon || 0;
-        const totalStockTon = ref.totalStockTon || (fgTon + wipTon);
-        const primeTon = ref.primeTon || 0;
-        const looTon = item.looTon || 0;
-        const persenFulfillment = looTon > 0 ? (totalStockTon / looTon) * 100 : 100;
-        const primeFulfillment = looTon > 0 ? (primeTon / looTon) * 100 : 100;
-
-        return {
-          ...item,
-          fgTon,
-          wipTon,
-          totalStockTon,
-          primeTon,
-          gradeCTon: ref.gradeCTon || 0,
-          gradeETon: ref.gradeETon || 0,
-          grade: ref.grade || item.grade || 'PRIME',
-          gudang: ref.gudang || item.gudang,
-          gudangs: ref.gudangs || item.gudangs,
-          gudangBreakdown: ref.gudangBreakdown || item.gudangBreakdown,
-          fgQty: ref.fgQty || item.fgQty || 0,
-          wipQty: ref.wipQty || item.wipQty || 0,
-          totalQty: ref.totalQty || item.totalQty || 0,
-          persenFulfillment: Number(persenFulfillment.toFixed(1)),
-          primeFulfillment: Number(primeFulfillment.toFixed(1)),
-        };
-      });
-    };
-
     const isExplicitUpload = Array.isArray(uploadedCategories) && uploadedCategories.length > 0;
     const uploadHasPipe = isExplicitUpload ? uploadedCategories.includes('pipe') : hasRealPipe(pipeCapacities);
     const uploadHasCoil = isExplicitUpload ? uploadedCategories.includes('coil') : hasRealCoil(coilStripData);
@@ -1343,10 +1299,16 @@ export async function POST(request: Request) {
     const finalNcItems = uploadHasPipe && hasArray(ncItems) ? ncItems : prevNcItems;
     const cleanPrevLooST = sanitizeMaterialCodeItems(prevLooST);
     const cleanPrevLooLT = sanitizeMaterialCodeItems(prevLooLT);
-    const rawLooST = sanitizeMaterialCodeItems(uploadHasLoo && hasArray(looSTData) ? looSTData : cleanPrevLooST);
-    const rawLooLT = sanitizeMaterialCodeItems(uploadHasLoo && hasArray(looLTData) ? looLTData : cleanPrevLooLT);
-    const finalLooST = uploadHasPipe ? rawLooST : enrichLoo(rawLooST, cleanPrevLooST);
-    const finalLooLT = uploadHasPipe ? rawLooLT : enrichLoo(rawLooLT, cleanPrevLooLT);
+    const mergedLoo = mergeLooAndPipeStock({
+      prevST: cleanPrevLooST,
+      prevLT: cleanPrevLooLT,
+      nextST: sanitizeMaterialCodeItems(Array.isArray(looSTData) ? looSTData : []),
+      nextLT: sanitizeMaterialCodeItems(Array.isArray(looLTData) ? looLTData : []),
+      hasPipe: uploadHasPipe,
+      hasLoo: uploadHasLoo,
+    });
+    const finalLooST = mergedLoo.looSTData;
+    const finalLooLT = mergedLoo.looLTData;
     const finalUnfifo = sanitizeMaterialCodeItems((uploadHasPipe || uploadHasCoil) && hasArray(unfifoData) ? unfifoData : prevUnfifo);
     const finalUnfifoCoil = uploadHasCoil ? (unfifoCoilData || []) : (hasArray(prevUnfifoCoil) ? prevUnfifoCoil : (unfifoCoilData || []));
     const finalUnfifoPipe = uploadHasPipe && hasArray(unfifoPipeData) ? unfifoPipeData : prevUnfifoPipe;
@@ -1567,11 +1529,17 @@ export async function POST(request: Request) {
       }
     }
 
+    const partialLooSyncPayload =
+      uploadHasPipe !== uploadHasLoo
+        ? { looSTData: finalLooST, looLTData: finalLooLT }
+        : {};
+
     if (sqliteSaved || supabaseSaved || isSupabaseConfigured) {
       return NextResponse.json({
         success: true,
         message: 'Snapshot tersimpan dengan sukses',
         snapshotKey: dateKey,
+        ...partialLooSyncPayload,
       });
     }
 
@@ -1579,6 +1547,7 @@ export async function POST(request: Request) {
       success: true,
       message: 'Saved in-memory only (Database unconfigured)',
       snapshotKey: dateKey,
+      ...partialLooSyncPayload,
     });
   } catch (error: unknown) {
     console.error('Failed to save warehouse data:', error);

@@ -103,6 +103,23 @@ export async function getNormalizedSnapshotFromSupabase(
   const snapshotKey = header.snapshot_key;
   const includeSto = Boolean(options?.includeSto);
 
+  // Paginasi agar tidak terpotong batas default PostgREST 1.000 baris pada tabel besar seperti loo_items
+  const fetchAllSnapshotRows = async (table: string, snapKey: string) => {
+    const pageSize = 1000;
+    const all: any[] = [];
+    for (let offset = 0; offset < 20000; offset += pageSize) {
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .eq('snapshot_key', snapKey)
+        .range(offset, offset + pageSize - 1);
+      if (error || !data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < pageSize) break;
+    }
+    return { data: all };
+  };
+
   // Fetch all child tables concurrently
   const [
     pipeRes,
@@ -124,7 +141,7 @@ export async function getNormalizedSnapshotFromSupabase(
     supabase.from('coil_strip').select('*').eq('snapshot_key', snapshotKey),
     supabase.from('nc_warehouse').select('*').eq('snapshot_key', snapshotKey),
     supabase.from('nc_items').select('*').eq('snapshot_key', snapshotKey),
-    supabase.from('loo_items').select('*').eq('snapshot_key', snapshotKey),
+    fetchAllSnapshotRows('loo_items', snapshotKey),
     supabase.from('unfifo_items').select('*').eq('snapshot_key', snapshotKey),
     supabase.from('unfifo_coil').select('*').eq('snapshot_key', snapshotKey),
     supabase.from('unfifo_pipe').select('*').eq('snapshot_key', snapshotKey),
@@ -148,9 +165,14 @@ export async function getNormalizedSnapshotFromSupabase(
         .limit(1);
 
       if (latestRow && latestRow.length > 0) {
-        const query = supabase.from(table).select('*').eq('snapshot_key', latestRow[0].snapshot_key);
-        const { data: fbData } = isSingle ? await query.limit(1) : await query;
-        if (fbData && fbData.length > 0) return fbData;
+        if (!isSingle && table === 'loo_items') {
+          const { data: fbData } = await fetchAllSnapshotRows(table, latestRow[0].snapshot_key);
+          if (fbData && fbData.length > 0) return fbData;
+        } else {
+          const query = supabase.from(table).select('*').eq('snapshot_key', latestRow[0].snapshot_key);
+          const { data: fbData } = isSingle ? await query.limit(1) : await query;
+          if (fbData && fbData.length > 0) return fbData;
+        }
       }
     } catch (e) {
       console.warn(`[Supabase Normalized] Fallback query failed for ${table}:`, e);

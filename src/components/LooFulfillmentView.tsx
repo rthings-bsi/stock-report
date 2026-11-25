@@ -125,6 +125,28 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
     setCards((prev) => moveCard(prev, index, direction));
   };
 
+  // Cek apakah dataset memiliki target LOO aktual; jika ya, pisahkan item stock-only (cadangan merge upload parsial)
+  // agar total Stock FG/WIP, % Fulfillment, dropdown customer, dan grafik Top 15 akurat 100% terhadap LOO.
+  const hasAnyLooOrder = useMemo(() => {
+    return [...stData, ...ltData].some((i) => (i.looTon || 0) > 0 || (i.looQty || 0) > 0);
+  }, [stData, ltData]);
+
+  const activeSourceItems = useMemo(() => {
+    const all = [...stData, ...ltData];
+    return hasAnyLooOrder
+      ? all.filter((i) => (i.looTon || 0) > 0 || (i.looQty || 0) > 0)
+      : all;
+  }, [stData, ltData, hasAnyLooOrder]);
+
+  const itemMatchesGudang = (item: LooComparisonItem, g: string): boolean => {
+    if (item.gudangBreakdown && item.gudangBreakdown[g]) return true;
+    if (item.gudangs && item.gudangs.includes(g)) return true;
+    if (item.gudang && item.gudang !== '-') {
+      return item.gudang.split(',').map((s) => s.trim()).includes(g);
+    }
+    return false;
+  };
+
   // 1. Calculate per-warehouse recaps for summary indicators & dropdown list
   const warehouseRecaps = useMemo<LooWarehouseRecap[]>(() => {
     const gudangSet = new Set<string>();
@@ -135,24 +157,19 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
       });
     }
 
-    const scanItems = (items: LooComparisonItem[]) => {
-      items.forEach((item) => {
-        if (item.gudangBreakdown) {
-          Object.keys(item.gudangBreakdown).forEach((g) => gudangSet.add(g));
-        }
-        if (item.gudangs && item.gudangs.length > 0) {
-          item.gudangs.forEach((g) => gudangSet.add(g));
-        } else if (item.gudang && item.gudang !== '-') {
-          item.gudang.split(',').forEach((g) => {
-            const trimmed = g.trim();
-            if (trimmed) gudangSet.add(trimmed);
-          });
-        }
-      });
-    };
-
-    scanItems(stData);
-    scanItems(ltData);
+    activeSourceItems.forEach((item) => {
+      if (item.gudangBreakdown) {
+        Object.keys(item.gudangBreakdown).forEach((g) => gudangSet.add(g));
+      }
+      if (item.gudangs && item.gudangs.length > 0) {
+        item.gudangs.forEach((g) => gudangSet.add(g));
+      } else if (item.gudang && item.gudang !== '-') {
+        item.gudang.split(',').forEach((g) => {
+          const trimmed = g.trim();
+          if (trimmed) gudangSet.add(trimmed);
+        });
+      }
+    });
 
     const gudangList = Array.from(gudangSet).filter(Boolean).sort();
 
@@ -164,12 +181,10 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
       let itemLoo = 0;
       let count = 0;
 
-      const processItem = (item: LooComparisonItem) => {
-        const hasBreakdown = item.gudangBreakdown && item.gudangBreakdown[g];
-        const inGudangs = item.gudangs && item.gudangs.includes(g);
-        const inGudangStr = item.gudang && item.gudang.includes(g);
+      activeSourceItems.forEach((item) => {
+        const hasBreakdown = Boolean(item.gudangBreakdown && item.gudangBreakdown[g]);
 
-        if (hasBreakdown || inGudangs || inGudangStr) {
+        if (itemMatchesGudang(item, g)) {
           count++;
           if (hasBreakdown && item.gudangBreakdown) {
             const b = item.gudangBreakdown[g];
@@ -181,10 +196,7 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
           }
           itemLoo += item.looTon || 0;
         }
-      };
-
-      stData.forEach(processItem);
-      ltData.forEach(processItem);
+      });
 
       const fgTon = pipeCap ? pipeCap.fgLt + pipeCap.fgSt : itemFg;
       const wipTon = pipeCap ? pipeCap.wipLt + pipeCap.wipSt : itemWip;
@@ -208,17 +220,17 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
 
       return {
         gudang: g,
-        fgTon: Number(fgTon.toFixed(2)),
-        wipTon: Number(wipTon.toFixed(2)),
-        totalStockTon: Number(totalStockTon.toFixed(2)),
-        looTon: Number(looTon.toFixed(2)),
-        selisihTon: Number(selisihTon.toFixed(2)),
+        fgTon: Number(fgTon.toFixed(3)),
+        wipTon: Number(wipTon.toFixed(3)),
+        totalStockTon: Number(totalStockTon.toFixed(3)),
+        looTon: Number(looTon.toFixed(3)),
+        selisihTon: Number(selisihTon.toFixed(3)),
         persenFulfillment: Number(persenFulfillment.toFixed(1)),
         itemCount: count,
         status,
       };
     });
-  }, [pipeCapacities, stData, ltData]);
+  }, [pipeCapacities, activeSourceItems]);
 
   // List of available gudang for filter dropdown
   const availableGudangs = useMemo(() => {
@@ -228,51 +240,46 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
   // List of available customers for filter dropdown (based on selected warehouse)
   const availableCustomers = useMemo(() => {
     const custSet = new Set<string>();
-    [...stData, ...ltData].forEach((item) => {
-      if (selectedGudang !== 'ALL') {
-        const breakdown = item.gudangBreakdown?.[selectedGudang];
-        const inGudangs = item.gudangs && item.gudangs.includes(selectedGudang);
-        const inGudangStr = item.gudang && item.gudang.includes(selectedGudang);
-        if (!breakdown && !inGudangs && !inGudangStr) return;
+    activeSourceItems.forEach((item) => {
+      if (selectedGudang !== 'ALL' && !itemMatchesGudang(item, selectedGudang)) {
+        return;
       }
       if (item.customer && item.customer.trim()) {
         custSet.add(item.customer.trim());
       }
     });
     return ['ALL', ...Array.from(custSet).sort((a, b) => a.localeCompare(b))];
-  }, [stData, ltData, selectedGudang]);
+  }, [activeSourceItems, selectedGudang]);
 
   // 2. Material-level items for Stock vs LOO table and Top 15 Chart
   const stockLooItems = useMemo<LooTableItem[]>(() => {
-    const allItems = [...stData, ...ltData];
     const result: LooTableItem[] = [];
 
-    allItems.forEach((item) => {
+    activeSourceItems.forEach((item) => {
       let fgTon = item.fgTon || 0;
       let wipTon = item.wipTon || 0;
-      let totalStockTon = item.totalStockTon || (fgTon + wipTon);
-      let fgQty = item.fgQty || 0;
-      let wipQty = item.wipQty || 0;
-      let totalQty = item.totalQty || (fgQty + wipQty);
-      let looTon = item.looTon || 0;
-      let looQty = item.looQty || 0;
+      let totalStockTon = item.totalStockTon !== undefined && item.totalStockTon !== null ? item.totalStockTon : (fgTon + wipTon);
+      let fgQty = Math.round(item.fgQty || 0);
+      let wipQty = Math.round(item.wipQty || 0);
+      let totalQty = Math.round(item.totalQty !== undefined && item.totalQty !== null ? item.totalQty : (fgQty + wipQty));
+      const looTon = item.looTon || 0;
+      const looQty = Math.round(item.looQty || 0);
 
       if (selectedGudang !== 'ALL') {
-        const breakdown = item.gudangBreakdown?.[selectedGudang];
-        const inGudangs = item.gudangs && item.gudangs.includes(selectedGudang);
-        const inGudangStr = item.gudang && item.gudang.includes(selectedGudang);
-
-        if (!breakdown && !inGudangs && !inGudangStr) {
+        if (!itemMatchesGudang(item, selectedGudang)) {
           return;
         }
 
+        const breakdown = item.gudangBreakdown?.[selectedGudang];
         if (breakdown) {
           fgTon = breakdown.fgTon || 0;
           wipTon = breakdown.wipTon || 0;
-          totalStockTon = breakdown.totalStockTon || (fgTon + wipTon);
-          fgQty = breakdown.fgQty || 0;
-          wipQty = breakdown.wipQty || 0;
-          totalQty = (breakdown.totalQty ?? (fgQty + wipQty)) || 0;
+          totalStockTon = breakdown.totalStockTon !== undefined && breakdown.totalStockTon !== null
+            ? breakdown.totalStockTon
+            : (fgTon + wipTon);
+          fgQty = Math.round(breakdown.fgQty || 0);
+          wipQty = Math.round(breakdown.wipQty || 0);
+          totalQty = Math.round(breakdown.totalQty ?? breakdown.totalStockQty ?? (fgQty + wipQty));
         }
       }
 
@@ -289,23 +296,23 @@ export const LooFulfillmentView: React.FC<LooFulfillmentViewProps> = ({
           customer: item.customer,
           ukuran: item.ukuran,
           kodeMaterial: item.kodeMaterial,
-          gudang: item.gudang,
+          gudang: selectedGudang !== 'ALL' ? selectedGudang : item.gudang,
           type: item.type,
           fgQty,
-          fgTon: Number(fgTon.toFixed(2)),
+          fgTon: Number(fgTon.toFixed(3)),
           wipQty,
-          wipTon: Number(wipTon.toFixed(2)),
+          wipTon: Number(wipTon.toFixed(3)),
           totalQty,
-          totalStockTon: Number(totalStockTon.toFixed(2)),
+          totalStockTon: Number(totalStockTon.toFixed(3)),
           looQty,
-          looTon: Number(looTon.toFixed(2)),
+          looTon: Number(looTon.toFixed(3)),
           persenFulfillment: Number(persenFulfillment.toFixed(1))
         });
       }
     });
 
     return result;
-  }, [stData, ltData, selectedGudang]);
+  }, [activeSourceItems, selectedGudang]);
 
   // Filtered items specifically for the detail table
   const tableFilteredItems = useMemo(() => {

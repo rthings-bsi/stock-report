@@ -267,7 +267,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
       if (looFile && canUploadLoo) {
         try {
-          looRows = await readExcelFile(looFile);
+          const sheetLoo = await readExcelFile(looFile, 'loo');
+          if (sheetLoo.length > 0) {
+            looRows = sheetLoo;
+          } else {
+            looRows = await readExcelFile(looFile);
+          }
         } catch (e: unknown) {
           const m = e instanceof Error ? e.message : 'Format file tidak dapat dibaca';
           throw new Error(`File Data LOO (${looFile.name}): ${m}`);
